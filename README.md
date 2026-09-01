@@ -1,15 +1,15 @@
-# test_1 — 금융시장 대시보드 (public)
+# for_dashboard — 금융시장 대시보드 (public)
 
 금리·환율·크레딧·헤지 프리미엄 등 197개 일별 시계열을 보여주는 정적 대시보드입니다.
 
 - **대시보드**: `index.html` (GitHub Pages로 서비스 — 설정 방법은 아래)
-- **데이터**: `data/dashboard_data.json` — private 저장소 `test1_data`의 GitHub Actions가
+- **데이터**: `data/dashboard_data.json` — private 저장소 `for_data`의 GitHub Actions가
   자동으로 생성·갱신하는 파생 데이터
 
 ## 데이터 흐름
 
 ```
-[private] test1_data                          [public] test_1 (이 저장소)
+[private] for_data                            [public] for_dashboard (이 저장소)
 data/data_info.xlsx  ──push──▶ GitHub Actions ──▶ data/dashboard_data.json ──▶ 대시보드
 (벤더 원본, 비공개)      (파생 데이터 생성·발행)      (최근 3년 요약만 공개)
 ```
@@ -33,7 +33,7 @@ data/data_info.xlsx  ──push──▶ GitHub Actions ──▶ data/dashboard
 
 이 저장소 → Settings → Pages → Source: **Deploy from a branch**,
 Branch: 기본 브랜치 / `/ (root)` 선택.
-이후 `https://hahajongha.github.io/test_1/` 에서 접속할 수 있습니다.
+이후 `https://hahajongha.github.io/for_dashboard/` 에서 접속할 수 있습니다.
 
 ## 로컬에서 열기
 
