@@ -1,10 +1,28 @@
-# test_1 — 금융시장 대시보드 (public)
+# test_1 — 금융 대시보드 98 (public)
 
-금리·환율·크레딧·헤지 프리미엄 등 197개 일별 시계열을 보여주는 정적 대시보드입니다.
+Windows 98 레트로 감성의 **대시보드 런처(바탕화면)** 와 그 안에서 실행되는
+대시보드들로 구성된 정적 사이트입니다.
 
-- **대시보드**: `index.html` (GitHub Pages로 서비스 — 설정 방법은 아래)
+- **메인 화면**: `index.html` — Win98 스타일 바탕화면. 아이콘을 더블클릭하면
+  해당 대시보드가 창으로 열립니다 (시작 메뉴·작업표시줄·창 이동/크기조절 지원)
+- **채권·금융시장 대시보드**: `dashboards/bond.html` — 금리·환율·크레딧·헤지 프리미엄 등
+  197개 일별 시계열 (바탕화면 아이콘 또는 직접 URL로 접근 가능)
 - **데이터**: `data/dashboard_data.json` — private 저장소 `test1_data`의 GitHub Actions가
   자동으로 생성·갱신하는 파생 데이터
+
+## 새 대시보드 추가하기
+
+1. `dashboards/` 폴더에 새 HTML 파일을 만듭니다 (예: `dashboards/fx.html`).
+   데이터는 `../data/...` 상대 경로로 읽습니다.
+2. `index.html`의 `APPS` 배열에 항목을 하나 추가합니다:
+
+```js
+{ id: "fx", name: "환율 대시보드", icon: "chart", type: "iframe",
+  url: "dashboards/fx.html", desktop: true, startmenu: true, w: 1200, h: 760 },
+```
+
+바탕화면 아이콘과 시작 메뉴에 자동으로 등록됩니다.
+(아이콘은 `ICONS`에 정의된 픽셀 SVG 키를 사용하며, 새 아이콘을 추가해도 됩니다.)
 
 ## 데이터 흐름
 
@@ -18,7 +36,7 @@ data/data_info.xlsx  ──push──▶ GitHub Actions ──▶ data/dashboard
 이 저장소에는 대시보드 표시에 필요한 파생 요약(최근 3년 시계열, 최신값/변화폭,
 수익률곡선 스냅샷)만 발행됩니다.
 
-## 대시보드 구성
+## 채권·금융시장 대시보드 구성
 
 | 섹션 | 내용 |
 |---|---|
