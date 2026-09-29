@@ -66,6 +66,7 @@ body {
   color: #fff; text-align: center; padding: 1px 3px;
   text-shadow: 1px 1px 0 rgba(0,0,0,.9);
   max-width: 82px; overflow-wrap: break-word;
+  word-break: keep-all;  /* 한글 라벨은 어절 단위로 줄바꿈 */
 }
 .dicon.selected .lbl { background: var(--sel); text-shadow: none; }
 .dicon.selected { border-color: rgba(255,255,255,.7); }
@@ -245,6 +246,8 @@ body {
    ============================================================ */
 const ICONS = {
   chart: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="2" y="3" width="28" height="26" fill="#c0c0c0"/><rect x="2" y="3" width="28" height="4" fill="#000080"/><rect x="26" y="4" width="3" height="2" fill="#c0c0c0"/><rect x="4" y="9" width="24" height="18" fill="#ffffff"/><rect x="4" y="25" width="24" height="1" fill="#808080"/><path d="M6 22 L11 16 L15 19 L21 12 L26 14" stroke="#c9302c" stroke-width="2" fill="none"/><path d="M6 24 L12 21 L17 23 L22 17 L26 19" stroke="#1c5cab" stroke-width="2" fill="none"/><rect x="2" y="3" width="1" height="26" fill="#ffffff"/><rect x="29" y="3" width="1" height="26" fill="#404040"/><rect x="2" y="28" width="28" height="1" fill="#404040"/></svg>`,
+  // 시그널: 가격선 + 저점 아래 ▲B(매수) + 고점 위 ▼S(매도)
+  signal: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="2" y="3" width="28" height="26" fill="#c0c0c0"/><rect x="2" y="3" width="28" height="4" fill="#000080"/><rect x="26" y="4" width="3" height="2" fill="#c0c0c0"/><rect x="4" y="9" width="24" height="18" fill="#ffffff"/><path d="M4 10 L12 19 L20 15 L27 21" stroke="#000000" stroke-width="2" stroke-linejoin="bevel" fill="none"/><rect x="12" y="21" width="1" height="1" fill="#c9302c"/><rect x="11" y="22" width="3" height="1" fill="#c9302c"/><rect x="10" y="23" width="5" height="1" fill="#c9302c"/><rect x="9" y="24" width="7" height="1" fill="#c9302c"/><rect x="5" y="20" width="3" height="1" fill="#c9302c"/><rect x="5" y="21" width="1" height="1" fill="#c9302c"/><rect x="8" y="21" width="1" height="1" fill="#c9302c"/><rect x="5" y="22" width="3" height="1" fill="#c9302c"/><rect x="5" y="23" width="1" height="1" fill="#c9302c"/><rect x="8" y="23" width="1" height="1" fill="#c9302c"/><rect x="5" y="24" width="3" height="1" fill="#c9302c"/><rect x="17" y="9" width="7" height="1" fill="#1c5cab"/><rect x="18" y="10" width="5" height="1" fill="#1c5cab"/><rect x="19" y="11" width="3" height="1" fill="#1c5cab"/><rect x="20" y="12" width="1" height="1" fill="#1c5cab"/><rect x="13" y="9" width="3" height="1" fill="#1c5cab"/><rect x="12" y="10" width="1" height="1" fill="#1c5cab"/><rect x="13" y="11" width="2" height="1" fill="#1c5cab"/><rect x="15" y="12" width="1" height="1" fill="#1c5cab"/><rect x="12" y="13" width="3" height="1" fill="#1c5cab"/><rect x="2" y="3" width="1" height="26" fill="#ffffff"/><rect x="29" y="3" width="1" height="26" fill="#404040"/><rect x="2" y="28" width="28" height="1" fill="#404040"/></svg>`,
   computer: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="4" y="3" width="24" height="18" fill="#c0c0c0"/><rect x="6" y="5" width="20" height="13" fill="#000080"/><rect x="7" y="6" width="18" height="11" fill="#008080"/><rect x="8" y="7" width="7" height="2" fill="#ffffff"/><rect x="8" y="10" width="12" height="1" fill="#c0f0f0"/><rect x="8" y="12" width="9" height="1" fill="#c0f0f0"/><rect x="13" y="21" width="6" height="2" fill="#808080"/><rect x="8" y="23" width="16" height="4" fill="#c0c0c0"/><rect x="9" y="24" width="9" height="1" fill="#808080"/><rect x="21" y="24" width="2" height="2" fill="#00a300"/><rect x="4" y="3" width="24" height="1" fill="#ffffff"/><rect x="4" y="3" width="1" height="18" fill="#ffffff"/><rect x="27" y="3" width="1" height="18" fill="#404040"/><rect x="4" y="20" width="24" height="1" fill="#404040"/></svg>`,
   notepad: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="6" y="2" width="20" height="28" fill="#ffffff"/><rect x="6" y="2" width="20" height="1" fill="#808080"/><rect x="6" y="2" width="1" height="28" fill="#808080"/><rect x="25" y="2" width="1" height="28" fill="#404040"/><rect x="6" y="29" width="20" height="1" fill="#404040"/><rect x="9" y="7" width="14" height="1" fill="#3355aa"/><rect x="9" y="10" width="14" height="1" fill="#3355aa"/><rect x="9" y="13" width="14" height="1" fill="#3355aa"/><rect x="9" y="16" width="10" height="1" fill="#3355aa"/><rect x="9" y="1" width="2" height="3" fill="#c0c0c0"/><rect x="15" y="1" width="2" height="3" fill="#c0c0c0"/><rect x="21" y="1" width="2" height="3" fill="#c0c0c0"/></svg>`,
   trash: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="8" y="8" width="16" height="20" fill="#c0c0c0"/><rect x="6" y="6" width="20" height="3" fill="#808080"/><rect x="13" y="3" width="6" height="3" fill="#808080"/><rect x="11" y="11" width="2" height="14" fill="#606060"/><rect x="15" y="11" width="2" height="14" fill="#606060"/><rect x="19" y="11" width="2" height="14" fill="#606060"/><rect x="8" y="8" width="1" height="20" fill="#ffffff"/><rect x="23" y="8" width="1" height="20" fill="#404040"/><rect x="8" y="27" width="16" height="1" fill="#404040"/></svg>`,
@@ -270,6 +273,11 @@ const APPS = [
     desktop: true, startmenu: true, w: 1220, h: 800,
   },
   {
+    id: "kospi", name: "KOSPI 시그널 랩", icon: "signal",
+    type: "iframe", url: "dashboards/kospi_signal.html",
+    desktop: true, startmenu: true, w: 1260, h: 820,
+  },
+  {
     id: "mycomputer", name: "내 컴퓨터", icon: "computer",
     type: "doc", desktop: true, startmenu: true, w: 460, h: 380,
     html: `
@@ -277,7 +285,7 @@ const APPS = [
       <table>
         <tr><th>시스템</th><td>Finance 98 대시보드 데스크톱</td></tr>
         <tr><th>저장소</th><td>hahajongha/for_dashboard (GitHub Pages)</td></tr>
-        <tr><th>데이터</th><td>data/dashboard_data.json — GitHub Actions 자동 갱신</td></tr>
+        <tr><th>데이터</th><td>data/dashboard_data.json, data/kospi_signal.json — GitHub Actions 자동 갱신</td></tr>
         <tr><th>설치된 프로그램</th><td id="appCount">-</td></tr>
       </table>
       <h2>설치된 대시보드</h2>
@@ -301,7 +309,10 @@ const APPS = [
       <ul>
         <li><code>index.html</code> — 이 바탕화면(런처)</li>
         <li><code>dashboards/bond.html</code> — 채권·금융시장 대시보드</li>
+        <li><code>dashboards/kospi_signal.html</code> — KOSPI 시그널 랩 (BOP 매수 · 이격도 매도 신호 검증)</li>
+        <li><code>dashboards/kospi_signal_engine.js</code> — 시그널 랩 계산 엔진 (지표·신호·백테스트)</li>
         <li><code>data/dashboard_data.json</code> — 자동 갱신되는 시계열 데이터</li>
+        <li><code>data/kospi_signal.json</code> — KOSPI 일별 시가·고가·저가·종가 (최근 3년, 자동 갱신)</li>
       </ul>
       <h2>새 대시보드 추가</h2>
       <p><code>dashboards/</code>에 HTML을 추가하고 <code>index.html</code>의
