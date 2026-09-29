@@ -1,56 +1,31 @@
-# test_1 — 금융 대시보드 98 (public)
+# for_dashboard — 금융 대시보드 98 (public)
 
 Windows 98 레트로 감성의 **대시보드 런처(바탕화면)** 와 그 안에서 실행되는
-대시보드들로 구성된 정적 사이트입니다.
+대시보드들로 구성된 정적 사이트입니다. → <https://hahajongha.github.io/for_dashboard/>
 
 - **메인 화면**: `index.html` — Win98 스타일 바탕화면. 아이콘을 더블클릭하면
   해당 대시보드가 창으로 열립니다 (시작 메뉴·작업표시줄·창 이동/크기조절 지원)
-- **채권·금융시장 대시보드**: `dashboards/bond.html` — 금리·환율·크레딧·헤지 프리미엄 등
-  197개 일별 시계열 (바탕화면 아이콘 또는 직접 URL로 접근 가능)
 - **KOSPI 시그널 랩**: `dashboards/kospi_signal.html` — Balance of Power(BOP) 매수 신호와
   50일 이동평균 이격도 매도 신호가 KOSPI 변곡점을 잡는지 검증하는 백테스트 대시보드
   (계산 엔진: `dashboards/kospi_signal_engine.js`)
-- **데이터**: `data/dashboard_data.json`, `data/kospi_signal.json` — private 저장소 `test1_data`의
-  GitHub Actions가 자동으로 생성·갱신하는 파생 데이터
+- **데이터**: `data/kospi_signal.json` — private 저장소 `for_data`에 엑셀을 올리면
+  GitHub Actions가 자동으로 생성·발행하는 파생 데이터 (최근 3년)
 
-## 새 대시보드 추가하기
-
-1. `dashboards/` 폴더에 새 HTML 파일을 만듭니다 (예: `dashboards/fx.html`).
-   데이터는 `../data/...` 상대 경로로 읽습니다.
-2. `index.html`의 `APPS` 배열에 항목을 하나 추가합니다:
-
-```js
-{ id: "fx", name: "환율 대시보드", icon: "chart", type: "iframe",
-  url: "dashboards/fx.html", desktop: true, startmenu: true, w: 1200, h: 760 },
-```
-
-바탕화면 아이콘과 시작 메뉴에 자동으로 등록됩니다.
-(아이콘은 `ICONS`에 정의된 픽셀 SVG 키를 사용하며, 새 아이콘을 추가해도 됩니다.)
-
-## 데이터 흐름
+## 데이터 갱신 (엑셀 업로드 → 자동 반영)
 
 ```
-[private] test1_data                          [public] test_1 (이 저장소)
-data/data_info.xlsx  ──push──▶ GitHub Actions ──▶ data/dashboard_data.json ──▶ 대시보드
-(벤더 원본, 비공개)      (파생 데이터 생성·발행)      (최근 3년 요약만 공개)
-  └ BOP 시트                                  ──▶ data/kospi_signal.json    ──▶ KOSPI 시그널 랩
-                                                      (최근 3년 KOSPI 일별 OHLC만 공개)
+[private] for_data                                     [public] for_dashboard (이 저장소)
+data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal.json ──▶ KOSPI 시그널 랩
+(벤더 원본, 비공개)          (파생 데이터 생성·발행)    (최근 3년 KOSPI 일별 OHLC만 공개)
 ```
+
+1. github.com → `hahajongha/for_data` → `data/kospi` 폴더 → **Add file → Upload files**
+2. 벤더 엑셀(양식 그대로, `BOP` 시트 포함)을 끌어다 놓고 **Commit changes**
+3. 약 2분 뒤 사이트에 반영됩니다 (for_data → Actions 탭에서 진행 상황 확인)
 
 원본 데이터는 데이터벤더 제공으로 **비공개 저장소에만 존재**하며,
-이 저장소에는 대시보드 표시에 필요한 파생 요약(최근 3년 시계열, 최신값/변화폭,
-수익률곡선 스냅샷)만 발행됩니다.
-
-## 채권·금융시장 대시보드 구성
-
-| 섹션 | 내용 |
-|---|---|
-| KPI 타일 | 국고 3Y/10Y, 기준금리, USDKRW, UST 10Y, VIX — 최신값·1D 변화·스파크라인 |
-| 수익률곡선 | 한국/미국/일본/독일/호주 — 최신 vs 1개월 전 vs 1년 전 |
-| 시계열 추이 | 197개 시리즈 중 최대 6개 선택 비교, 기간 프리셋(1M~3Y) |
-| 전체 시리즈 현황 | 카테고리별 최신값과 1D/1W/1M/3M/YTD/1Y 변화폭 테이블 |
-
-라이트/다크 테마를 지원하며 외부 라이브러리 없이 동작합니다.
+이 저장소에는 대시보드 표시에 필요한 파생 데이터(최근 3년)만 발행됩니다.
+자세한 규칙은 for_data 저장소의 README를 참고하세요.
 
 ## KOSPI 시그널 랩 구성
 
@@ -72,16 +47,31 @@ data/data_info.xlsx  ──push──▶ GitHub Actions ──▶ data/dashboard
 | 데이터 & 방법론 | 엑셀 업로드, 파싱 리포트, CSV 내보내기, 계산식·가정·한계 |
 
 - **데이터 범위**: 기본 데이터(`data/kospi_signal.json`)는 저장소 공개 정책에 따라 **최근 3년**만 포함합니다.
-- **엑셀 업로드로 전체 히스토리 분석**: 벤더 원본 양식 그대로(`BOP` 시트: 일자·시가·고가·저가·종가 …)
-  워크북을 올리면 원본 전체 기간(2000년~)으로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
-  어디에도 전송되지 않습니다 (브라우저 저장소에 보관, "기본 데이터로 복원"으로 삭제).
+- **엑셀 업로드로 전체 히스토리 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함)을 올리면
+  원본 전체 기간(2000년~)으로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
+  어디에도 전송되지 않습니다 (그 브라우저에만 보관, "기본 데이터로 복원"으로 삭제).
   엑셀 해석용 SheetJS 라이브러리만 첫 업로드 때 CDN에서 불러오며, 그 외 외부 라이브러리는 쓰지 않습니다.
+
+## 새 대시보드 추가하기
+
+1. `dashboards/` 폴더에 새 HTML 파일을 만듭니다 (예: `dashboards/fx.html`).
+   데이터는 `../data/...` 상대 경로로 읽습니다.
+2. `index.html`의 `APPS` 배열에 항목을 하나 추가합니다:
+
+```js
+{ id: "fx", name: "환율 대시보드", icon: "chart", type: "iframe",
+  url: "dashboards/fx.html", desktop: true, startmenu: true, w: 1200, h: 760 },
+```
+
+바탕화면 아이콘과 시작 메뉴에 자동으로 등록됩니다.
+(아이콘은 `ICONS`에 정의된 픽셀 SVG 키를 사용하며, 새 아이콘을 추가해도 됩니다.)
+원본 엑셀은 for_data 저장소의 `data/<대시보드>/` 폴더에 두고 빌드 스크립트를 추가합니다 (for_data README 참고).
 
 ## GitHub Pages 설정 (최초 1회)
 
 이 저장소 → Settings → Pages → Source: **Deploy from a branch**,
 Branch: 기본 브랜치 / `/ (root)` 선택.
-이후 `https://hahajongha.github.io/test_1/` 에서 접속할 수 있습니다.
+이후 `https://hahajongha.github.io/for_dashboard/` 에서 접속할 수 있습니다.
 
 ## 로컬에서 열기
 
