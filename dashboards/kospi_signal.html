@@ -524,7 +524,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
   <section class="tabpanel" id="tab-data" role="tabpanel" aria-labelledby="t-data" hidden>
     <section class="card">
       <h2>데이터 업로드</h2>
-      <div class="sub">Infomax 원본 엑셀을 양식 그대로 올립니다 (BOP 시트: 일자·시가·고가·저가·종가). 파일은 이 브라우저 안에서만 읽으며 어디로도 전송하지 않습니다. 사이트의 기본 데이터(최근 3년)는 비공개 데이터 저장소의 <code>data/kospi</code> 폴더에 엑셀을 올리면 자동으로 갱신됩니다.</div>
+      <div class="sub">Infomax 원본 엑셀을 양식 그대로 올립니다 (BOP 시트: 일자·시가·고가·저가·종가). 파일은 이 브라우저 안에서만 읽으며 어디로도 전송하지 않습니다. 사이트의 기본 데이터는 비공개 데이터 저장소의 <code>data/kospi</code> 폴더에 엑셀을 올리면 자동으로 갱신됩니다.</div>
       <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="엑셀 파일 선택 또는 끌어다 놓기">
         <b>엑셀 파일을 여기로 끌어다 놓거나 클릭해서 선택</b><br>
         <span class="hint">.xlsx · .xlsm · .xls — 전체 이력을 올리면 10Y·5Y 등 긴 기간 분석이 가능합니다</span>
@@ -905,10 +905,15 @@ function renderTab(t) {
 function onThemeChange() { markDirty(); renderTab(S.tab); }
 
 /* ---------- 헤더 ---------- */
+// 기본 데이터의 공개 범위 라벨: meta.lookback_days 가 있으면 '최근 N년', 없으면(전체 공개) '전체 기간'
+function scopeLabel(meta) {
+  const d = meta && meta.lookback_days;
+  return d > 0 ? `최근 ${Math.round(d / 365)}년` : "전체 기간";
+}
 function renderAsof() {
   if (!S.data) return;
   const D = S.data.dates, n = S.i1 - S.i0 + 1;
-  const src = S.src.kind === "upload" ? S.src.name : "기본 데이터 (최근 3년)";
+  const src = S.src.kind === "upload" ? S.src.name : `기본 데이터 (${scopeLabel(S.src.meta)})`;
   $("asof").textContent = `기준일 ${D[D.length - 1]} · 기간 ${S.start} ~ ${S.end} (${n.toLocaleString("ko-KR")}거래일) · ` +
     `${D.length.toLocaleString("ko-KR")}행 · 출처: ${src}`;
   $("foot").textContent = S.src.kind === "upload"
@@ -2042,7 +2047,9 @@ function renderData() {
     row("출처", `기본 데이터 — ${m.source || "data/kospi_signal.json"}`);
     row("생성 시각", m.generated_at ? m.generated_at.replace("T", " ").replace("Z", " UTC") : "–");
     row("행 수 · 기간", `${D.length.toLocaleString("ko-KR")}행 · ${D[0]} ~ ${D[D.length - 1]}`);
-    row("공개 범위", `최근 ${(m.lookback_days || 1095).toLocaleString("ko-KR")}일 — 전체 이력은 비공개이며 엑셀 업로드로 분석`);
+    row("공개 범위", m.lookback_days > 0
+      ? `최근 ${m.lookback_days.toLocaleString("ko-KR")}일 — 전체 이력은 엑셀 업로드로 분석`
+      : "원본 파일의 전체 기간");
     row("정규화", `중복 ${rp.duplicates || 0} · 제외 ${rp.dropped || 0} · 시/고/저 보정 ${rp.filledOHL || 0}`);
   }
   const P = S.p, dp = KSE.defaultPeriod(S.data, P);
@@ -2249,7 +2256,7 @@ function wire() {
     catch (e) { setStatus("기본 데이터를 불러오지 못했습니다 (data/kospi_signal.json). 업로드한 데이터를 그대로 유지합니다.", true); return; }
     store.del(KEY_UPLOAD); // 기본 데이터를 받은 뒤에만 저장된 업로드를 지움
     setData(d.data, d.src);
-    setStatus("기본 데이터(최근 3년)로 복원했습니다.");
+    setStatus(`기본 데이터(${scopeLabel(d.src && d.src.meta)})로 복원했습니다.`);
   });
   $("dlSignals").addEventListener("click", () => { if (S.bt) dlSignals(); });
   $("dlNav").addEventListener("click", () => { if (S.bt) dlNav(); });

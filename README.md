@@ -9,14 +9,14 @@ Windows 98 레트로 감성의 **대시보드 런처(바탕화면)** 와 그 안
   50일 이동평균 이격도 매도 신호가 KOSPI 변곡점을 잡는지 검증하는 백테스트 대시보드
   (계산 엔진: `dashboards/kospi_signal_engine.js`)
 - **데이터**: `data/kospi_signal.json` — private 저장소 `for_data`에 엑셀을 올리면
-  GitHub Actions가 자동으로 생성·발행하는 파생 데이터 (최근 3년)
+  GitHub Actions가 자동으로 생성·발행하는 KOSPI 일별 OHLC (원본 파일의 전체 기간)
 
 ## 데이터 갱신 (엑셀 업로드 → 자동 반영)
 
 ```
 [private] for_data                                     [public] for_dashboard (이 저장소)
 data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal.json ──▶ KOSPI 시그널 랩
-(벤더 원본, 비공개)          (파생 데이터 생성·발행)    (최근 3년 KOSPI 일별 OHLC만 공개)
+(벤더 원본, 비공개)          (파생 데이터 생성·발행)    (KOSPI 일별 OHLC 전체 기간 공개)
 ```
 
 1. github.com → `hahajongha/for_data` → `data/kospi` 폴더 → **Add file → Upload files**
@@ -24,7 +24,7 @@ data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal
 3. 약 2분 뒤 사이트에 반영됩니다 (for_data → Actions 탭에서 진행 상황 확인)
 
 원본 데이터는 데이터벤더 제공으로 **비공개 저장소에만 존재**하며,
-이 저장소에는 대시보드 표시에 필요한 파생 데이터(최근 3년)만 발행됩니다.
+이 저장소에는 대시보드 표시에 필요한 KOSPI 일별 시가·고가·저가·종가만 발행됩니다 (원본의 다른 시트는 발행하지 않음).
 자세한 규칙은 for_data 저장소의 README를 참고하세요.
 
 ## KOSPI 시그널 랩 구성
@@ -46,9 +46,10 @@ data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal
 | 최적 조합 | 두 지표 조합 전략을 표본 내(IS) 최적화 → 표본 외(OOS) 검증으로 과최적화 점검 |
 | 데이터 & 방법론 | 엑셀 업로드, 파싱 리포트, CSV 내보내기, 계산식·가정·한계 |
 
-- **데이터 범위**: 기본 데이터(`data/kospi_signal.json`)는 저장소 공개 정책에 따라 **최근 3년**만 포함합니다.
-- **엑셀 업로드로 전체 히스토리 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함)을 올리면
-  원본 전체 기간(2000년~)으로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
+- **데이터 범위**: 기본 데이터(`data/kospi_signal.json`)는 원본 파일의 **전체 기간**(2000년~)을 포함합니다.
+  공개 범위는 for_data 저장소 `scripts/build_kospi_signal_data.py`의 `PUBLIC_LOOKBACK_DAYS`로 조정합니다.
+- **엑셀 업로드로 바로 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함)을 올리면
+  발행을 기다리지 않고 그 파일로 바로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
   어디에도 전송되지 않습니다 (그 브라우저에만 보관, "기본 데이터로 복원"으로 삭제).
   엑셀 해석용 SheetJS 라이브러리만 첫 업로드 때 CDN에서 불러오며, 그 외 외부 라이브러리는 쓰지 않습니다.
 
