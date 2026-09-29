@@ -41,7 +41,6 @@
   const SQ252 = Math.sqrt(252);
 
   /* ---------- 공통 유틸 ---------- */
-  const isNum = (v) => typeof v === "number" && isFinite(v);
   function toNum(v) {
     if (typeof v === "number") return v;
     if (typeof v === "string") {
@@ -275,13 +274,13 @@
 
   function simulate(id, data, disp, bf, sf, P, i0, i1) {
     if (!STRAT[id]) throw new Error("알 수 없는 전략: " + id);
-    const c = data.c, o = data.o, D = data.dates, n = c.length, init = initOf(id, P);
+    const c = data.c, o = data.o, n = c.length, init = initOf(id, P);
     if (!(Number.isInteger(i0) && Number.isInteger(i1) && i0 >= 0 && i1 < n && i1 >= i0)) return stubResult(id, P, init, i0, i1);
-    const L = i1 - i0, exec = P.exec, base = P.base;
+    const L = i1 - i0, exec = P.exec;
     const rc = P.cashRate / 100 / 252, cost = P.costBp / 10000;
     const tgt = targets(id, bf, sf, disp, P, i0, i1, init);
     const pos = new Uint8Array(L + 1), nav = new Float64Array(L + 1), daily = new Float64Array(L + 1);
-    pos[0] = init; nav[0] = base;
+    pos[0] = init; nav[0] = P.base;
     // 완전 보유일은 모든 체결 방식에서 f = 1+R (BH와 비트 단위 동일 → 동일 전략의 초과성과는 정확히 0)
     let nSwitches = 0;
     for (let k = 1; k <= L; k++) {
