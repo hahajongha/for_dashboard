@@ -9,10 +9,10 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const DEFAULTS = {
     bopMa: 14, dispMa: 50, buyThr: -0.20, sellThr: 120, holdBuy: 60, holdSell: 60,
-    dipLevel: 100, exec: "nextOpen", costBp: 5, cashRate: 0, swingInit: 1, base: 1000,
+    dualMax: 95, maxWait: 0, gap: 10, exec: "nextOpen", costBp: 5, cashRate: 0, swingInit: 1, base: 1000,
     horizons: [5, 20, 60, 120], iters: 2000, seed: 42, maeH: 60,
   };
   const EXEC_MODES = ["nextOpen", "nextClose", "close"];
@@ -25,13 +25,13 @@
     { id: "S2", name: "이격도 매도 (N일 회피)", short: "이격도 매도", init: 1,
       desc: "평소 보유. S(이격도가 매도 임계치 위로 진입)에 매도해 '매도 후 회피(일)' 동안 현금, 이후 재매수. 회피 중 새 S가 나오면 회피 기간을 연장." },
     { id: "S3", name: "스윙: BOP 매수 ↔ 이격도 매도", short: "스윙", init: null,
-      desc: "B에 매수해 다음 S까지 보유, S에 매도해 다음 B까지 현금. 시작 상태는 '스윙 시작' 설정(보유/현금)." },
+      desc: "B에 매수해 다음 S까지 보유, S에 매도해 다음 B까지 현금. 'B 신호 최대 대기'(0 = 무기한, 기본)를 두면 그 기간 안에 B가 없을 때 자동 재매수 — 최대 대기 = 매도 후 현금 대기이면 S5와 같은 규칙. 시작 상태는 '스윙 시작' 설정(보유/현금)." },
     { id: "S4", name: "BOP 매수 + 과열 조기청산", short: "매수+조기청산", init: 0,
       desc: "S1과 같되 보유 중 S가 나오면 보유 기간과 관계없이 즉시 청산." },
     { id: "S5", name: "이격도 매도 + BOP 조기재진입", short: "매도+조기재진입", init: 1,
       desc: "S2와 같되 회피 중 B가 나오면 회피 기간과 관계없이 즉시 재매수." },
-    { id: "S6", name: "이중확인 매수 + 과열 청산", short: "이중확인", init: 0,
-      desc: "S4와 같되 B 당일 이격도가 '이중확인 이격도 상한' 이하일 때만 매수 (과열 구간의 BOP 약세는 무시)." },
+    { id: "S6", name: "이중확인(B⁺) 매수 + 과열 청산", short: "이중확인", init: 0,
+      desc: "평소 현금. B⁺(BOP 평균 ≤ 매수 기준선이면서 이격도 ≤ '이중 확인 이격도 상한'이 함께 처음 충족된 날)에 매수해 '매수 후 보유(일)' 동안 보유. 보유 중 새 B⁺면 연장, S가 나오면 즉시 청산." },
   ];
   const STRATEGY_IDS = STRATEGIES.map((s) => s.id);
   const SIGNAL_IDS = STRATEGY_IDS.filter((id) => id !== "BH");
@@ -67,7 +67,11 @@
     q.sellThr = numOr(q.sellThr, DEFAULTS.sellThr);
     q.holdBuy = intOr(q.holdBuy, DEFAULTS.holdBuy, 1);
     q.holdSell = intOr(q.holdSell, DEFAULTS.holdSell, 1);
-    q.dipLevel = numOr(q.dipLevel, DEFAULTS.dipLevel);
+    // dualMax: 이전 이름 dipLevel 도 받음
+    q.dualMax = numOr(p && p.dualMax != null ? p.dualMax : p && p.dipLevel != null ? p.dipLevel : undefined, DEFAULTS.dualMax);
+    delete q.dipLevel;
+    q.maxWait = intOr(q.maxWait, DEFAULTS.maxWait, 0);
+    q.gap = intOr(q.gap, DEFAULTS.gap, 1);
     q.exec = EXEC_MODES.indexOf(q.exec) >= 0 ? q.exec : DEFAULTS.exec;
     q.costBp = Math.max(0, numOr(q.costBp, DEFAULTS.costBp));
     q.cashRate = numOr(q.cashRate, DEFAULTS.cashRate);
@@ -209,17 +213,45 @@
     for (let i = 1; i < n; i++) { const x = a[i], y = a[i - 1]; if (x >= thr && y < thr && isFinite(x) && isFinite(y)) f[i] = 1; }
     return f;
   }
-  function combineSignals(rb, rs) { // 같은 날 B·S → S 우선(B 무시)
-    const n = rb.length, buyFlag = new Uint8Array(n), buy = [], sell = [], conflicts = [];
-    for (let i = 0; i < n; i++) {
-      if (rs[i]) { sell.push(i); if (rb[i]) conflicts.push(i); }
-      else if (rb[i]) { buyFlag[i] = 1; buy.push(i); }
+  /* B⁺: (BOP 평균 ≤ thr 이고 이격도 ≤ dmax) 가 전일 거짓 → 당일 참 (양일 모두 두 값이 유한) */
+  function crossDual(bm, disp, thr, dmax) {
+    const n = bm.length, f = new Uint8Array(n);
+    if (!isFinite(thr) || !isFinite(dmax)) return f;
+    for (let i = 1; i < n; i++) {
+      const b = bm[i], d = disp[i], pb = bm[i - 1], pd = disp[i - 1];
+      if (!(isFinite(b) && isFinite(d) && isFinite(pb) && isFinite(pd))) continue;
+      if (b <= thr && d <= dmax && !(pb <= thr && pd <= dmax)) f[i] = 1;
     }
-    return { buy, sell, buyFlag, sellFlag: rs, conflicts };
+    return f;
+  }
+  /* 신호 최소 간격: 직전에 채택된 같은 종류 신호와 gap 거래일 이상 떨어진 진입만 채택 (gap 1 = 모두 채택) */
+  function gapFilter(f, gap) {
+    const g = Math.max(1, gap | 0);
+    if (g <= 1) return f;
+    const n = f.length, out = new Uint8Array(n);
+    let last = -1e9;
+    for (let i = 0; i < n; i++) if (f[i] && i - last >= g) { out[i] = 1; last = i; }
+    return out;
+  }
+  function combineSignals(rb, rs, rd) { // 같은 날 B·S → S 우선(B 무시), B⁺도 같은 규칙
+    const n = rb.length, buyFlag = new Uint8Array(n), dualFlag = new Uint8Array(n), buy = [], sell = [], dual = [], conflicts = [];
+    for (let i = 0; i < n; i++) {
+      if (rs[i]) { sell.push(i); if (rb[i] || (rd && rd[i])) conflicts.push(i); continue; }
+      if (rb[i]) { buyFlag[i] = 1; buy.push(i); }
+      if (rd && rd[i]) { dualFlag[i] = 1; dual.push(i); }
+    }
+    return { buy, sell, dual, buyFlag, sellFlag: rs, dualFlag, conflicts };
+  }
+  function rawSignals(ind, P) {
+    return {
+      b: gapFilter(crossDown(ind.bopMa, P.buyThr), P.gap),
+      s: gapFilter(crossUp(ind.disp, P.sellThr), P.gap),
+      d: gapFilter(crossDual(ind.bopMa, ind.disp, P.buyThr, P.dualMax), P.gap),
+    };
   }
   function detectSignals(ind, p) {
-    const P = withDefaults(p);
-    return combineSignals(crossDown(ind.bopMa, P.buyThr), crossUp(ind.disp, P.sellThr));
+    const r = rawSignals(ind, withDefaults(p));
+    return combineSignals(r.b, r.s, r.d);
   }
 
   /* ---------- 기간 §4 ---------- */
@@ -242,19 +274,23 @@
   function initOf(id, P) { return id === "S3" ? P.swingInit : STRAT[id].init; }
 
   /* 목표 포지션: 기간 [i0,i1] 종가마다 결정, 기간 이전 신호는 무시 */
-  function targets(id, bf, sf, disp, P, i0, i1, init) {
-    const tgt = new Uint8Array(i1 - i0 + 1), Hb = P.holdBuy, Hs = P.holdSell, X = P.dipLevel;
-    let cur = init, until = -1;
+  /* F = { b: B 플래그, s: S 플래그, d: B⁺ 플래그 } (전체 이력 인덱스) */
+  function targets(id, F, P, i0, i1, init) {
+    const tgt = new Uint8Array(i1 - i0 + 1), Hb = P.holdBuy, Hs = P.holdSell, M = P.maxWait;
+    const bf = F.b, sf = F.s, df = F.d;
+    let cur = init, until = id === "S3" ? i0 + M : -1; // S3: 현금으로 시작하면 기간 시작일부터 대기 일수를 셈
     for (let t = i0, k = 0; t <= i1; t++, k++) {
       const B = bf[t] === 1, S = sf[t] === 1;
       switch (id) {
         case "BH": cur = 1; break;
         case "S1": if (B) { cur = 1; until = t + Hb; } else if (cur === 1 && t >= until) cur = 0; break;
         case "S2": if (S) { cur = 0; until = t + Hs; } else if (cur === 0 && t >= until) cur = 1; break;
-        case "S3": if (cur === 1 && S) cur = 0; else if (cur === 0 && B && !S) cur = 1; break;
+        case "S3": // S에 매도(대기 시작, 현금 중 새 S면 다시 셈) → B 또는 최대 대기(M>0) 경과 시 재매수
+          if (S) { cur = 0; until = t + M; } else if (cur === 0 && (B || (M > 0 && t >= until))) cur = 1;
+          break;
         case "S4":
         case "S6": {
-          const b = id === "S4" ? B : B && isFinite(disp[t]) && disp[t] <= X;
+          const b = id === "S4" ? B : !!df && df[t] === 1;
           if (S) cur = 0; else if (b) { cur = 1; until = t + Hb; } else if (cur === 1 && t >= until) cur = 0;
           break;
         }
@@ -272,13 +308,13 @@
     return { id, init, i0, i1, valid: false, exec: P.exec, nav, pos, tgt: new Uint8Array(0), daily: new Float64Array(1), trades: [], nSwitches: 0 };
   }
 
-  function simulate(id, data, disp, bf, sf, P, i0, i1) {
+  function simulate(id, data, F, P, i0, i1) {
     if (!STRAT[id]) throw new Error("알 수 없는 전략: " + id);
     const c = data.c, o = data.o, n = c.length, init = initOf(id, P);
     if (!(Number.isInteger(i0) && Number.isInteger(i1) && i0 >= 0 && i1 < n && i1 >= i0)) return stubResult(id, P, init, i0, i1);
     const L = i1 - i0, exec = P.exec;
     const rc = P.cashRate / 100 / 252, cost = P.costBp / 10000;
-    const tgt = targets(id, bf, sf, disp, P, i0, i1, init);
+    const tgt = targets(id, F, P, i0, i1, init);
     const pos = new Uint8Array(L + 1), nav = new Float64Array(L + 1), daily = new Float64Array(L + 1);
     pos[0] = init; nav[0] = P.base;
     // 완전 보유일은 모든 체결 방식에서 f = 1+R (BH와 비트 단위 동일 → 동일 전략의 초과성과는 정확히 0)
@@ -335,8 +371,9 @@
     return out;
   }
 
+  const flagsOf = (sig) => ({ b: sig.buyFlag, s: sig.sellFlag, d: sig.dualFlag });
   function runStrategy(id, data, ind, sig, p, i0, i1) {
-    return simulate(id, data, ind.disp, sig.buyFlag, sig.sellFlag, withDefaults(p), i0, i1);
+    return simulate(id, data, flagsOf(sig), withDefaults(p), i0, i1);
   }
 
   /* ---------- 성과 지표 §8 ---------- */
@@ -402,11 +439,12 @@
   function backtest(data, ind, sig, p, i0, i1, ids) {
     const P = withDefaults(p);
     const list = (ids || STRATEGY_IDS).filter((id) => id !== "BH");
-    const bh = simulate("BH", data, ind.disp, sig.buyFlag, sig.sellFlag, P, i0, i1);
+    const F = flagsOf(sig);
+    const bh = simulate("BH", data, F, P, i0, i1);
     bh.metrics = metricsCore(bh, bh, data, i0, i1, P);
     const results = { BH: bh };
     list.forEach((id) => {
-      const r = simulate(id, data, ind.disp, sig.buyFlag, sig.sellFlag, P, i0, i1);
+      const r = simulate(id, data, F, P, i0, i1);
       r.metrics = metricsCore(r, bh, data, i0, i1, P);
       results[id] = r;
     });
@@ -508,43 +546,91 @@
     return { side: sell ? "sell" : "buy", rows, events };
   }
 
+  /* 신호 후 평균 경로: 신호일 종가 기준 0~H거래일 누적 수익률 평균 (t+H ≤ i1 인 신호만) */
+  function avgPath(data, sigIdx, i0, i1, H) {
+    const c = data.c, path = new Float64Array(H + 1);
+    let cnt = 0;
+    (sigIdx || []).forEach((t) => {
+      if (t < i0 || t > i1 || t + H > i1) return;
+      cnt++;
+      for (let d = 0; d <= H; d++) path[d] += c[t + d] / c[t] - 1;
+    });
+    for (let d = 0; d <= H; d++) path[d] = cnt ? path[d] / cnt : NaN;
+    return { path, cnt };
+  }
+  function basePath(data, i0, i1, H) {
+    const idx = [];
+    for (let t = i0; t + H <= i1; t++) idx.push(t);
+    return avgPath(data, idx, i0, i1, H);
+  }
+  /* 방향 판정: 이벤트 스터디 한 행(보통 +20일)의 평균·적중률을 평상시(무조건부)와 비교
+     매수: 평균 +0.5%p 이상 & 적중률 +3%p 이상 → 작동 · 둘 다 유리 → 미약 · 하나만 → 엇갈림 · 둘 다 불리 → 작동 안 함
+     매도는 평균이 낮을수록·하락 비율이 높을수록 유리. 신호 10회 미만 → 표본 부족 */
+  function judge(side, row, minN) {
+    if (!row || !(row.n >= (minN || 10))) return "표본 부족";
+    const da = side === "sell" ? row.base - row.mean : row.mean - row.base, dh = row.hit - row.baseHit;
+    if (!(isFinite(da) && isFinite(dh))) return "표본 부족";
+    if (da >= 0.005 && dh >= 0.03) return "작동";
+    if (da > 0 && dh > 0) return "미약";
+    if (da > 0 || dh > 0) return "엇갈림";
+    return "작동 안 함";
+  }
+
   /* ---------- 임계치 그리드 · 최적 조합 §14 ---------- */
   function numList(list) {
     return (Array.isArray(list) ? list : []).map((v) => numOr(v, NaN)).filter((v) => isFinite(v));
   }
   function uniq(list) { const out = []; list.forEach((v) => { if (out.indexOf(v) < 0) out.push(v); }); return out; }
-  /* 기간 안에서만 S 우선 규칙 적용한 매수 플래그 (전략은 [i0,i1] 플래그만 읽음) */
-  function pairFlags(rb, rs, i0, i1) {
-    const bf = new Uint8Array(rb.length);
+  /* 기간 안에서만 S 우선 규칙 적용한 B·B⁺ 플래그 (전략은 [i0,i1] 플래그만 읽음) */
+  function pairFlags(rb, rs, rd, i0, i1) {
+    const n = rb.length, bf = new Uint8Array(n), df = new Uint8Array(n);
     let conflict = 0;
-    for (let t = Math.max(0, i0); t <= i1 && t < rb.length; t++) {
-      if (rb[t]) { if (rs[t]) conflict++; else bf[t] = 1; }
+    for (let t = Math.max(0, i0); t <= i1 && t < n; t++) {
+      if (rs[t]) { if (rb[t] || (rd && rd[t])) conflict++; continue; }
+      if (rb[t]) bf[t] = 1;
+      if (rd && rd[t]) df[t] = 1;
     }
-    return { bf, conflict };
+    return { F: { b: bf, s: rs, d: df }, conflict };
   }
+  const cntIn = (f, i0, i1) => { let s = 0; for (let t = Math.max(0, i0); t <= i1 && t < f.length; t++) s += f[t]; return s; };
 
+  /* 임계치 그리드: 행 = BOP 매수 임계치, 열 = 이격도 매도 임계치 (colKind "sell", 기본)
+     또는 B⁺ 이격도 상한 (colKind "dual": S6만, 매도 임계치는 현재 설정) */
   function grid(data, ind, p, i0, i1, opts) {
     opts = opts || {};
-    const P = withDefaults(p), disp = ind.disp;
+    const P = withDefaults(p), disp = ind.disp, dualCols = opts.colKind === "dual";
     const bopList = numList(opts.bopList), dispList = numList(opts.dispList);
-    const ids = (opts.ids || SIGNAL_IDS).filter((id) => id !== "BH" && STRAT[id]);
+    const ids = dualCols ? ["S6"] : (opts.ids || SIGNAL_IDS).filter((id) => id !== "BH" && STRAT[id]);
     const none = new Uint8Array(data.c.length);
-    const bh = simulate("BH", data, disp, none, none, P, i0, i1);
+    const bh = simulate("BH", data, { b: none, s: none, d: none }, P, i0, i1);
     const bhM = metricsCore(bh, bh, data, i0, i1, P);
-    const rawB = bopList.map((t) => crossDown(ind.bopMa, t)), rawS = dispList.map((t) => crossUp(disp, t));
-    const cntIn = (f) => { let s = 0; for (let t = Math.max(0, i0); t <= i1 && t < f.length; t++) s += f[t]; return s; };
+    const g = P.gap;
+    const rawB = bopList.map((t) => gapFilter(crossDown(ind.bopMa, t), g));
+    const curS = gapFilter(crossUp(disp, P.sellThr), g);
+    const rawS = dualCols ? dispList.map(() => curS) : dispList.map((t) => gapFilter(crossUp(disp, t), g));
+    const needD = ids.indexOf("S6") >= 0;
+    const rawD = bopList.map((bt) => dispList.map((ct) => (!needD ? null
+      : gapFilter(crossDual(ind.bopMa, disp, bt, dualCols ? ct : P.dualMax), g))));
     const cacheS1 = [], cacheS2 = [];
-    const run = (id, bf, sf) => { const r = simulate(id, data, disp, bf, sf, P, i0, i1); return metricsCore(r, bh, data, i0, i1, P); };
+    const run = (id, F) => { const r = simulate(id, data, F, P, i0, i1); return metricsCore(r, bh, data, i0, i1, P); };
     const cells = bopList.map((bt, bi) => dispList.map((st, di) => {
-      const pf = pairFlags(rawB[bi], rawS[di], i0, i1), cell = {};
+      const pf = pairFlags(rawB[bi], rawS[di], rawD[bi][di], i0, i1), cell = {};
       ids.forEach((id) => {
-        if (id === "S2") cell.S2 = cacheS2[di] || (cacheS2[di] = run("S2", pf.bf, rawS[di]));
-        else if (id === "S1" && !pf.conflict) cell.S1 = cacheS1[bi] || (cacheS1[bi] = run("S1", pf.bf, rawS[di]));
-        else cell[id] = run(id, pf.bf, rawS[di]);
+        if (id === "S2") cell.S2 = cacheS2[di] || (cacheS2[di] = run("S2", pf.F));
+        else if (id === "S1" && !pf.conflict) cell.S1 = cacheS1[bi] || (cacheS1[bi] = run("S1", pf.F));
+        else cell[id] = run(id, pf.F);
       });
       return cell;
     }));
-    return { bopList, dispList, ids, bh: bhM, counts: { buy: rawB.map(cntIn), sell: rawS.map(cntIn) }, cells };
+    return {
+      bopList, dispList, ids, colKind: dualCols ? "dual" : "sell", bh: bhM,
+      counts: {
+        buy: rawB.map((f) => cntIn(f, i0, i1)),
+        sell: dualCols ? null : rawS.map((f) => cntIn(f, i0, i1)),
+        dual: needD ? rawD.map((row) => row.map((f) => cntIn(f, i0, i1))) : null,
+      },
+      cells,
+    };
   }
 
   function bestMix(data, ind, p, i0, iSplit, i1, opts) {
@@ -552,35 +638,38 @@
     const P = withDefaults(p), disp = ind.disp, n = data.c.length;
     const metric = MIX_METRICS.indexOf(opts.metric) >= 0 ? opts.metric : "sharpe";
     const bops = uniq(numList(opts.bopList)), disps = uniq(numList(opts.dispList));
-    const rawB = bops.map((t) => crossDown(ind.bopMa, t)), rawS = disps.map((t) => crossUp(disp, t));
-    const curB = crossDown(ind.bopMa, P.buyThr), curS = crossUp(disp, P.sellThr);
+    const g = P.gap;
+    const rawB = bops.map((t) => gapFilter(crossDown(ind.bopMa, t), g)), rawS = disps.map((t) => gapFilter(crossUp(disp, t), g));
+    const rawD = bops.map((t) => gapFilter(crossDual(ind.bopMa, disp, t, P.dualMax), g));
+    const curB = gapFilter(crossDown(ind.bopMa, P.buyThr), g), curS = gapFilter(crossUp(disp, P.sellThr), g);
+    const curD = gapFilter(crossDual(ind.bopMa, disp, P.buyThr, P.dualMax), g);
     const none = new Uint8Array(n);
     const win = (a, b) => {
-      const bh = simulate("BH", data, disp, none, none, P, a, b);
+      const bh = simulate("BH", data, { b: none, s: none, d: none }, P, a, b);
       return { a, b, bh, bhM: metricsCore(bh, bh, data, a, b, P), valid: bh.valid && b - a >= 2 };
     };
     const FULL = win(i0, i1), IS = win(i0, iSplit), OOS = win(iSplit, i1);
-    const evalAt = (W, id, rb, rs) => {
+    const evalAt = (W, id, rb, rs, rd) => {
       if (!W.valid) return emptyMetrics();
-      const pf = pairFlags(rb, rs, W.a, W.b);
-      const r = simulate(id, data, disp, pf.bf, rs, P, W.a, W.b);
+      const pf = pairFlags(rb, rs, rd, W.a, W.b);
+      const r = simulate(id, data, pf.F, P, W.a, W.b);
       return metricsCore(r, W.bh, data, W.a, W.b, P);
     };
     return SIGNAL_IDS.map((id) => {
       const cands = [];
-      if (id === "S1") bops.forEach((t, bi) => cands.push({ buyThr: t, sellThr: null, rb: rawB[bi], rs: curS }));
-      else if (id === "S2") disps.forEach((t, di) => cands.push({ buyThr: null, sellThr: t, rb: curB, rs: rawS[di] }));
-      else bops.forEach((bt, bi) => disps.forEach((st, di) => cands.push({ buyThr: bt, sellThr: st, rb: rawB[bi], rs: rawS[di] })));
+      if (id === "S1") bops.forEach((t, bi) => cands.push({ buyThr: t, sellThr: null, rb: rawB[bi], rs: curS, rd: rawD[bi] }));
+      else if (id === "S2") disps.forEach((t, di) => cands.push({ buyThr: null, sellThr: t, rb: curB, rs: rawS[di], rd: curD }));
+      else bops.forEach((bt, bi) => disps.forEach((st, di) => cands.push({ buyThr: bt, sellThr: st, rb: rawB[bi], rs: rawS[di], rd: rawD[bi] })));
       let best = null, beat = 0;
       const vals = [];
       cands.forEach((cd) => {
-        const m = evalAt(IS, id, cd.rb, cd.rs), v = m[metric];
+        const m = evalAt(IS, id, cd.rb, cd.rs, cd.rd), v = m[metric];
         vals.push(v);
         if (m.excessCagr > 0) beat++;
         if (isFinite(v) && (best === null || v > best.value)) best = { cd, value: v, metrics: m };
       });
-      const cur = evalAt(FULL, id, curB, curS);
-      const oosM = best ? evalAt(OOS, id, best.cd.rb, best.cd.rs) : emptyMetrics();
+      const cur = evalAt(FULL, id, curB, curS, curD);
+      const oosM = best ? evalAt(OOS, id, best.cd.rb, best.cd.rs, best.cd.rd) : emptyMetrics();
       return {
         id, name: STRAT[id].name, metric, valid: IS.valid && OOS.valid,
         cur: { buyThr: P.buyThr, sellThr: P.sellThr, value: cur[metric], metrics: cur },
@@ -707,7 +796,7 @@
   return {
     VERSION, DEFAULTS, STRATEGIES, STRATEGY_IDS, SIGNAL_IDS, EXEC_MODES, EXEC_LABELS, METRIC_KEYS, MIX_METRICS,
     withDefaults, toISODate, normalizeData, computeIndicators, detectSignals, defaultPeriod, periodIndex,
-    runStrategy, backtest, metrics, yearly, eventStudy, grid, bestMix, parseWorkbookRows, mulberry32,
+    runStrategy, backtest, metrics, yearly, eventStudy, avgPath, basePath, judge, grid, bestMix, parseWorkbookRows, mulberry32,
     verdict: verdictOf, median,
   };
 });
