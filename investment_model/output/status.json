@@ -1,33 +1,31 @@
 {
  "task": "data_only",
- "updated_at": "2026-09-30T23:22:19+00:00",
- "status": "failed",
- "message": "데이터 가드 실패 2건 — 기존 데이터 유지",
+ "updated_at": "2026-09-30T23:35:46+00:00",
+ "status": "success",
+ "message": "데이터 갱신",
  "guards": {
-  "status": "FAIL",
-  "errors": 2,
+  "status": "OK",
+  "errors": 0,
   "warnings": 0,
-  "items": [
-   {
-    "level": "ERROR",
-    "area": "fred",
-    "msg": "BAMLH0A0HYM2 첫 관측일 늦어짐 2023-09-30 → 2023-10-02"
-   },
-   {
-    "level": "ERROR",
-    "area": "fred",
-    "msg": "BAMLC0A0CM 첫 관측일 늦어짐 2023-09-30 → 2023-10-02"
-   }
-  ]
+  "items": []
  },
- "validation": null,
+ "validation": {
+  "summary": {
+   "status": "PASS",
+   "errors": 0,
+   "warnings": 0,
+   "info": 3
+  },
+  "items": []
+ },
  "model_ran": false,
  "as_of": "2026-09-30",
- "market_data_date": "2026-09-29",
- "market_downloaded_at": "2026-09-30T12:51:50",
- "macro_data_date": "2026-09-29",
- "macro_updated_at": "2026-09-30T12:53:15",
- "data_as_of": "2026-09-29",
+ "runtime_sec": 38.5,
+ "market_data_date": "2026-09-30",
+ "market_downloaded_at": "2026-09-30T23:35:54",
+ "macro_data_date": "2026-09-30",
+ "macro_updated_at": "2026-09-30T23:36:09",
+ "data_as_of": "2026-09-30",
  "alfred_vintages": 12,
  "model": {
   "month": "2026-09",
@@ -38,6 +36,6 @@
   "run_at": "2026-09-30T13:03:00"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36790680862",
- "last_success_at": "2026-09-30T12:53:25"
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36791845224",
+ "last_success_at": "2026-09-30T23:35:46+00:00"
 }
