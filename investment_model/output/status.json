@@ -1,11 +1,28 @@
 {
- "task": "import",
- "updated_at": "2026-09-30T12:53:25",
- "status": "success",
- "message": "v1.0 패키지 원본 데이터 (GitHub Actions 첫 실행 전)",
- "guards": null,
+ "task": "data_only",
+ "updated_at": "2026-09-30T23:22:19+00:00",
+ "status": "failed",
+ "message": "데이터 가드 실패 2건 — 기존 데이터 유지",
+ "guards": {
+  "status": "FAIL",
+  "errors": 2,
+  "warnings": 0,
+  "items": [
+   {
+    "level": "ERROR",
+    "area": "fred",
+    "msg": "BAMLH0A0HYM2 첫 관측일 늦어짐 2023-09-30 → 2023-10-02"
+   },
+   {
+    "level": "ERROR",
+    "area": "fred",
+    "msg": "BAMLC0A0CM 첫 관측일 늦어짐 2023-09-30 → 2023-10-02"
+   }
+  ]
+ },
  "validation": null,
  "model_ran": false,
+ "as_of": "2026-09-30",
  "market_data_date": "2026-09-29",
  "market_downloaded_at": "2026-09-30T12:51:50",
  "macro_data_date": "2026-09-29",
@@ -21,5 +38,6 @@
   "run_at": "2026-09-30T13:03:00"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36790680862",
  "last_success_at": "2026-09-30T12:53:25"
 }
