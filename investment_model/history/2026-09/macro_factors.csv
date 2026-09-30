@@ -1,8 +1,8 @@
 ﻿factor,level,level_fmt,unit,chg_1m,chg_3m,chg_6m,chg_unit,z,pct,regime,detail,rule
 Growth,0.12,+0.12 (복합 z),z,0.05,-0.07,0.12,Δz,0.12,56.0,Stable,고용 3M평균 +71k · 실업률 4.1% · 산업생산 yoy +1.4% · 소매판매 yoy +5.4%,복합 z(10년 롤링)의 3개월 변화가 ±0.25를 넘으면 개선/악화
-Inflation,0.02,+0.02 (복합 z),z,0.0,-0.34,-0.19,Δz,0.02,20.0,Falling,근원CPI 3M연율 2.0% · 근원PCE yoy 3.1% · 5Y BEI 2.34% · 미시간 기대 4.0%,복합 z의 3개월 변화가 ±0.25를 넘으면 상승/하락
-Rates,5.24,10Y 5.24%,%,49.0,80.0,94.0,bp,1.88,100.0,Rising,2Y 4.92% · 5Y 5.06% · 30Y 5.56% · FF 3.88% · 10Y-2Y +37bp · 10Y-3M +101bp,10년물 3개월 변화가 ±25bp를 넘으면 상승/하락
-Credit,3.02,HY OAS 3.02%,%,39.0,27.0,-26.0,bp,-1.39,3.0,Stable,IG OAS 0.83% · Baa-10Y 1.46% (3M -7bp) — 국면·z·백분위는 장기 이력이 있는 Baa-10Y 기준,Baa-10Y 스프레드 3개월 변화가 ±15bp를 넘으면 악화/개선
-Volatility,16.1,VIX 16.1,pt,1.2,-0.4,-9.2,pt,-0.37,39.0,Normal,1M 평균 15.7 · 3M 평균 16.0 · VIX 기간구조: FRED 미제공,"VIX 1개월 평균 25 초과 High, 15 미만 Low"
-Liquidity,-0.56,NFCI -0.56,idx,-0.0,-0.04,-0.1,Δ,-0.6,29.0,Loose,Fed 자산 yoy +2.1% · 지준 yoy -2.4% · RRP $11bn · SLOOS 대출기준 강화 +8.1%,"NFCI 0 초과 Tight, −0.4 미만 Loose"
+Inflation,0.01,+0.01 (복합 z),z,0.05,-0.3,-0.19,Δz,0.01,20.0,Falling,근원CPI 3M연율 2.0% · 근원PCE yoy 3.0% · 5Y BEI 2.36% · 미시간 기대 4.0%,복합 z의 3개월 변화가 ±0.25를 넘으면 상승/하락
+Rates,5.26,10Y 5.26%,%,51.0,82.0,96.0,bp,1.9,100.0,Rising,2Y 4.89% · 5Y 5.06% · 30Y 5.59% · FF 3.88% · 10Y-2Y +41bp · 10Y-3M +109bp,10년물 3개월 변화가 ±25bp를 넘으면 상승/하락
+Credit,3.08,HY OAS 3.08%,%,45.0,33.0,-20.0,bp,-1.39,3.0,Stable,IG OAS 0.84% · Baa-10Y 1.46% (3M -7bp) — 국면·z·백분위는 장기 이력이 있는 Baa-10Y 기준,Baa-10Y 스프레드 3개월 변화가 ±15bp를 넘으면 악화/개선
+Volatility,16.0,VIX 16.0,pt,1.1,-0.4,-9.2,pt,-0.38,39.0,Normal,1M 평균 15.7 · 3M 평균 16.0 · VIX 기간구조: FRED 미제공,"VIX 1개월 평균 25 초과 High, 15 미만 Low"
+Liquidity,-0.55,NFCI -0.55,idx,0.01,-0.03,-0.09,Δ,-0.54,34.0,Loose,Fed 자산 yoy +2.1% · 지준 yoy -2.4% · RRP $12bn · SLOOS 대출기준 강화 +8.1%,"NFCI 0 초과 Tight, −0.4 미만 Loose"
 Dollar,120.3,Broad USD 120.3,idx,1.49,-0.49,-0.58,%,0.56,69.0,Stable,FRED Broad Dollar Index 사용 (ICE DXY는 FRED 미제공),3개월 변화가 ±2%를 넘으면 상승/하락

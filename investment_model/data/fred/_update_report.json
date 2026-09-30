@@ -1,6 +1,6 @@
 {
  "mode": "csv",
- "updated_at": "2026-09-30T23:36:09",
+ "updated_at": "2026-09-30T23:46:18",
  "series": [
   {
    "id": "INDPRO",
@@ -53,8 +53,8 @@
    "first": "1947-01-01",
    "last": "2026-04-01",
    "n": 318,
-   "revised": 22,
-   "revised_max_abs": 138.3979999999974
+   "revised": 0,
+   "revised_max_abs": 0.0
   },
   {
    "id": "CPIAUCSL",

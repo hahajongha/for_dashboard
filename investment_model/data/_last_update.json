@@ -53,8 +53,8 @@
    "first": "1947-01-01",
    "last": "2026-04-01",
    "n": 318,
-   "revised": 22,
-   "revised_max_abs": 138.3979999999974
+   "revised": 0,
+   "revised_max_abs": 0.0
   },
   {
    "id": "CPIAUCSL",
@@ -303,76 +303,76 @@
  "vintage_report": [
   {
    "id": "INDPRO",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PAYEMS",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "UNRATE",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "RSXFS",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "GDPC1",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-04-01"
   },
   {
    "id": "CPIAUCSL",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "CPILFESL",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PCEPI",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PCEPILFE",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "MICH",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-08-01"
   },
   {
    "id": "NFCI",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-09-25"
   },
   {
    "id": "ANFCI",
-   "status": "alfred_csv",
+   "status": "alfred_cache",
    "vintage_date": "2026-09-30",
    "last_obs": "2026-09-25"
   }
  ],
- "updated_at": "2026-09-30T23:36:19"
+ "updated_at": "2026-09-30T23:46:20"
 }

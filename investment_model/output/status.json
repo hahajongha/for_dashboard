@@ -1,8 +1,8 @@
 {
- "task": "data_only",
- "updated_at": "2026-09-30T23:35:46+00:00",
+ "task": "model_run",
+ "updated_at": "2026-09-30T23:46:03+00:00",
  "status": "success",
- "message": "데이터 갱신",
+ "message": "데이터 + 모델 갱신",
  "guards": {
   "status": "OK",
   "errors": 0,
@@ -14,28 +14,28 @@
    "status": "PASS",
    "errors": 0,
    "warnings": 0,
-   "info": 3
+   "info": 2
   },
   "items": []
  },
- "model_ran": false,
+ "model_ran": true,
  "as_of": "2026-09-30",
- "runtime_sec": 38.5,
+ "runtime_sec": 33.9,
  "market_data_date": "2026-09-30",
- "market_downloaded_at": "2026-09-30T23:35:54",
+ "market_downloaded_at": "2026-09-30T23:46:09",
  "macro_data_date": "2026-09-30",
- "macro_updated_at": "2026-09-30T23:36:09",
+ "macro_updated_at": "2026-09-30T23:46:18",
  "data_as_of": "2026-09-30",
  "alfred_vintages": 12,
  "model": {
   "month": "2026-09",
-  "data_as_of": "2026-09-29",
+  "data_as_of": "2026-09-30",
   "rebalance_date": "2026-10-01",
   "target_month": "2026-10",
   "status": "OK (warnings)",
-  "run_at": "2026-09-30T13:03:00"
+  "run_at": "2026-09-30T23:46:37"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36791845224",
- "last_success_at": "2026-09-30T23:35:46+00:00"
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36792739505",
+ "last_success_at": "2026-09-30T23:46:03+00:00"
 }
