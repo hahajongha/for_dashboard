@@ -42,7 +42,11 @@ def _read_market(d: Path, f: str):
 def _read_series(p: Path):
     if not p.exists():
         return None
-    df = pd.read_csv(p, index_col=0, parse_dates=True)
+    df = pd.read_csv(p, index_col=0)
+    try:
+        df.index = pd.to_datetime(df.index, format="ISO8601")
+    except (ValueError, TypeError):
+        pass  # 날짜 인덱스가 아닌 파일(예: PFF 보유 종목)
     return df.iloc[:, 0] if df.shape[1] else pd.Series(dtype=float)
 
 
@@ -154,10 +158,19 @@ def check_fred(cfg, old: Path, new: Path, as_of, rep: Report):
             rep.add("ERROR", "fred", f"{sid} 중복 관측일")
         if o is not None and len(o.dropna()):
             o = o.dropna()
-            if len(n) < len(o):
-                rep.add(lvl, "fred", f"{sid} 행 수 감소 {len(o)} → {len(n)}")
-            if n.index.min() > o.index.min():
-                rep.add(lvl, "fred", f"{sid} 첫 관측일 늦어짐 {o.index.min().date()} → {n.index.min().date()}")
+            if "3Y history" in (s.get("note") or ""):
+                # ICE BofA OAS: FRED가 최근 3년만 제공(이동 창) → 첫 관측일이 매일 뒤로 밀리는 것이 정상.
+                # 대신 이력 길이(약 3년)와 행 수가 크게 줄지 않았는지만 확인
+                span = (n.index.max() - n.index.min()).days
+                if span < 2.5 * 365:
+                    rep.add(lvl, "fred", f"{sid} 이력 {span}일 — 3년 이동 창보다 짧음")
+                if len(n) < 0.95 * len(o):
+                    rep.add(lvl, "fred", f"{sid} 행 수 감소 {len(o)} → {len(n)}")
+            else:
+                if len(n) < len(o):
+                    rep.add(lvl, "fred", f"{sid} 행 수 감소 {len(o)} → {len(n)}")
+                if n.index.min() > o.index.min():
+                    rep.add(lvl, "fred", f"{sid} 첫 관측일 늦어짐 {o.index.min().date()} → {n.index.min().date()}")
             if n.index.max() < o.index.max():
                 rep.add(lvl, "fred", f"{sid} 최근 관측일 후퇴 {o.index.max().date()} → {n.index.max().date()}")
         if s.get("revisable"):

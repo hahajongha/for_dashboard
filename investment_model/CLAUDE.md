@@ -35,7 +35,7 @@
 | K-10 (버전) | [현재] | `requirements.lock` (Python 3.12, pandas 3.0.2, numpy 2.4.4, cvxpy 1.9.3, clarabel 0.11.1, scipy 1.18.1, yfinance 1.7.0) |
 | 관측일·이용가능일 저장소 | [현재] 기록만 | `scripts/fred_pit.py` → `data/fred_pit/<ID>.csv` (주간·월간·분기 16종, 추가 전용). `available_basis` = alfred_vintage / release_rule_est(추정) / first_seen(수정치). **모델은 읽지 않음** — 백테스트 적용은 methodology 변경(승인 필요) |
 | FRED | [결정] | 키 없는 CSV·ALFRED 경로(`fred_mode=csv`) 유지. API 키 미사용 |
-| 워크플로 | [부분] 러너 미실행 | 저장소 루트 `.github/workflows/`: `update-investment-data.yml`(수동), `investment-model-monthly.yml`(매월 1~5일 22:17 UTC), `_investment-model-pipeline.yml`(공통), `investment-model-tests.yml`(골든) |
+| 워크플로 | [부분] 러너 접속 확인 (2026-09-30 첫 실행: yfinance 32종·FRED 33/33·ALFRED 12 다운로드 성공, ICE BofA 3년 이동 창 가드 오탐으로 실패 → 수정) | 저장소 루트 `.github/workflows/`: `update-investment-data.yml`(수동), `investment-model-monthly.yml`(매월 1~5일 22:17 UTC), `_investment-model-pipeline.yml`(공통), `investment-model-tests.yml`(골든) |
 | 골든 테스트 | [현재] | CI가 `data/`를 갱신하므로 `python scripts/golden_ci.py`로 실행 — `tests/fixtures/taa_pm_repo_v1.0.zip`(v1.0 원본)의 data·history·params로 임시 복사본에서 `tests/check_golden.py`, `check_rebalance_parity.py` 실행 |
 
 아래 "GitHub 저장소·Pages·Actions 현재 없음", "비공개 저장소 권장" 문구는 이사 시점 기록이며 위 표가 현재 상태입니다.
