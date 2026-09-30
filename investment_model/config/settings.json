@@ -1,0 +1,32 @@
+{
+ "system_version": "v1.0",
+ "fred_mode": "csv",
+ "use_alfred_vintage": true,
+ "server_host": "127.0.0.1",
+ "server_port": 8765,
+ "data_dir": "data",
+ "history_dir": "history",
+ "output_dir": "output",
+ "market_start": "2009-01-01",
+ "eval_start": "2011-12-31",
+ "backtest_start": "2014-12-31",
+ "validation": {
+  "stale_bdays_warn": 1,
+  "stale_bdays_error": 5,
+  "price_jump_warn": 0.2,
+  "price_jump_error": 0.4,
+  "dividend_warn_pct": 0.05,
+  "min_avg_volume": 50000,
+  "tr_check_tol": 0.005,
+  "min_history_months": 24,
+  "fred_daily_max_age_days": 10,
+  "fred_weekly_max_age_days": 21,
+  "fred_monthly_max_age_months": 3,
+  "fred_quarterly_max_age_months": 8
+ },
+ "commentary": {
+  "llm_enabled": false,
+  "llm_model": "claude-sonnet-5-5",
+  "max_tokens": 1500
+ }
+}

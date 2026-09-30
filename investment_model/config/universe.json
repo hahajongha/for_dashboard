@@ -1,0 +1,385 @@
+{
+ "universe_version": "v3.0 fixed 25-ETF universe",
+ "etfs": [
+  {
+   "ticker": "JEPQ",
+   "name": "JPMorgan Nasdaq Equity Premium Income ETF",
+   "asset_class": "Covered Call",
+   "opt_class": "CoveredCall",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2022-05-03"
+  },
+  {
+   "ticker": "GPIX",
+   "name": "Goldman Sachs S&P 500 Premium Income ETF",
+   "asset_class": "Covered Call",
+   "opt_class": "CoveredCall",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2023-10-24"
+  },
+  {
+   "ticker": "JEPI",
+   "name": "JPMorgan Equity Premium Income ETF",
+   "asset_class": "Covered Call",
+   "opt_class": "CoveredCall",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2020-05-20"
+  },
+  {
+   "ticker": "SCHD",
+   "name": "Schwab U.S. Dividend Equity ETF",
+   "asset_class": "Dividend",
+   "opt_class": "Dividend",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2011-10-20"
+  },
+  {
+   "ticker": "VYMI",
+   "name": "Vanguard International High Dividend Yield ETF",
+   "asset_class": "Dividend",
+   "opt_class": "Dividend",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2016-02-25"
+  },
+  {
+   "ticker": "VIG",
+   "name": "Vanguard Dividend Appreciation ETF",
+   "asset_class": "Dividend",
+   "opt_class": "Dividend",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2006-04-21"
+  },
+  {
+   "ticker": "VOO",
+   "name": "Vanguard S&P 500 ETF",
+   "asset_class": "Equity",
+   "opt_class": "Equity",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2010-09-07"
+  },
+  {
+   "ticker": "QQQM",
+   "name": "Invesco NASDAQ 100 ETF",
+   "asset_class": "Equity",
+   "opt_class": "Equity",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2020-10-13"
+  },
+  {
+   "ticker": "VEA",
+   "name": "Vanguard FTSE Developed Markets ETF",
+   "asset_class": "Equity",
+   "opt_class": "Equity",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2007-07-20"
+  },
+  {
+   "ticker": "IEMG",
+   "name": "iShares Core MSCI Emerging Markets ETF",
+   "asset_class": "Equity",
+   "opt_class": "Equity",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2012-10-18"
+  },
+  {
+   "ticker": "SGOV",
+   "name": "iShares 0-3 Month Treasury Bond ETF",
+   "asset_class": "Cash",
+   "opt_class": "Cash",
+   "duration": 0.12,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2020-05-26"
+  },
+  {
+   "ticker": "VGSH",
+   "name": "Vanguard Short-Term Treasury ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 1.86,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2009-11-19"
+  },
+  {
+   "ticker": "VGIT",
+   "name": "Vanguard Intermediate-Term Treasury ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 4.85,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2009-11-19"
+  },
+  {
+   "ticker": "VGLT",
+   "name": "Vanguard Long-Term Treasury ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 13.52,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2009-11-19"
+  },
+  {
+   "ticker": "SCHP",
+   "name": "Schwab U.S. TIPS ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 6.34,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2010-08-05"
+  },
+  {
+   "ticker": "VCIT",
+   "name": "Vanguard Intermediate-Term Corporate Bond ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 5.96,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2009-11-19"
+  },
+  {
+   "ticker": "USHY",
+   "name": "iShares Broad USD High Yield Corporate Bond ETF",
+   "asset_class": "Treasury / Bond",
+   "opt_class": "Bond",
+   "duration": 2.95,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2017-10-25"
+  },
+  {
+   "ticker": "JAAA",
+   "name": "Janus Henderson AAA CLO ETF",
+   "asset_class": "CLO AAA",
+   "opt_class": "CLO",
+   "duration": 0.14,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2020-10-16"
+  },
+  {
+   "ticker": "JBBB",
+   "name": "Janus Henderson B-BBB CLO ETF",
+   "asset_class": "CLO BBB",
+   "opt_class": "CLO",
+   "duration": 0.16,
+   "duration_source": "Morningstar 2026-09",
+   "inception": "2022-01-11"
+  },
+  {
+   "ticker": "PFF",
+   "name": "iShares Preferred and Income Securities ETF",
+   "asset_class": "Preferred",
+   "opt_class": "Preferred",
+   "duration": 5.4,
+   "duration_source": "Proxy: FPE effective duration 5.42 (PFF not reported)",
+   "inception": "2007-03-26"
+  },
+  {
+   "ticker": "DBMF",
+   "name": "iMGP DBi Managed Futures Strategy ETF",
+   "asset_class": "Alternative",
+   "opt_class": "Alt",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2019-05-07"
+  },
+  {
+   "ticker": "PDBC",
+   "name": "Invesco Optimum Yield Diversified Commodity Strategy No K-1 ETF",
+   "asset_class": "Real Asset",
+   "opt_class": "RealAsset",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2014-11-07"
+  },
+  {
+   "ticker": "SCHH",
+   "name": "Schwab U.S. REIT ETF",
+   "asset_class": "Real Asset",
+   "opt_class": "RealAsset",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2011-01-13"
+  },
+  {
+   "ticker": "IGF",
+   "name": "iShares Global Infrastructure ETF",
+   "asset_class": "Real Asset",
+   "opt_class": "RealAsset",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2007-12-10"
+  },
+  {
+   "ticker": "GLDM",
+   "name": "SPDR Gold MiniShares",
+   "asset_class": "Real Asset",
+   "opt_class": "RealAsset",
+   "duration": null,
+   "duration_source": null,
+   "inception": "2018-06-25"
+  }
+ ],
+ "asset_class_order": [
+  "Covered Call",
+  "Dividend",
+  "Equity",
+  "Cash",
+  "Treasury / Bond",
+  "CLO AAA",
+  "CLO BBB",
+  "Preferred",
+  "Alternative",
+  "Real Asset"
+ ],
+ "sleeves": {
+  "covered_call": [
+   "JEPI",
+   "JEPQ",
+   "GPIX"
+  ],
+  "pure_equity": [
+   "VOO",
+   "QQQM",
+   "VEA",
+   "IEMG"
+  ],
+  "dividend": [
+   "SCHD",
+   "VIG",
+   "VYMI"
+  ],
+  "credit_risk": [
+   "VCIT",
+   "USHY",
+   "JBBB",
+   "PFF"
+  ],
+  "clo_aaa": [
+   "JAAA"
+  ],
+  "defensive": [
+   "SGOV",
+   "VGSH",
+   "VGIT",
+   "VGLT",
+   "GLDM"
+  ],
+  "treasury_tips": [
+   "VGSH",
+   "VGIT",
+   "VGLT",
+   "SCHP"
+  ],
+  "real_asset": [
+   "GLDM",
+   "PDBC",
+   "SCHH",
+   "IGF"
+  ],
+  "alternative": [
+   "DBMF"
+  ],
+  "cash": [
+   "SGOV"
+  ],
+  "duration_assets": [
+   "VGLT",
+   "VGIT",
+   "SCHP",
+   "VCIT",
+   "PFF"
+  ],
+  "risk_assets_extra": [
+   "SCHD",
+   "VIG",
+   "VYMI",
+   "SCHH",
+   "IGF"
+  ]
+ },
+ "regime_overlay": {
+  "rates_rising": [
+   {
+    "list": "duration_assets",
+    "tilt": -0.2
+   }
+  ],
+  "rates_falling": [
+   {
+    "list": "duration_assets",
+    "tilt": 0.2
+   }
+  ],
+  "infl_falling": [
+   {
+    "tickers": [
+     "VGSH",
+     "VGIT",
+     "VGLT"
+    ],
+    "tilt": 0.1
+   }
+  ],
+  "infl_rising": [
+   {
+    "tickers": [
+     "SCHP",
+     "PDBC",
+     "GLDM"
+    ],
+    "tilt": 0.1
+   }
+  ],
+  "credit_deteriorating": [
+   {
+    "list": "credit_risk",
+    "tilt": -0.2,
+    "vol_mult": 1.5
+   },
+   {
+    "list": "clo_aaa",
+    "tilt": -0.1,
+    "vol_mult": 1.5
+   }
+  ],
+  "credit_improving": [
+   {
+    "list": "credit_risk",
+    "tilt": 0.1
+   }
+  ],
+  "risk_off": [
+   {
+    "list": "risk_assets",
+    "tilt": -0.2,
+    "vol_mult": 1.3
+   },
+   {
+    "list": "defensive",
+    "tilt": 0.1
+   }
+  ]
+ },
+ "proxies": {
+  "SGOV": "BIL",
+  "GLDM": "IAU",
+  "USHY": "HYG",
+  "QQQM": "QQQ",
+  "VOO": "SPY"
+ },
+ "reference_tickers": [
+  "^IRX",
+  "XLF"
+ ],
+ "cash_ticker": "SGOV",
+ "equity_factor_ticker": "VOO",
+ "notes": "Fixed universe. Do not add/remove ETFs unless the Investment Universe itself is re-approved."
+}

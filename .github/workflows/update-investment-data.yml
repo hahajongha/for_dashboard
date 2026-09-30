@@ -1,0 +1,34 @@
+# 수동 실행 — 대시보드의 [Update Data ↗] 버튼이 이 페이지로 연결됩니다 (Run workflow).
+name: Update investment data
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "data_only = 데이터만 갱신 / model_run = 데이터 갱신 + 모델 실행"
+        type: choice
+        options: [data_only, model_run]
+        default: data_only
+      as_of:
+        description: "기준일 YYYY-MM-DD (비우면 자동 인식)"
+        required: false
+        default: ""
+      force:
+        description: "이미 기록된 월도 다시 계산 (마감 월 보호 해제)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: investment-model
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    if: github.ref_name == github.event.repository.default_branch
+    permissions:
+      contents: write
+      pages: write
+    uses: ./.github/workflows/_investment-model-pipeline.yml
+    with:
+      task: ${{ inputs.task }}
+      as_of: ${{ inputs.as_of }}
+      force: ${{ inputs.force }}

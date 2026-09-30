@@ -1,0 +1,25 @@
+{
+ "task": "import",
+ "updated_at": "2026-09-30T12:53:25",
+ "status": "success",
+ "message": "v1.0 패키지 원본 데이터 (GitHub Actions 첫 실행 전)",
+ "guards": null,
+ "validation": null,
+ "model_ran": false,
+ "market_data_date": "2026-09-29",
+ "market_downloaded_at": "2026-09-30T12:51:50",
+ "macro_data_date": "2026-09-29",
+ "macro_updated_at": "2026-09-30T12:53:15",
+ "data_as_of": "2026-09-29",
+ "alfred_vintages": 12,
+ "model": {
+  "month": "2026-09",
+  "data_as_of": "2026-09-29",
+  "rebalance_date": "2026-10-01",
+  "target_month": "2026-10",
+  "status": "OK (warnings)",
+  "run_at": "2026-09-30T13:03:00"
+ },
+ "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
+ "last_success_at": "2026-09-30T12:53:25"
+}

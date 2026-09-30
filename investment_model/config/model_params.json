@@ -1,0 +1,91 @@
+{
+ "model_version": "v3.0",
+ "param_source": "fixed_v3.0 (2026-09: annual walk-forward modal choice, ties broken by full-period composite)",
+ "signal": {
+  "lookback_months": 24,
+  "config": "A",
+  "weight_sets": {
+   "A": {
+    "ret": 0.25,
+    "ra": 0.25,
+    "inc": 0.25,
+    "mac": 0.25,
+    "pen": 0.25
+   },
+   "B": {
+    "ret": 0.35,
+    "ra": 0.25,
+    "inc": 0.15,
+    "mac": 0.1,
+    "pen": 0.25
+   },
+   "C": {
+    "ret": 0.2,
+    "ra": 0.2,
+    "inc": 0.35,
+    "mac": 0.1,
+    "pen": 0.3
+   }
+  },
+  "macro_sample_full": 24,
+  "macro_sample_min": 12
+ },
+ "expected_return": {
+  "kappa": 1.0,
+  "hist_window": 120,
+  "hist_min_obs": 36
+ },
+ "risk": {
+  "lam": 1.5,
+  "lam_cvar": 0.5,
+  "lam_conc": 0.5,
+  "cov_window": 60,
+  "cvar_window": 60,
+  "shrink": 0.3,
+  "cvar_alpha": 0.05
+ },
+ "income": {
+  "mode": "soft",
+  "target": 0.07,
+  "lam_income": 50.0,
+  "lam_utility": 0.5,
+  "rolling_12m": true,
+  "corridor_floor": 0.06,
+  "corridor_util_cap": 0.075,
+  "corridor_lam_floor": 5000.0
+ },
+ "caps": {
+  "single": 0.15,
+  "covered_call": 0.3,
+  "credit": 0.25,
+  "clo_aaa": 0.15,
+  "alt": 0.1,
+  "equity": 0.45,
+  "dividend": 0.35,
+  "real_asset": 0.25,
+  "cash_min": 0.03
+ },
+ "floors": {
+  "enabled": true,
+  "defensive": {
+   "Normal": 0.15,
+   "HighRisk": 0.2,
+   "Crisis": 0.3
+  },
+  "equity": {
+   "RiskOn": 0.15,
+   "Neutral": 0.1,
+   "RiskOff": 0.05
+  }
+ },
+ "rebalance": {
+  "band": 0.015,
+  "turnover_penalty": 0.001,
+  "tc_bps": 10
+ },
+ "walk_forward": {
+  "policy": "annual_manual",
+  "last_selection_year": 2026,
+  "selection_window_months": 36
+ }
+}

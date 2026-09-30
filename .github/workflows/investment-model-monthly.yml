@@ -1,0 +1,19 @@
+# 자동 실행 — 매월 1~5일 22:17 UTC. 기준일 = 직전 월 마지막 NYSE 거래일(K-2).
+# 이미 기록된 월은 건너뛰므로(K-4) 5번 중 첫 성공 1회만 결과를 만듭니다.
+name: Investment model monthly
+on:
+  schedule:
+    - cron: "17 22 1-5 * *"
+
+concurrency:
+  group: investment-model
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    permissions:
+      contents: write
+      pages: write
+    uses: ./.github/workflows/_investment-model-pipeline.yml
+    with:
+      task: monthly

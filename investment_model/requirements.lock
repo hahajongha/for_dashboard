@@ -1,0 +1,11 @@
+# CI 고정 버전 (CLAUDE.md K-10 검증 조합 + 실제 설치로 golden Δ=0 확인). Python 3.12.
+# requirements.txt(하한)는 로컬 실행용으로 그대로 둡니다.
+pandas==3.0.2
+numpy==2.4.4
+cvxpy==1.9.3
+clarabel==0.11.1
+scipy==1.18.1
+yfinance==1.7.0
+openpyxl==3.1.5
+requests==2.34.2
+tzdata==2026.4
