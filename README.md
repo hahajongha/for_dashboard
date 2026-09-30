@@ -1,214 +1,112 @@
-# TAA Income Quant PM System
+# for_dashboard — 금융 대시보드 98 (public)
 
-미국 상장 ETF 25종으로 구성한 멀티에셋 **인컴·배당 포트폴리오**를 매월 운용하기 위한 퀀트 시스템입니다.
+Windows 98 레트로 감성의 **대시보드 런처(바탕화면)** 와 그 안에서 실행되는
+대시보드들로 구성된 정적 사이트입니다. → <https://hahajongha.github.io/for_dashboard/>
 
-- 매월 월말 데이터로 다음 달 목표 비중(Target)을 계산합니다.
-- 실제 보유(Actual)와 비교해 리밸런싱 주문을 만듭니다.
+- **메인 화면**: `index.html` — Win98 스타일 바탕화면. 아이콘을 더블클릭하면
+  해당 대시보드가 창으로 열립니다 (시작 메뉴·작업표시줄·창 이동/크기조절 지원)
+- **KOSPI 시그널 랩**: `dashboards/kospi_signal.html` — Balance of Power(BOP) 매수 신호와
+  50일 이동평균 이격도 매도 신호가 KOSPI 변곡점을 잡는지 검증하는 백테스트 대시보드
+  (계산 엔진: `dashboards/kospi_signal_engine.js`, 엑셀 읽기: `dashboards/kospi_xlsx_lite.js`)
+- **TAA 인컴 포트폴리오**: `investment_model/` — 미국 ETF 25종 월간 인컴/배당 포트폴리오 모델(Python)과 대시보드.
+  데이터 갱신·모델 실행은 이 저장소의 GitHub Actions가 합니다 (아래 [TAA 인컴 포트폴리오](#taa-인컴-포트폴리오-investment_model) 참고)
+- **데이터**: `data/kospi_signal.json` — private 저장소 `for_data`에 엑셀을 올리면
+  GitHub Actions가 자동으로 생성·발행하는 KOSPI 일별 OHLC (원본 파일의 전체 기간)
 
-| 항목 | 값 |
+## 데이터 갱신 (엑셀 업로드 → 자동 반영)
+
+```
+[private] for_data                                     [public] for_dashboard (이 저장소)
+data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal.json ──▶ KOSPI 시그널 랩
+(벤더 원본, 비공개)          (파생 데이터 생성·발행)    (KOSPI 일별 OHLC 전체 기간 공개)
+```
+
+1. github.com → `hahajongha/for_data` → `data/kospi` 폴더 → **Add file → Upload files**
+2. 벤더 엑셀(양식 그대로, `BOP` 시트 포함)을 끌어다 놓고 **Commit changes**
+3. 약 2분 뒤 사이트에 반영됩니다 (for_data → Actions 탭에서 진행 상황 확인)
+
+원본 데이터는 데이터벤더 제공으로 **비공개 저장소에만 존재**하며,
+이 저장소에는 대시보드 표시에 필요한 KOSPI 일별 시가·고가·저가·종가만 발행됩니다 (원본의 다른 시트는 발행하지 않음).
+자세한 규칙은 for_data 저장소의 README를 참고하세요.
+
+## KOSPI 시그널 랩 구성
+
+두 지표로 KOSPI 변곡점을 확인합니다.
+
+- **매수(B)**: BOP(14일 평균)가 기준선(기본 −0.20, −0.20~−0.25 구간 검토) 아래로 내려서는 날
+  — BOP = (종가 − 시가) / (고가 − 저가) (엑셀 `Bulls − Bears` 수식과 동일)
+- **매도(S)**: 종가 / 50일 이동평균 × 100 (이격도)이 기준선(기본 120%, 120~130% 구간 검토) 이상으로 올라서는 날
+- **B⁺(이중 확인)**: B 조건과 "이격도 ≤ 상한(기본 95%)"이 함께 처음 충족된 날
+- 같은 신호는 **최소 간격**(기본 10거래일) 안에 다시 내지 않습니다 (1로 두면 모든 진입 — 이전 버전과 같은 신호)
+- 왼쪽 **설정 패널**에서 기간, 기준선·평균 기간, 보유/대기 일수, B 최대 대기, 이중 확인 상한,
+  세부 가정(최소 간격·체결 시점·비용·현금 수익률)을 입력하면 모든 탭에 적용되고 이 브라우저에 저장됩니다.
+  누적 성과는 **기준가 1000**으로 KOSPI Buy & Hold와 비교합니다.
+
+| 탭 | 내용 |
 |---|---|
-| 시스템 버전 | v1.0 |
-| 모델(엔진) 버전 | v3.0 |
-| 기준 결과 | 2026-09-29 데이터 → 2026-10 목표 (적용일 2026-10-01) |
-| 현재 실행 방식 | **로컬 PC** (Python + HTML) |
-| 이전 목표 | GitHub Actions 기반 클라우드 실행 — 진행 예정, 아래 로드맵 참고 |
+| 차트·신호 | 현재 상태 판정 문장, KOSPI·BOP 평균·이격도 차트 위 **B / S / B⁺ 신호(ON·OFF)**, 전략 매매 표시(보유 구간 음영·체결점), 신호 내역(행을 누르면 그 날짜로 이동) |
+| 성과·최적 조합 | 누적 성과(기준 1000)·낙폭, 전략 7종 성과표(평가 기준 선택·규칙 설명), **임계치 조합표**(칸을 누르면 그 기준선 적용), 연도별 수익률, 매매 내역, 과최적화 점검(IS → OOS) |
+| 신호 검증 | B·B⁺·S 판정 문장, 신호 후 0~60일 평균 경로, 신호 후 수익률 vs 평상시(p-value·방향 판정), 기준선별 비교 |
+| [데이터 · 계산 방법] 창 | 엑셀 업로드, 데이터 점검 결과, CSV 내보내기, 계산식·가정·유의사항 |
 
-> Claude Code로 작업할 때는 [`CLAUDE.md`](CLAUDE.md)를 먼저 읽으세요.
-> 상세 인수인계 문서는 [`docs/HANDOVER.md`](docs/HANDOVER.md)입니다.
+- **차트 조작** (보기만 바뀌고 분석 기간은 그대로 — [이 구간으로 분석]을 누를 때만 기간이 바뀜)
+  - 드래그: 구간 확대 · Shift+드래그 또는 차트 아래 미니맵 끌기: 이동(미니맵 양 끝은 폭 조절)
+  - Ctrl(⌘)+휠·트랙패드 핀치·두 손가락 핀치: 확대/축소 · 더블클릭 또는 [전체 보기]: 처음 화면
+  - 차트를 누른 뒤 ←/→ 날짜 이동(Shift는 10일), +/− 확대, 0 전체 · 터치 한 손가락: 값 확인
+  - 성과 탭의 누적 성과 차트는 차트·신호 탭과 보기 범위가 연동됩니다(‘보기 연동’ 칩으로 끄기)
 
----
+- **데이터 범위**: 기본 데이터(`data/kospi_signal.json`)는 원본 파일의 **전체 기간**(2000년~)을 포함합니다.
+  공개 범위는 for_data 저장소 `scripts/build_kospi_signal_data.py`의 `PUBLIC_LOOKBACK_DAYS`로 조정합니다.
+- **엑셀 업로드로 바로 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함)을 올리면
+  발행을 기다리지 않고 그 파일로 바로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
+  어디에도 전송되지 않습니다 (그 브라우저에만 보관, "기본 데이터로 되돌리기"로 삭제).
+  엑셀은 자체 해석기(`kospi_xlsx_lite.js`)로 읽어 외부 라이브러리를 받지 않습니다 (.xlsx · .xlsm, 예전 .xls는 .xlsx로 저장 후 업로드).
+  외부에서 받는 것은 글꼴(IBM Plex Sans KR, Google Fonts)뿐이며, 받지 못하면 기본 글꼴로 표시됩니다.
 
-## 1. 주요 기능
+## TAA 인컴 포트폴리오 (`investment_model/`)
 
-**현재 구현됨 (System v1.0)**
+Claude Project에서 개발한 TAA Income Quant PM System v1.0(Model v3.0)을 옮긴 모듈입니다.
+모델·방법론·운용 규칙은 **`investment_model/CLAUDE.md`**, 사용 설명은 `investment_model/README.md`,
+상세 인수인계는 `investment_model/docs/HANDOVER.md`에 있습니다.
 
-1. **데이터**
-   - yfinance에서 가격·분배금·분할 정보를 받습니다.
-   - FRED에서 매크로 시리즈 33개를 받습니다 (키 없는 CSV / API / 로컬 캐시 중 선택).
-   - 발표 후 수정되는 12개 시리즈는 ALFRED에서 **기준일 시점 값(빈티지)**으로 받습니다.
-2. **검증**
-   - ETF: 지연, 결측, 중복, 이상치, 분배금, Total Return 재계산
-   - FRED: 최근 관측일, 빈도, 수정치
-   - 모델: 비중 합, 제약, PSD, 수렴
-   - 오류가 하나라도 있으면 실행을 중단합니다.
-3. **모델 (v3.0)**
-   - 7개 요인 매크로 국면
-   - ETF 점수: 모멘텀, 위험조정수익, 인컴, 매크로 적합도, 위험 벌점
-   - 수축 공분산과 CVaR로 위험을 측정합니다.
-   - 최적화는 cvxpy로 하며, 인컴 7%는 소프트 벌점으로 반영합니다.
-   - 국면에 따라 주식·방어자산 하한이 바뀌고, 1.5%p 리밸런스 밴드를 적용합니다.
-4. **분석**
-   - 제약 진단 (어떤 제약이 비중을 결정했는지)
-   - 인컴–리스크 프론티어와 한도 완화 분석
-   - 파라미터 민감도, 7개 스트레스 시나리오
-   - 0% 종목 분석, CLO·우선주 별도 분석
-5. **실보유 비교**
-   - CSV 업로드 또는 직접 입력으로 실보유를 넣습니다.
-   - 목표와 비교해 BUY / SELL / HOLD, 거래금액, 현금 수요, 회전율, 거래비용을 계산합니다.
-   - 자산군과 리스크 노출도 함께 비교합니다.
-6. **이력·내보내기**
-   - 월별 결과를 `history/<데이터월>/`에 저장합니다.
-   - CSV와 Excel(12개 시트)로 내보낼 수 있습니다.
-7. **대시보드**
-   - 단일 HTML 파일이며 외부 라이브러리·CDN이 없어 오프라인에서도 열립니다.
-   - 로컬 서버와 연결하면 업데이트·검증·실행 버튼을 쓸 수 있습니다.
+- **화면**: `investment_model/output/taa_pm_dashboard_v1.0_latest.html` (바탕화면 "TAA 인컴 포트폴리오").
+  결과 JSON이 HTML에 내장되어 있어 서버 없이 표시되고, 실보유 비교·주문 계산·CSV 내보내기는 브라우저 안에서만 동작합니다.
+- **데이터 갱신 (수동)**: 화면 1단계 **[Update Data ↗]** → GitHub Actions *Update investment data* → **Run workflow**
+  - `data_only`: yfinance·FRED·ALFRED 데이터만 갱신 / `model_run`: 데이터 갱신 + 모델 실행 (`as_of` 비우면 자동 인식)
+- **자동 실행**: 매월 1~5일 22:17 UTC, 기준일 = 직전 월 마지막 NYSE 거래일. 이미 기록된 월은 건너뜁니다.
+- **안전장치**: 임시 복사본에서 다운로드 → 데이터 가드(이력 잘림·티커 누락·관측치 소실·빈티지 누락 등) →
+  패키지 검증 → 모델 실행이 **모두 통과할 때만** `investment_model/data·history·output`을 교체합니다.
+  실패하면 기존 데이터는 그대로이고 `investment_model/output/status.json`에 실패 사유만 기록됩니다.
+- **워크플로**: `.github/workflows/update-investment-data.yml`(수동), `investment-model-monthly.yml`(예약),
+  `_investment-model-pipeline.yml`(공통), `investment-model-tests.yml`(골든·주문엔진 회귀 테스트)
+- **KOSPI 데이터와의 관계**: TAA 워크플로는 `investment_model/` 아래만 커밋합니다. `data/kospi_signal.json`은 계속 for_data 저장소만 씁니다.
 
-**아직 없음 (계획)**
+## 새 대시보드 추가하기
 
-- GitHub Actions 자동·수동 실행
-- GitHub Pages 대시보드
-- 대시보드에서 클라우드 작업을 실행하는 Update 버튼
-- 관측일·발표일 기반 빈티지 백테스트
+1. `dashboards/` 폴더에 새 HTML 파일을 만듭니다 (예: `dashboards/fx.html`).
+   데이터는 `../data/...` 상대 경로로 읽습니다.
+2. `index.html`의 `APPS` 배열에 항목을 하나 추가합니다:
 
----
-
-## 2. 시스템 구조
-
-**현재 (로컬)**
-
-```
-대시보드 HTML ──(정적 모드: 결과 내장, 브라우저에서 주문 계산)
-      └──(백엔드 모드) server.py @127.0.0.1:8765 ── qpm 패키지 ── data/ · history/ · output/
+```js
+{ id: "fx", name: "환율 대시보드", icon: "chart", type: "iframe",
+  url: "dashboards/fx.html", desktop: true, startmenu: true, w: 1200, h: 760 },
 ```
 
-**목표 (클라우드, 계획)**
+바탕화면 아이콘과 시작 메뉴에 자동으로 등록됩니다.
+(아이콘은 `ICONS`에 정의된 픽셀 SVG 키를 사용하며, 새 아이콘을 추가해도 됩니다.)
+원본 엑셀은 for_data 저장소의 `data/<대시보드>/` 폴더에 두고 빌드 스크립트를 추가합니다 (for_data README 참고).
 
-```
-대시보드 Update 버튼 / Actions "Run workflow" (수동) ─┐
-schedule (자동, UTC cron)                           ─┴─> GitHub Actions ─> Python(qpm)
-   ─> yfinance · FRED · ALFRED ─> 검증 ─(통과 시)─> commit/push ─> 대시보드 반영
-```
+## GitHub Pages 설정 (최초 1회)
 
-- 자동 실행과 수동 실행은 별개의 워크플로로 만듭니다.
-- 검증을 통과하지 못하면 커밋하지 않습니다. 따라서 기존 데이터가 보존됩니다.
+이 저장소 → Settings → Pages → Source: **Deploy from a branch**,
+Branch: 기본 브랜치 / `/ (root)` 선택.
+이후 `https://hahajongha.github.io/for_dashboard/` 에서 접속할 수 있습니다.
 
----
+## 로컬에서 열기
 
-## 3. 데이터 흐름 (월간)
-
-1. 시장 데이터 수집
-2. FRED 수집과 ALFRED 빈티지 적용
-3. 검증
-4. 국면 판정
-5. ETF 통계 계산
-6. 점수 계산
-7. 공분산 추정
-8. 리스크 모델
-9. 파라미터 로드 (v3.0 고정)
-10. 최적화
-11. 다음 달 목표 산출
-12. 실보유 입력
-13. 목표 vs 실보유 비교
-14. 주문 생성
-15. 내보내기
-
-**Look-ahead 방지**
-
-- as_of 이후의 가격·지표는 쓰지 않습니다.
-- 월간 지표는 관측월 다음 달 말부터 사용합니다. 통상 발표일 이전이면 추가로 제외합니다.
-- 주간 지표는 발표 지연 1~5일을 반영합니다.
-- 수정되는 지표는 기준일 시점 빈티지를 씁니다.
-
----
-
-## 4. 사용 데이터
-
-| 구분 | 내용 |
-|---|---|
-| ETF 25종 (고정) | JEPQ GPIX JEPI · SCHD VYMI VIG · VOO QQQM VEA IEMG · SGOV · VGSH VGIT VGLT SCHP VCIT USHY · JAAA · JBBB · PFF · DBMF · PDBC SCHH IGF GLDM |
-| 상장 전 대용 | SGOV←BIL, GLDM←IAU, USHY←HYG, QQQM←QQQ, VOO←SPY |
-| 기준 티커 | ^IRX (무위험수익률), XLF (PFF 금융 민감도) |
-| 매크로 | 성장, 물가, 금리, 크레딧, 변동성, 유동성, 달러 요인의 FRED 시리즈 33개. 목록은 `config/fred_series.json` |
-
----
-
-## 5. 실행 방법 (현재: 로컬)
+`fetch`를 사용하므로 파일을 직접 열지 말고 간단한 서버로 띄웁니다:
 
 ```bash
-pip install -r requirements.txt            # Python 3.10+ (검증: 3.12.3)
-cp .env.example .env                        # 선택: FRED_API_KEY / ANTHROPIC_API_KEY
-python server.py                            # 대시보드 + 백엔드 → http://127.0.0.1:8765
-# 또는 스크립트만 사용
-python portfolio_engine.py --update                      # 데이터 업데이트 + 모델 실행 (기준일 자동)
-python portfolio_engine.py --as-of 2026-10-30            # 월간 실행은 기준일을 명시하는 것을 권장
-python rebalance_cli.py --actual my_holdings.csv         # 실보유 비교·주문 (주의: 결과 파일에 실보유가 기록됨)
-python export_excel.py                                   # Excel·CSV
-python tests/check_golden.py                             # 회귀 테스트 (오프라인)
+python3 -m http.server 8000
+# http://localhost:8000
 ```
-
-- 자세한 로컬 사용법은 [`docs/LOCAL_RUN_v1.0.md`](docs/LOCAL_RUN_v1.0.md)에 있습니다.
-
-**날짜 규칙**
-
-- Data As Of = 마지막 확정 종가일
-- Rebalance Date = 다음 달 첫 NYSE 거래일. 예: 2026-10-30 기준 → 2026-11-02
-- `history/2026-10`에는 **11월 적용 목표**가 저장됩니다.
-
----
-
-## 6. 개발 환경
-
-- **검증된 조합**: Python 3.12.3, pandas 3.0.2, numpy 2.4.4, cvxpy 1.9.3 (CLARABEL), yfinance 1.7.0, openpyxl 3.1.5
-- **추가 요구사항**
-  - `tzdata`: Windows에서 필요합니다.
-  - Node: JS 주문 엔진 대조 테스트에만 필요합니다.
-- **미검증**
-  - Windows·사내망 환경
-  - FRED API 모드
-  - AI 해설 호출
-  - GitHub Actions 러너에서의 데이터 접속
-
----
-
-## 7. 저장소 구조
-
-```
-CLAUDE.md                 Claude Code 지침 (먼저 읽기)
-README.md                 이 파일
-docs/HANDOVER.md          상세 인수인계 (현재 vs 목표, 데이터 무결성, 이사 체크리스트)
-docs/LOCAL_RUN_v1.0.md    v1.0 로컬 실행 설명서 (원본)
-config/                   universe · model_params · fred_series · settings (JSON)
-qpm/                      Python 패키지 (데이터·검증·국면·점수·최적화·분석·주문·이력·내보내기)
-dashboard/                taa_pm_dashboard_v1.0.html (2026-09-29 결과 내장)
-data/                     시장·FRED·ALFRED 캐시
-history/                  월별 결과 · index.json (월별 목표·인컴 이력)
-params/                   backtest_v3.0.json (정적 백테스트·워크포워드 결과)
-output/                   latest.json · 결과 내장 대시보드
-sample/                   실보유 CSV 예시 (가상 데이터)
-tests/                    골든 테스트 · JS/Python 주문 계산 대조
-*.py                      server · update_data · portfolio_engine · rebalance_cli · export_excel · walkforward_cli
-```
-
----
-
-## 8. 주의사항
-
-- **저장소는 비공개(private)로 운영하는 것을 권장합니다.**
-  - GitHub Pages 사이트는 저장소가 비공개여도 인터넷에 공개됩니다 (접근 제어는 Enterprise Cloud 조직만 가능).
-  - 목표 비중이나 운용 정보를 공개해도 되는지 먼저 확인하세요.
-- **실보유 데이터는 커밋하지 마세요.**
-  - 현재 코드는 실보유를 결과 JSON·HTML에도 기록합니다 (`CLAUDE.md` K-3).
-- **API 키는 `.env`(로컬) 또는 GitHub Secrets에만 저장합니다.**
-- 이 시스템은 분석 도구이며, 결과는 투자 권유가 아닙니다.
-  - 모델 기대수익(κ=1.0)은 낙관적일 수 있습니다.
-  - 백테스트 OOS 실현치와 구분해서 보세요.
-
----
-
-## 9. 향후 개발 계획
-
-| 우선순위 | 내용 |
-|---|---|
-| P1 | 비공개 저장소 + 골든 테스트 CI |
-| P1 | 수동 실행 워크플로 (workflow_dispatch) |
-| P1 | 실보유 저장 분리 |
-| P1 | 월간 기준일 명시 로직 |
-| P2 | 월간 자동 실행 (schedule) |
-| P2 | 대시보드 상태 표시 (Last Update, 데이터 기준일, 검증 결과) |
-| P2 | 정적 호스팅 모드 |
-| P2 | 안전한 데이터 쓰기 |
-| P3 | 관측일·발표일 저장과 빈티지 백테스트 |
-| P3 | 원클릭 Update |
-| P3 | 전체 워크포워드 워크플로 |
-
-- 상세 내용은 `docs/HANDOVER.md` §G-4를 참고하세요.

@@ -1,0 +1,19 @@
+# --- secrets / local overrides (never commit) ---
+.env
+config/settings.local.json
+# --- actual holdings: never commit (privacy / compliance) ---
+# NOTE: current code (submit_actual) ALSO writes actual rows into history/<month>/result.json,
+# output/latest.json and the embedded dashboard HTML — see CLAUDE.md K-3 before using it in this repo.
+history/*/actual_portfolio.csv
+history/*/rebalancing_order.csv
+# --- python / env ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+# --- regenerable exports ---
+output/*.xlsx
+output/csv_*/
+# --- OS ---
+.DS_Store
+Thumbs.db

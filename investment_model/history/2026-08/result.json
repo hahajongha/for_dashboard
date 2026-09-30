@@ -1,0 +1,133 @@
+{
+ "meta": {
+  "month": "2026-08",
+  "data_as_of": "2026-08-31",
+  "rebalance_date": "2026-09-01",
+  "target_month": "2026-09",
+  "source": "seed_v3.0",
+  "status": "seed",
+  "note": "v3.0 모델 체인의 8월말 목표(9월 적용). v3.0 최종 런의 9월 드리프트 비중을 9월 수익률로 역산해 복원"
+ },
+ "portfolio": {
+  "rows": [
+   {
+    "ticker": "JEPQ",
+    "target": 0.13338688707487806
+   },
+   {
+    "ticker": "GPIX",
+    "target": 0.1043817858748886
+   },
+   {
+    "ticker": "JEPI",
+    "target": 0.04524157592614269
+   },
+   {
+    "ticker": "SCHD",
+    "target": 0.1122293076474173
+   },
+   {
+    "ticker": "VYMI",
+    "target": 0.0551199310733388
+   },
+   {
+    "ticker": "VIG",
+    "target": 0.01760340215056643
+   },
+   {
+    "ticker": "VOO",
+    "target": 0.05910306715186629
+   },
+   {
+    "ticker": "QQQM",
+    "target": 0.03886694221651499
+   },
+   {
+    "ticker": "VEA",
+    "target": 0.00443414515523021
+   },
+   {
+    "ticker": "IEMG",
+    "target": 0.0
+   },
+   {
+    "ticker": "SGOV",
+    "target": 0.0672007751840084
+   },
+   {
+    "ticker": "VGSH",
+    "target": 0.04854707297806702
+   },
+   {
+    "ticker": "VGIT",
+    "target": 0.03969043075546725
+   },
+   {
+    "ticker": "VGLT",
+    "target": 0.011921569827948179
+   },
+   {
+    "ticker": "SCHP",
+    "target": 0.014375977236445238
+   },
+   {
+    "ticker": "VCIT",
+    "target": 2.9857704233872396e-09
+   },
+   {
+    "ticker": "USHY",
+    "target": 0.0380508427402003
+   },
+   {
+    "ticker": "JAAA",
+    "target": 0.04444190914009681
+   },
+   {
+    "ticker": "JBBB",
+    "target": 0.039682092052691464
+   },
+   {
+    "ticker": "PFF",
+    "target": 1.0276125905256915e-10
+   },
+   {
+    "ticker": "DBMF",
+    "target": 0.09744599982485981
+   },
+   {
+    "ticker": "PDBC",
+    "target": 0.028276281995658056
+   },
+   {
+    "ticker": "SCHH",
+    "target": 2.3240321137541182e-11
+   },
+   {
+    "ticker": "IGF",
+    "target": 1.1646281245159116e-10
+   },
+   {
+    "ticker": "GLDM",
+    "target": 7.654793088067445e-10
+   }
+  ],
+  "class_weights": {
+   "Covered Call": 0.28301024887590936,
+   "Dividend": 0.18495264087132254,
+   "Equity": 0.10240415452361148,
+   "Cash": 0.0672007751840084,
+   "Treasury / Bond": 0.1525858965238984,
+   "CLO AAA": 0.04444190914009681,
+   "CLO BBB": 0.039682092052691464,
+   "Preferred": 1.0276125905256915e-10,
+   "Alternative": 0.09744599982485981,
+   "Real Asset": 0.0282762829008405
+  }
+ },
+ "macro": {
+  "composite_long": "v3.0 seed"
+ },
+ "metrics": {
+  "IncomeYield": 0.053511076640917546
+ }
+}

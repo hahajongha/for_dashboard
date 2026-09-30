@@ -273,6 +273,11 @@ const APPS = [
     desktop: true, startmenu: true, w: 1260, h: 820,
   },
   {
+    id: "taa", name: "TAA 인컴 포트폴리오", icon: "chart",
+    type: "iframe", url: "investment_model/output/taa_pm_dashboard_v1.0_latest.html",
+    desktop: true, startmenu: true, w: 1260, h: 820,
+  },
+  {
     id: "mycomputer", name: "내 컴퓨터", icon: "computer",
     type: "doc", desktop: true, startmenu: true, w: 460, h: 380,
     html: `
@@ -306,6 +311,7 @@ const APPS = [
         <li><code>dashboards/kospi_signal.html</code> — KOSPI 시그널 랩 (BOP 매수 · 이격도 매도 신호 검증)</li>
         <li><code>dashboards/kospi_signal_engine.js</code> — 시그널 랩 계산 엔진 (지표·신호·백테스트)</li>
         <li><code>data/kospi_signal.json</code> — KOSPI 일별 시가·고가·저가·종가 (2000년~ 전체 기간, 엑셀 업로드 시 자동 갱신)</li>
+        <li><code>investment_model/</code> — TAA 인컴 포트폴리오 (Python 모델 · GitHub Actions 데이터 갱신 · 대시보드)</li>
       </ul>
       <h2>새 대시보드 추가</h2>
       <p><code>dashboards/</code>에 HTML을 추가하고 <code>index.html</code>의
