@@ -34,6 +34,7 @@ from qpm.config import Config, last_trading_day_of_month, month_key  # noqa: E40
 import ci_guards  # noqa: E402
 import fred_pit  # noqa: E402
 import peers  # noqa: E402
+import latest_prices  # noqa: E402
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "hahajongha/for_dashboard")
 WORKFLOW_URL = f"https://github.com/{REPO}/actions/workflows/update-investment-data.yml"
@@ -238,6 +239,13 @@ def main(argv=None):
         # Peer 비교 가격 (모델과 무관, 실패해도 파이프라인은 계속 — 기존 peer 데이터 유지)
         st["peers"] = peers.update_prices(work, work / "data", as_of, log=log)
 
+        # 실보유 평가용 최신 종가 (대시보드 실보유 표 전용, 모델과 무관 — 실패해도 파이프라인은 계속, 기존 파일 유지)
+        try:
+            st["latest_prices"] = latest_prices.build(cfg, work / "data", as_of, work / "output" / "latest_prices.json", log=log)
+        except Exception as e:
+            st["latest_prices"] = {"error": str(e)[:120]}
+            log(f"latest_prices.json 생성 실패 (기존 파일 유지): {e}")
+
         # ④~⑪ 모델 실행
         if run_model:
             month = month_key(as_of)
@@ -277,6 +285,8 @@ def main(argv=None):
         swap_dir(work / "data", PKG / "data")
         if st["peers"].get("build") == "ok":
             shutil.copy2(work / "output" / "peers.json", PKG / "output" / "peers.json")
+        if (st.get("latest_prices") or {}).get("date"):
+            shutil.copy2(work / "output" / "latest_prices.json", PKG / "output" / "latest_prices.json")
         if st["model_ran"]:
             swap_dir(work / "history", PKG / "history")
             for f in ("latest.json", "taa_pm_dashboard_v1.0_latest.html"):

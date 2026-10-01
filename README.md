@@ -74,6 +74,7 @@ Claude Project에서 개발한 TAA Income Quant PM System v1.0(Model v3.0)을 �
   **실보유 입력**(수량·평균매입단가·현금 → 평가금액·손익·비중 자동 계산)과 **내 포트폴리오 기록**(원금 투입·월말 평가금액·수익률)은 그 브라우저의 localStorage(`taaPm.holdings.v1`, `taaPm.ledger.v1`)에만 저장되고 저장소로 올라가지 않습니다 — 백업·다른 기기는 [CSV 내보내기]/[CSV 불러오기], [백업 내보내기](JSON)를 쓰세요.
 - **데이터 갱신 (수동)**: 화면 1단계 **[Update Data ↗]** → GitHub Actions *Update investment data* → **Run workflow**
   - `data_only`: yfinance·FRED·ALFRED 데이터만 갱신 / `model_run`: 데이터 갱신 + 모델 실행 (`as_of` 비우면 자동 인식)
+  - 데이터 갱신마다 `investment_model/output/latest_prices.json`(유니버스 최신 종가)도 갱신 → 실보유 표의 평가금액을 월 중간에도 최신 종가로 볼 수 있습니다(목표·주문 계산은 모델 기준일 종가 그대로).
 - **자동 실행**: 매월 1~5일 22:17 UTC, 기준일 = 직전 월 마지막 NYSE 거래일. 이미 기록된 월은 건너뜁니다.
 - **안전장치**: 임시 복사본에서 다운로드 → 데이터 가드(이력 잘림·티커 누락·관측치 소실·빈티지 누락 등) →
   패키지 검증 → 모델 실행이 **모두 통과할 때만** `investment_model/data·history·output`을 교체합니다.
