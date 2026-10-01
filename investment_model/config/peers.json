@@ -1,0 +1,18 @@
+{
+ "note": "Peer 비교용 펀드·ETF (모델 유니버스와 무관, 모델 계산에 쓰지 않음). 2026-10 Morningstar 검색으로 선정: 멀티에셋 인컴, 분배 4~8%, 변동성 5~8%.",
+ "start": "2009-01-01",
+ "peers": [
+  {"ticker": "BIICX", "name": "BlackRock Multi-Asset Income Instl", "type": "공모", "tier": "핵심", "category": "Global Mod. Conservative"},
+  {"ticker": "JNBSX", "name": "JPMorgan Income Builder I", "type": "공모", "tier": "핵심", "category": "Global Mod. Conservative"},
+  {"ticker": "PMFYX", "name": "Victory Pioneer Multi-Asset Income Y", "type": "공모", "tier": "핵심", "category": "Global Moderate"},
+  {"ticker": "DIFIX", "name": "MFS Diversified Income I", "type": "공모", "tier": "핵심", "category": "Global Mod. Conservative"},
+  {"ticker": "INCM", "name": "Franklin Income Focus ETF", "type": "ETF", "tier": "핵심", "category": "Mod. Conservative"},
+  {"ticker": "IYLD", "name": "iShares Morningstar Multi-Asset Income ETF", "type": "ETF", "tier": "핵심", "category": "Global Mod. Conservative"},
+  {"ticker": "INKM", "name": "State Street Income Allocation ETF", "type": "ETF", "tier": "핵심", "category": "Global Mod. Conservative"},
+  {"ticker": "PAAIX", "name": "PIMCO All Asset Instl", "type": "공모", "tier": "전술·고분배", "category": "Tactical Allocation"},
+  {"ticker": "BDHIX", "name": "BlackRock Dynamic High Income Instl", "type": "공모", "tier": "전술·고분배", "category": "Global Moderate"},
+  {"ticker": "MDIV", "name": "First Trust Multi-Asset Diversified Income ETF", "type": "ETF", "tier": "전술·고분배", "category": "Aggressive Allocation"},
+  {"ticker": "AOK", "name": "iShares Core 30/70 Conservative Allocation ETF", "type": "ETF", "tier": "기준선", "category": "Global Conservative"},
+  {"ticker": "VWINX", "name": "Vanguard Wellesley Income Inv", "type": "공모", "tier": "기준선", "category": "Mod. Conservative"}
+ ]
+}

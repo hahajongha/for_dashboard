@@ -33,6 +33,7 @@ sys.path.insert(0, str(PKG / "scripts"))
 from qpm.config import Config, last_trading_day_of_month, month_key  # noqa: E402
 import ci_guards  # noqa: E402
 import fred_pit  # noqa: E402
+import peers  # noqa: E402
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "hahajongha/for_dashboard")
 WORKFLOW_URL = f"https://github.com/{REPO}/actions/workflows/update-investment-data.yml"
@@ -234,6 +235,9 @@ def main(argv=None):
         added = fred_pit.update(cfg, work / "data", as_of)
         log(f"fred_pit 추가 행: {sum(added.values())}")
 
+        # Peer 비교 가격 (모델과 무관, 실패해도 파이프라인은 계속 — 기존 peer 데이터 유지)
+        st["peers"] = peers.update_prices(work, work / "data", as_of, log=log)
+
         # ④~⑪ 모델 실행
         if run_model:
             month = month_key(as_of)
@@ -255,6 +259,14 @@ def main(argv=None):
                     return 1
                 st["model_ran"] = True
 
+        # Peer 비교 지표 (모델 결과가 바뀐 경우 그 결과 기준)
+        try:
+            peers.build(Config(work), work / "data", work / "output" / "peers.json", as_of, log=log)
+            st["peers"]["build"] = "ok"
+        except Exception as e:
+            st["peers"]["build"] = f"failed: {str(e)[:120]}"
+            log(f"peers.json 생성 실패 (기존 파일 유지): {e}")
+
         errs = publish_checks(work)
         if errs:
             st["message"] = "게시 전 점검 실패: " + "; ".join(errs)
@@ -263,6 +275,8 @@ def main(argv=None):
 
         # 교체: 모든 단계를 통과한 경우에만
         swap_dir(work / "data", PKG / "data")
+        if st["peers"].get("build") == "ok":
+            shutil.copy2(work / "output" / "peers.json", PKG / "output" / "peers.json")
         if st["model_ran"]:
             swap_dir(work / "history", PKG / "history")
             for f in ("latest.json", "taa_pm_dashboard_v1.0_latest.html"):

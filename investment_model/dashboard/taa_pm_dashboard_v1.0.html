@@ -87,6 +87,20 @@ details.acc>.body{padding:0 2px 18px}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink2);margin-top:6px}
 .legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
 svg text{fill:var(--ink2);font-size:11px}
+/* Peer 비교 차트: 범주형 8색(고정 순서, 검증 통과: light/dark) */
+:root{--pc1:#2a78d6;--pc2:#eb6834;--pc3:#1baf7a;--pc4:#eda100;--pc5:#e87ba4;--pc6:#008300;--pc7:#4a3aa7;--pc8:#e34948}
+@media (prefers-color-scheme:dark){:root{--pc1:#3987e5;--pc2:#d95926;--pc3:#199e70;--pc4:#c98500;--pc5:#d55181;--pc6:#008300;--pc7:#9085e9;--pc8:#e66767}}
+.pchips{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:6px 0}
+.pchip{font:inherit;font-size:12px;padding:3px 9px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:12px;cursor:pointer}
+.pchip[aria-pressed="true"]{color:var(--ink);border-color:var(--ink2)}
+.pchip:disabled{opacity:.45;cursor:not-allowed}
+.pchip i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:3px}
+.pchart{position:relative;background:var(--surface);border:1px solid var(--line);padding:8px 8px 4px}
+.pchart .tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.12);padding:6px 9px;font-size:12px;color:var(--ink);display:none;white-space:nowrap}
+.pchart .tip i{display:inline-block;width:10px;height:3px;margin-right:5px;vertical-align:3px}
+tr.mrow td{font-weight:600}
+td.pname{white-space:normal;min-width:200px;max-width:260px}
+tr.grp td{background:var(--soft);color:var(--ink2);font-size:12px;font-weight:600}
 .pre{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);padding:12px 14px;max-width:100ch}
 footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
 @media (max-width:980px){.tiles,.tiles.t6{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.step{border-bottom:1px solid var(--line)}.grid2,.card3{grid-template-columns:1fr}}
@@ -172,6 +186,12 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
   <p class="lead" id="consLead"></p>
   <div class="tbl"><table id="consTbl"></table></div>
   <p class="small muted" id="penLine"></p>
+</section>
+
+<section id="s-peer">
+  <h2>Peer 비교</h2>
+  <p class="lead" id="peerLead"></p>
+  <div id="peerBody"><div class="notice">Peer 데이터를 불러오는 중…</div></div>
 </section>
 
 <section id="s-detail">
@@ -308,6 +328,7 @@ async function init(){
     const r = await fetch("/api/status", {signal:ctl.signal, cache:"no-store"}); if (r.ok){ S.status = await r.json(); S.backend = !!S.status.backend; } } catch(e) {}
   if (S.backend) await loadBackend("latest");
   else if (location.protocol !== "file:") { try { const p = await fetch("status.json", {cache:"no-store"}); if (p.ok) S.pub = await p.json(); } catch(e) {} }
+  if (location.protocol !== "file:") { try { const q = await fetch("peers.json", {cache:"no-store"}); if (q.ok) S.peers = await q.json(); } catch(e) {} }
   render();
 }
 // 정적 호스팅(GitHub Pages): 업데이트는 GitHub Actions 워크플로에서 실행 — 토큰 없이 워크플로 페이지로 이동
@@ -332,7 +353,7 @@ function render(){
   const R = S.result;
   if (!R || !R.meta){ document.getElementById("s-summary").innerHTML = '<div class="notice"><b>표시할 결과가 없습니다.</b> server.py를 실행하고 모델을 돌리거나, 결과 파일(result.json)을 여세요.</div>'; renderHeader(); renderSteps(); return; }
   if (!S.reb && R.rebalance) S.reb = R.rebalance;
-  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderAlloc(); renderManual(); renderRebalance(); renderCons();
+  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderAlloc(); renderManual(); renderRebalance(); renderCons(); renderPeers();
   renderScores(); renderSpecial(); renderFrontier(); renderStab(); renderStress(); renderZero(); renderBT(); renderWF(); renderHist(); renderVal(); renderLim(); renderComm();
   $("#foot").innerHTML = `HTML = 화면 · Python = 데이터·퀀트 엔진 · 해설 = 해석 전용. 모델 ${esc(R.meta.model_version)} · 시스템 ${esc(R.meta.system_version)} · 실행 ${esc(R.meta.run_at||"")} · 소요 ${esc(R.meta.runtime_sec??"–")}초`;
 }
@@ -653,6 +674,74 @@ function renderComm(){
   const C = S.result.commentary || {};
   $("#commBody").innerHTML = `<h3 style="margin-top:0">규칙 기반 해설</h3><div class="pre">${esc(C.rule_based||"")}</div>
    ${C.llm?`<h3>AI 해설 <span class="chip">해석 전용 — 비중·한도·유니버스를 바꾸지 않음</span></h3><div class="pre">${esc(C.llm)}</div>`:`<p class="small muted">${esc(C.llm_note||"AI 해설은 .env에 ANTHROPIC_API_KEY를 넣고 portfolio_engine.py --llm으로 실행하면 추가됩니다.")}</p>`}`;
+}
+
+// ---- Peer 비교: output/peers.json (GitHub Actions 데이터 업데이트 때 생성). 차트 = 손으로 그리는 SVG 선 그래프 ----
+const PEER_CHART = [["model_bt","--pc1"],["BIICX","--pc2"],["JNBSX","--pc3"],["PMFYX","--pc4"],["IYLD","--pc5"],["INCM","--pc6"],["AOK","--pc7"],["PAAIX","--pc8"]];
+const PEER_STATE = {years:5, on:new Set(["model_bt","BIICX","JNBSX","IYLD","AOK"])};
+const sgnPct = (x,d=1) => bad(x) ? "–" : (x>=0?"+":"−")+Math.abs(x*100).toFixed(d)+"%";
+function renderPeers(){
+  const P = S.peers, body = $("#peerBody");
+  if (!P){ $("#peerLead").textContent = ""; body.innerHTML = '<div class="notice">Peer 데이터가 아직 없습니다. GitHub Actions 데이터 업데이트(1단계 Update Data)가 한 번 실행되면 표시됩니다.</div>'; return; }
+  $("#peerLead").innerHTML = `비슷한 목표(멀티에셋 인컴, 분배 4~8%)의 공모펀드·ETF와 비교합니다. 기준 월말 <b>${esc(P.last_month_end)}</b> · 생성 ${esc(P.generated_at.replace("T"," ").replace("+00:00"," UTC"))}. `+
+    `우리 모델 수익률은 <b>현재 파라미터로 과거를 계산한 백테스트(부분 In-Sample)</b>이고, 연도별 표에는 v3.0 워크포워드(Honest OOS)를 따로 표시합니다.`;
+  const ser = P.series, byId = Object.fromEntries(ser.map(x=>[x.id,x]));
+  const cols = [["yield12m","분배(12M)"],["r1m","1개월"],["r3m","3개월"],["ytd","YTD"],["r1y","1년"],["r3y","3년(연)"],["r5y","5년(연)"],["r10y","10년(연)"],["vol3y","3년 변동성"],["sharpe3y","3년 Sharpe"],["mdd3y","3년 MDD"]];
+  const cell = (x,k) => { const v = k==="yield12m" ? x.yield12m : (x.stats||{})[k]; if (bad(v)) return "–"; return k==="sharpe3y" ? nf(v,2) : (k==="yield12m"||k==="vol3y") ? pct(v,1) : sgnPct(v,1); };
+  let rows = "", tier = null;
+  ser.filter(x=>x.kind!=="static").forEach(x => {
+    if (x.tier !== tier){ tier = x.tier; rows += `<tr class="grp"><td class="l" colspan="${cols.length+2}">${esc(tier)}</td></tr>`; }
+    const nm = x.kind==="model" ? `${esc(x.label)}<br><span class="chip info">${esc(x.badge)}</span>` : `<b>${esc(x.id)}</b> <span class="muted">${esc(x.label.split(" — ")[1]||"")}</span>`;
+    rows += `<tr class="${x.kind==="model"?"mrow":""}"><td class="l pname">${nm}</td><td class="l">${esc(x.type||"모델")}${x.category?`<br><span class="muted small">${esc(x.category)}</span>`:""}</td>${cols.map(([k])=>`<td>${cell(x,k)}</td>`).join("")}</tr>`;
+  });
+  const end = new Date(P.last_month_end), Y = end.getUTCFullYear(), years = []; for (let y=Y-9; y<=Y; y++) years.push(String(y));
+  const calRow = x => `<tr class="${x.kind!=="peer"?"mrow":""}"><td class="l pname">${x.kind==="peer"?`<b>${esc(x.id)}</b>`:esc(x.label)+`<br><span class="chip info">${esc(x.badge)}</span>`}</td>${years.map(y=>`<td>${bad((x.calendar||{})[y])?"–":sgnPct(x.calendar[y],1)}</td>`).join("")}</tr>`;
+  const live = P.live || {rows:[]};
+  const liveHtml = live.rows.length ? `<div class="tbl"><table><thead><tr><th class="l">목표 월</th><th class="l">보유 기간</th><th>수익률</th><th class="l">상태</th></tr></thead><tbody>${live.rows.map(r=>`<tr><td class="l">${esc(r.target_month||r.month)}</td><td class="l">${esc(r.start)} → ${esc(r.end)}</td><td>${sgnPct(r.ret,2)}</td><td class="l">${r.complete?"완료":"진행 중"}</td></tr>`).join("")}</tbody></table></div><p class="small muted">누적 ${sgnPct(live.cumulative,2)} · ${esc(live.note)}</p>`
+    : `<div class="notice">실제 발표 목표의 성과는 다음 데이터 업데이트부터 쌓입니다 (첫 기간: ${esc(S.result.meta.target_month)} 목표, ${esc(S.result.meta.data_as_of)} 종가부터).</div>`;
+  body.innerHTML = `<div class="tbl"><table><thead><tr><th class="l">대상</th><th class="l">유형</th>${cols.map(c=>`<th>${c[1]}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
+    <h3>누적 수익 (기간 시작 = 100)</h3>
+    <div class="pchips" id="peerYears">${[[3,"3년"],[5,"5년"],[10,"10년"]].map(([n,l])=>`<button class="pchip" data-y="${n}" aria-pressed="${PEER_STATE.years===n}">${l}</button>`).join("")}</div>
+    <div class="pchips" id="peerSeries"></div>
+    <div class="pchart" id="peerChart"></div>
+    <h3>연도별 수익률</h3>
+    <div class="tbl"><table><thead><tr><th class="l">대상</th>${years.map(y=>`<th>${y}${y===String(Y)?" YTD":""}</th>`).join("")}</tr></thead><tbody>${ser.filter(x=>x.kind!=="peer").map(calRow).join("")}${ser.filter(x=>x.kind==="peer").map(calRow).join("")}</tbody></table></div>
+    <p class="small muted">v3.0 워크포워드 ${Y}년은 v3.0 산출 시점(${Y}-08)까지입니다.</p>
+    <h3>실제 발표 목표 성과 (Live)</h3>${liveHtml}
+    <p class="small muted">${(P.notes||[]).map(esc).join("<br>")}</p>`;
+  $("#peerYears").onclick = e => { const b = e.target.closest("button"); if (!b) return; PEER_STATE.years = +b.dataset.y; [...$("#peerYears").children].forEach(c=>c.setAttribute("aria-pressed", String(+c.dataset.y===PEER_STATE.years))); drawPeerChart(); };
+  drawPeerChart();
+}
+function drawPeerChart(){
+  const P = S.peers, C = P.chart, dates = C.dates, n = dates.length;
+  const lastI = n-1, startI = Math.max(0, n-1-12*PEER_STATE.years);
+  const color = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const avail = id => { const r = C.returns[id]; if (!r) return false; for (let i=startI+1;i<=lastI;i++) if (r[i]===null) return false; return true; };
+  const label = id => id==="model_bt" ? "TAA 모델 (백테스트)" : id;
+  $("#peerSeries").innerHTML = PEER_CHART.map(([id,v])=>{ const ok = avail(id); return `<button class="pchip" data-id="${id}" aria-pressed="${ok && PEER_STATE.on.has(id)}" ${ok?"":"disabled title=\"기간 내 이력 부족\""}><i style="background:var(${v})"></i>${esc(label(id))}</button>`; }).join("");
+  $("#peerSeries").onclick = e => { const b = e.target.closest("button"); if (!b || b.disabled) return; const id = b.dataset.id; PEER_STATE.on.has(id) ? PEER_STATE.on.delete(id) : PEER_STATE.on.add(id); drawPeerChart(); };
+  const lines = PEER_CHART.filter(([id])=>avail(id) && PEER_STATE.on.has(id)).map(([id,v])=>{
+    const r = C.returns[id], vals = [100]; for (let i=startI+1;i<=lastI;i++) vals.push(vals[vals.length-1]*(1+r[i])); return {id, v, vals}; });
+  const W = 900, H = 300, L = 46, R = 92, T = 12, B = 26, m = lastI-startI;
+  const all = lines.flatMap(l=>l.vals); let lo = Math.min(100,...all), hi = Math.max(100,...all); const pad = (hi-lo)*0.06||5; lo -= pad; hi += pad;
+  const x = i => L + (W-L-R)*i/Math.max(1,m), y = val => T + (H-T-B)*(1-(val-lo)/(hi-lo));
+  const step = [5,10,20,25,50,100].find(s=>(hi-lo)/s<=6)||100; let grid = "";
+  for (let g=Math.ceil(lo/step)*step; g<=hi; g+=step) grid += `<line x1="${L}" x2="${W-R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--line)" stroke-width="1"${g===100?"":' stroke-dasharray="2 3"'}/><text x="${L-6}" y="${y(g)+4}" text-anchor="end">${g}</text>`;
+  for (let i=0;i<=m;i++){ const d = dates[startI+i]; if (d.slice(5,7)==="12" && i<m) grid += `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${+d.slice(0,4)+1}</text>`; }
+  const paths = lines.map(l=>`<path d="${l.vals.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)).join("")}" fill="none" stroke="var(${l.v})" stroke-width="${l.id==="model_bt"?2.5:2}" stroke-linejoin="round" stroke-linecap="round"/>`).join("");
+  const ml = lines.find(l=>l.id==="model_bt");
+  const endLbl = ml ? `<text x="${W-R+6}" y="${y(ml.vals[m])+4}" style="fill:var(--ink);font-weight:600">모델 ${ml.vals[m].toFixed(0)}</text>` : "";
+  $("#peerChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="누적 수익 비교, ${dates[startI]}부터 ${dates[lastI]}까지">${grid}${paths}${endLbl}<line id="pcX" y1="${T}" y2="${H-B}" stroke="var(--ink2)" stroke-width="1" style="display:none"/><rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" id="pcHit"/></svg><div class="tip" id="pcTip"></div>`
+    + (lines.length ? "" : '<p class="muted small">표시할 시리즈를 선택하세요.</p>');
+  const svg = $("#peerChart svg"), hit = $("#pcHit"), vx = $("#pcX"), tip = $("#pcTip");
+  const move = ev => { const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const i = Math.max(0, Math.min(m, Math.round((p.x-L)/(W-L-R)*m))); vx.setAttribute("x1", x(i)); vx.setAttribute("x2", x(i)); vx.style.display = "";
+    const rows = lines.map(l=>({l, v:l.vals[i]})).sort((a,b)=>b.v-a.v);
+    tip.textContent = ""; const h = document.createElement("div"); h.style.color = "var(--ink2)"; h.textContent = dates[startI+i]; tip.appendChild(h);
+    rows.forEach(({l,v})=>{ const d = document.createElement("div"); const sw = document.createElement("i"); sw.style.background = `var(${l.v})`; const b = document.createElement("b"); b.textContent = v.toFixed(1); d.append(sw, b, document.createTextNode(` (${sgnPct(v/100-1,1)}) ${label(l.id)}`)); tip.appendChild(d); });
+    const box = $("#peerChart").getBoundingClientRect(); tip.style.display = "block";
+    const tx = ev.clientX - box.left + 14; tip.style.left = Math.min(tx, box.width - tip.offsetWidth - 6) + "px"; tip.style.top = "10px"; };
+  hit.onpointermove = move; hit.onpointerleave = () => { vx.style.display = "none"; tip.style.display = "none"; };
 }
 
 // ---- 투자금 배분 계산: 목표 비중 × 투자금 → 정수 주식 수 (가격 = Data As Of 종가). 브라우저 안에서만 계산, 저장 안 함 ----
