@@ -179,6 +179,10 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
     <button class="ghost" id="clearActual">지우기</button>
   </div>
   <div class="inputs" style="border-top:0">
+    <label><input type="checkbox" id="deployCash" checked> 남는 현금으로 목표 대비 부족한 종목 추가 매수 (적립금·분배금 투입)</label>
+    <label>남겨 둘 현금 ($) <input type="number" id="deployBuf" min="0" step="10" value="0" style="width:100px"></label>
+  </div>
+  <div class="inputs" style="border-top:0">
     <span class="small muted">실보유 저장(내 PC에 CSV로 보관 → 다음 달 [CSV]로 불러오기, 가격은 비워 두어 최신 종가로 평가):</span>
     <button class="ghost" id="saveActualNow" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">현재 실보유 CSV 저장</button>
     <button class="ghost" id="saveActualPost" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">주문 체결 후 실보유 CSV 저장</button>
@@ -563,6 +567,34 @@ function currentHoldings(){
     if (qty) out.push({ticker:r.ticker, quantity:qty}); else if (r.market_value) out.push({ticker:r.ticker, quantity:null, mv:r.market_value}); });
   return out;
 }
+// ---- 남는 현금 투입: 밴드 주문(엔진 결과)은 그대로 두고, 그 뒤 남는 현금으로 목표 대비 가장 부족한 종목부터 1주씩 추가 매수 ----
+// 목표에 더 가까워질 때만(부족액 ≥ 가격/2) 사고, 거래비용(tc_bps)과 [남겨 둘 현금]을 뺀 범위에서만 삼. 주문 엔진·Python 결과와 별개의 실행 보조
+function cashDeploy(reb, buffer){
+  if (!reb || !reb.rows || !reb.totals) return null;
+  const pv = reb.totals.portfolio_value, tc = (reb.tc_bps||0)/1e4;
+  let cash = reb.totals.cash_available || 0, bandCost = 0;
+  const pos = {};
+  reb.rows.forEach(r => {
+    if (r.action === "SELL (유니버스 외)"){ cash += r.actual_value || 0; bandCost += Math.abs(r.actual_value || 0)*tc; return; }
+    const sh = (r.trade_shares && r.price) ? r.trade_shares : 0;
+    cash -= sh * r.price; bandCost += Math.abs(sh * (r.price||0))*tc;
+    pos[r.ticker] = {r, value:(r.actual_value||0) + sh*(r.price||0), add:0};
+  });
+  cash -= bandCost;
+  const start = cash; let avail = cash - Math.max(0, buffer||0), spent = 0, cost = 0;
+  const cands = Object.values(pos).filter(p => p.r.target >= 0.0005 && p.r.price > 0);
+  for (let k=0; k<100000; k++){
+    let best = null, bg = 0;
+    for (const p of cands){ const gap = p.r.target*pv - p.value; if (gap >= p.r.price/2 && p.r.price*(1+tc) <= avail + 1e-9 && gap > bg){ best = p; bg = gap; } }
+    if (!best) break;
+    best.add += 1; best.value += best.r.price; avail -= best.r.price*(1+tc); spent += best.r.price; cost += best.r.price*tc;
+  }
+  const rows = cands.filter(p=>p.add>0).sort((a,b)=>b.add*b.r.price - a.add*a.r.price).map(p => ({ticker:p.r.ticker, asset_class:p.r.asset_class, target:p.r.target,
+    before_weight:(p.value - p.add*p.r.price)/pv, shares:p.add, price:p.r.price, amount:p.add*p.r.price, post_weight:p.value/pv}));
+  return {rows, cash_before:start, spent, cost, cash_after:start - spent - cost, pv};
+}
+function deployOn(){ const c = document.getElementById("deployCash"); return !c || c.checked; }
+function deployBuf(){ const v = Number((document.getElementById("deployBuf")||{}).value); return isFinite(v) && v > 0 ? v : 0; }
 function postTradeHoldings(){
   const cur = currentHoldings(), byT = Object.fromEntries(cur.map(h=>[h.ticker,h]));
   let cash = byT.CASH ? byT.CASH.cash : 0;
@@ -572,6 +604,9 @@ function postTradeHoldings(){
     if (r.trade_shares && r.price){ h.quantity = (h.quantity||0) + r.trade_shares; cash -= r.trade_shares * r.price; }
   });
   cash -= (S.reb.totals && S.reb.totals.est_cost) || 0;
+  const dp = deployOn() ? cashDeploy(S.reb, deployBuf()) : null;
+  if (dp) dp.rows.forEach(d => { const h = byT[d.ticker] || (byT[d.ticker] = {ticker:d.ticker, quantity:0}); h.quantity = (h.quantity||0) + d.shares; cash -= d.amount; });
+  if (dp) cash -= dp.cost;
   byT.CASH = {ticker:"CASH", cash: Math.max(0, cash)};
   return Object.values(byT).filter(h => h.ticker==="CASH" || h.quantity > 1e-9 || (h.quantity === null && h.mv > 0));
 }
@@ -600,6 +635,7 @@ $("#runRebal").addEventListener("click", async () => {
     render(); goTo("rebalOut");
   } catch(err){ $("#rebalErr").textContent = err.message; }
 });
+["deployCash","deployBuf"].forEach(id => $("#"+id).addEventListener("change", () => { if (S.reb) renderRebalance(); }));
 $("#clearActual").addEventListener("click", () => { S.reb = null; CSV_ROWS = null; $("#csvFile").value=""; document.querySelectorAll("#manualTbl input").forEach(i => i.value = ""); render(); });
 $("#saveActualNow").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(currentHoldings())); });
 $("#saveActualPost").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_after_orders_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(postTradeHoldings())); });
@@ -625,11 +661,23 @@ function renderRebalance(){
   el.innerHTML = `<h3>리밸런싱 주문</h3><div class="tiles t6">${tiles.map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("")}</div>
     ${(reb.notes||[]).length?`<p class="small muted">${reb.notes.map(esc).join(" · ")}</p>`:""}
     <div class="tbl" style="margin-top:12px"><table>${head}${ord.length?ord.map(tr).join(""):'<tr><td class="l" colspan="10">모든 종목이 밴드 이내입니다 — 거래 없음.</td></tr>'}</table></div>
+    ${deployHtml(reb)}
     <details class="acc" style="margin-top:6px"><summary>유지(HOLD) 종목 ${hold.length}개</summary><div class="body"><div class="tbl"><table>${head}${hold.map(tr).join("")}</table></div></div></details>
     <h3>노출 비교 — 비중 차이뿐 아니라 리스크가 얼마나 벗어났는지</h3><div class="grid2">${ex(reb.exposure_risk,true)}${ex(reb.exposure_class,false)}</div>
-    <p class="small muted">규칙: 실보유 − 목표 > +밴드 → SELL, < −밴드 → BUY, 그 외 HOLD. 거래금액 = (목표 − 실보유) × 평가금액. 주수는 거래금액÷가격을 0 방향으로 내림.</p>`;
+    <p class="small muted">규칙: 실보유 − 목표 > +밴드 → SELL, < −밴드 → BUY, 그 외 HOLD. 거래금액 = (목표 − 실보유) × 평가금액. 주수는 거래금액÷가격을 0 방향으로 내림. 노출 비교의 [거래 후]는 밴드 주문만 반영합니다(남는 현금 투입 제외).</p>`;
 }
 
+function deployHtml(reb){
+  if (!deployOn()) return `<p class="small muted" style="margin-top:8px">남는 현금 투입 꺼짐 — 밴드 주문 후 현금은 그대로 보유합니다.</p>`;
+  const d = cashDeploy(reb, deployBuf()); if (!d) return "";
+  const head = `<h3>남는 현금 투입 주문 <span class="sub">밴드 주문 뒤 실행</span></h3>`;
+  const line = `밴드 주문 후 현금 <b>${money(d.cash_before)}</b> (${pct(d.cash_before/d.pv,2)})${deployBuf()?` · 남겨 둘 현금 ${money(deployBuf())}`:""} → 추가 매수 <b>${money(d.spent)}</b>${d.cost?` + 비용 ${money(d.cost)}`:""} → 남는 현금 <b>${money(d.cash_after)}</b> (${pct(d.cash_after/d.pv,2)})`;
+  if (d.cash_before <= 0) return head + `<p class="small muted">밴드 주문에 현금이 부족해 추가 매수가 없습니다 (${line}).</p>`;
+  if (!d.rows.length) return head + `<p class="small muted">${line}. 남은 현금으로 1주를 사도 목표에 더 가까워지는 종목이 없습니다.</p>`;
+  return head + `<p class="small">${line}</p><div class="tbl"><table><tr><th class="l">ETF</th><th class="l">자산군</th><th>목표</th><th>밴드 주문 후</th><th class="l">조치</th><th>주수</th><th>가격</th><th>금액</th><th>투입 후</th><th>목표와 차이</th></tr>${d.rows.map(r=>
+    `<tr><td class="l"><b>${esc(r.ticker)}</b></td><td class="l">${esc(r.asset_class)}</td><td>${pct(r.target,2)}</td><td>${pct(r.before_weight,2)}</td><td class="l"><span class="act-BUY">BUY (현금 투입)</span></td><td>${r.shares.toLocaleString("en-US")}</td><td>${nf(r.price,2)}</td><td>${money(r.amount)}</td><td>${pct(r.post_weight,2)}</td><td>${pp(r.post_weight-r.target,2)}</td></tr>`).join("")}</table></div>
+    <p class="small muted">밴드 규칙(±1.5%p)은 그대로이고, 적립금·분배금으로 쌓인 현금만 목표 대비 가장 부족한 종목부터 1주씩 삽니다(1주를 사도 목표에 더 가까워질 때만). 가격은 Data As Of 종가 기준이라 실제 체결가와 다를 수 있습니다. [주문 체결 후 실보유 CSV 저장]과 주문 CSV에 포함됩니다.</p>`;
+}
 function renderCons(){
   const C = S.result.constraints, maxD = Math.max(1e-9, ...C.rows.map(r=>r.dual||0));
   $("#consLead").innerHTML = `구속 강도(한도를 조금 풀었을 때 목적함수가 좋아지는 정도) 순서: <b>${C.binding_order.map(esc).join(" > ") || "없음"}</b>`;
@@ -1033,7 +1081,9 @@ function exportCSV(kind){
   if (kind==="scores") return download(`etf_scores_${m}.csv`, toCSV(R.scores, Object.keys(R.scores[0])));
   if (kind==="macro") return download(`macro_${m}.csv`, toCSV(R.macro.factors, ["factor","level_fmt","chg_1m","chg_3m","chg_6m","chg_unit","z","pct","regime","detail"]));
   if (!S.reb) return alert("실보유를 먼저 입력하세요 (Actual Portfolio: Not Provided).");
-  if (kind==="orders") return download(`rebalancing_order_${m}.csv`, toCSV(S.reb.rows, ["ticker","asset_class","actual","target","active","band","action","trade_amount","trade_shares","price","post_weight"]));
+  if (kind==="orders"){ const d = deployOn() ? cashDeploy(S.reb, deployBuf()) : null;
+    const extra = d ? d.rows.map(r=>({ticker:r.ticker, asset_class:r.asset_class, actual:r.before_weight, target:r.target, active:r.before_weight-r.target, band:S.reb.band, action:"BUY (현금 투입)", trade_amount:r.amount, trade_shares:r.shares, price:r.price, post_weight:r.post_weight})) : [];
+    return download(`rebalancing_order_${m}.csv`, toCSV(S.reb.rows.concat(extra), ["ticker","asset_class","actual","target","active","band","action","trade_amount","trade_shares","price","post_weight"])); }
   if (kind==="actual"){ const rows = S.reb.input_rows || (R.actual && R.actual.rows) || []; return download(`actual_portfolio_${m}.csv`, toCSV(rows, ["ticker","quantity","price","market_value","weight"])); }
 }
 init();
