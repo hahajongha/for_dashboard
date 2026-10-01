@@ -139,6 +139,18 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
   <div class="explain" id="explain"></div>
 </section>
 
+<section id="s-alloc">
+  <h2>투자금 배분 계산</h2>
+  <p class="lead" id="allocLead"></p>
+  <div class="inputs">
+    <label>투자금 ($) <input type="number" id="allocAmt" min="0" step="1000" placeholder="예: 100000"></label>
+    <label><input type="checkbox" id="allocTopup" checked> 남은 현금으로 목표에 더 가까워지는 종목만 1주씩 추가</label>
+    <button id="allocRun">배분 계산</button>
+    <button class="ghost" id="allocCsv" disabled>CSV 받기</button>
+  </div>
+  <div id="allocOut" style="margin-top:12px"></div>
+</section>
+
 <section id="s-actual">
   <h2>실보유 입력과 리밸런싱 주문</h2>
   <p class="lead">증권사에서 내려받은 CSV(Ticker·Quantity·Price·Market Value·Weight 중 일부)를 올리거나 직접 입력하세요. 수량×가격 또는 평가금액 중 하나만 있어도 됩니다. 실보유를 넣지 않으면 모델 추정 비중을 실보유로 간주하지 않습니다.</p>
@@ -320,7 +332,7 @@ function render(){
   const R = S.result;
   if (!R || !R.meta){ document.getElementById("s-summary").innerHTML = '<div class="notice"><b>표시할 결과가 없습니다.</b> server.py를 실행하고 모델을 돌리거나, 결과 파일(result.json)을 여세요.</div>'; renderHeader(); renderSteps(); return; }
   if (!S.reb && R.rebalance) S.reb = R.rebalance;
-  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderManual(); renderRebalance(); renderCons();
+  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderAlloc(); renderManual(); renderRebalance(); renderCons();
   renderScores(); renderSpecial(); renderFrontier(); renderStab(); renderStress(); renderZero(); renderBT(); renderWF(); renderHist(); renderVal(); renderLim(); renderComm();
   $("#foot").innerHTML = `HTML = 화면 · Python = 데이터·퀀트 엔진 · 해설 = 해석 전용. 모델 ${esc(R.meta.model_version)} · 시스템 ${esc(R.meta.system_version)} · 실행 ${esc(R.meta.run_at||"")} · 소요 ${esc(R.meta.runtime_sec??"–")}초`;
 }
@@ -641,6 +653,53 @@ function renderComm(){
   const C = S.result.commentary || {};
   $("#commBody").innerHTML = `<h3 style="margin-top:0">규칙 기반 해설</h3><div class="pre">${esc(C.rule_based||"")}</div>
    ${C.llm?`<h3>AI 해설 <span class="chip">해석 전용 — 비중·한도·유니버스를 바꾸지 않음</span></h3><div class="pre">${esc(C.llm)}</div>`:`<p class="small muted">${esc(C.llm_note||"AI 해설은 .env에 ANTHROPIC_API_KEY를 넣고 portfolio_engine.py --llm으로 실행하면 추가됩니다.")}</p>`}`;
+}
+
+// ---- 투자금 배분 계산: 목표 비중 × 투자금 → 정수 주식 수 (가격 = Data As Of 종가). 브라우저 안에서만 계산, 저장 안 함 ----
+let ALLOC_ROWS = null;
+function allocate(amount, rows, topup){
+  const out = rows.filter(r => r.target >= 0.0005 && r.price > 0).map(r => {  // 목표표와 같은 기준: 0.05% 미만은 0%
+    const tgt = amount * r.target, sh = Math.floor(tgt / r.price + 1e-9);
+    return {ticker:r.ticker, name:r.name, asset_class:r.asset_class, target:r.target, price:r.price, target_amt:tgt, shares:sh};
+  });
+  let cash = amount - out.reduce((a,x)=>a + x.shares*x.price, 0);
+  if (topup){
+    for (;;){ // 1주를 더 사면 목표에 더 가까워지는(부족분 ≥ 가격의 절반) 종목 중 부족분이 가장 큰 종목을 1주씩
+      let best = null, gap = 0;
+      out.forEach(x => { const g = x.target_amt - x.shares*x.price; if (x.price <= cash + 1e-9 && g >= x.price/2 && g > gap){ gap = g; best = x; } });
+      if (!best) break;
+      best.shares += 1; cash -= best.price;
+    }
+  }
+  out.forEach(x => { x.amount = x.shares*x.price; x.weight = amount > 0 ? x.amount/amount : 0; x.diff = x.weight - x.target; });
+  out.sort((a,b) => b.target - a.target);
+  return {rows: out, invested: amount - cash, cash};
+}
+function renderAlloc(){
+  const R = S.result;
+  $("#allocLead").innerHTML = `${esc(R.meta.target_month)} 목표 비중(${esc(R.meta.rebalance_date)} 적용)대로 입력 금액을 나눠 정수 주식 수를 계산합니다. `+
+    `가격은 Data As Of <b>${esc(R.meta.data_as_of)}</b> 종가이므로 실제 주문 시 가격과 다를 수 있습니다. 입력값은 저장되지 않습니다.`;
+  const run = () => {
+    const amt = Number($("#allocAmt").value);
+    if (!(amt > 0)){ $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하세요.</p>'; ALLOC_ROWS = null; $("#allocCsv").disabled = true; return; }
+    const a = allocate(amt, R.portfolio.rows, $("#allocTopup").checked);
+    ALLOC_ROWS = a.rows; $("#allocCsv").disabled = false;
+    const n = a.rows.filter(x=>x.shares>0).length, maxd = Math.max(...a.rows.map(x=>Math.abs(x.diff)));
+    $("#allocOut").innerHTML = `<div class="tiles">
+      <div class="tile"><div class="k">투자금</div><div class="v">${money(amt)}</div><div class="s">입력 금액</div></div>
+      <div class="tile"><div class="k">매수 합계</div><div class="v">${money(a.invested)}</div><div class="s">${pct(a.invested/amt,2)} 투자</div></div>
+      <div class="tile"><div class="k">남는 현금</div><div class="v">$${a.cash.toFixed(2)}</div><div class="s">${pct(a.cash/amt,2)} · 1주 미만 잔여</div></div>
+      <div class="tile"><div class="k">매수 종목</div><div class="v">${n}종목</div><div class="s">목표 대비 최대 차이 ${(maxd*100).toFixed(2)}%p</div></div></div>
+      <div class="tbl" style="margin-top:10px"><table><thead><tr><th class="l">ETF</th><th class="l">자산군</th><th>목표 비중</th><th>목표 금액</th><th>가격</th><th>주수</th><th>매수 금액</th><th>실제 비중</th><th>차이</th></tr></thead><tbody>
+      ${a.rows.map(x=>`<tr${x.shares?"":' class="zero"'}><td class="l"><b>${esc(x.ticker)}</b></td><td class="l">${esc(x.asset_class)}</td><td>${pct(x.target,2)}</td><td>$${x.target_amt.toLocaleString("en-US",{maximumFractionDigits:0})}</td><td>$${x.price.toFixed(2)}</td><td><b>${x.shares.toLocaleString("en-US")}</b></td><td>$${x.amount.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td>${pct(x.weight,2)}</td><td>${(x.diff*100>=0?"+":"−")+Math.abs(x.diff*100).toFixed(2)}%p</td></tr>`).join("")}
+      <tr><td class="l"><b>합계</b></td><td class="l">남는 현금 $${a.cash.toFixed(2)}</td><td>${pct(a.rows.reduce((s,x)=>s+x.target,0),2)}</td><td>${money(amt)}</td><td></td><td></td><td><b>$${a.invested.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</b></td><td>${pct(a.invested/amt,2)}</td><td></td></tr>
+      </tbody></table></div>`;
+  };
+  $("#allocRun").onclick = run;
+  $("#allocAmt").onkeydown = e => { if (e.key === "Enter") run(); };
+  $("#allocTopup").onchange = () => { if (Number($("#allocAmt").value) > 0) run(); };
+  $("#allocCsv").onclick = () => { if (ALLOC_ROWS) download(`taa_allocation_${R.meta.target_month}.csv`, toCSV(ALLOC_ROWS, ["ticker","asset_class","target","target_amt","price","shares","amount","weight","diff"])); };
+  if (Number($("#allocAmt").value) > 0) run(); else $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하고 [배분 계산]을 누르세요.</p>';
 }
 
 function toCSV(rows, cols){ const q = v => { if (v===null||v===undefined) return ""; const s = String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
