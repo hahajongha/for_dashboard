@@ -164,10 +164,8 @@ def build(cfg, data_dir: Path, out_path: Path, as_of, log=print) -> dict:
     r_bt.index = r_bt.index + pd.offsets.MonthEnd(0)
 
     series, monthly = [], {}
-    latest = load_json(root / "output" / "latest.json") if (root / "output" / "latest.json").exists() else {}
-    y_model = (latest.get("metrics") or {}).get("IncomeYield")
     series.append(dict(id="model_bt", label="TAA 모델 (고정 파라미터 백테스트)", kind="model",
-                       badge="Fixed params backtest (partial in-sample)", tier="모델", yield12m=y_model,
+                       badge="Fixed params backtest (partial in-sample)", tier="모델",
                        stats=_stats(r_bt, rf, end), calendar=_calendar(r_bt, end)))
     monthly["model_bt"] = r_bt.loc[:end]
 
@@ -198,11 +196,11 @@ def build(cfg, data_dir: Path, out_path: Path, as_of, log=print) -> dict:
 
     # Peers
     conf = _cfg_peers(root)
-    adj, close, div = (_read(data_dir / "peers" / f"{s}.csv.gz") for s in ("adj_close", "close", "dividends"))
+    adj = _read(data_dir / "peers" / "adj_close.csv.gz")
     for p in conf["peers"]:
         t = p["ticker"]
         item = dict(id=t, label=f"{t} — {p['name']}", kind="peer", tier=p["tier"], type=p["type"], category=p["category"],
-                    stats={}, calendar={}, yield12m=None)
+                    stats={}, calendar={})
         if adj is not None and t in adj.columns and adj[t].notna().any():
             s = adj[t].dropna().loc[:end]
             mr = s.resample("ME").last().pct_change()
@@ -211,12 +209,6 @@ def build(cfg, data_dir: Path, out_path: Path, as_of, log=print) -> dict:
             item["stats"] = _stats(mr, rf, end)
             item["calendar"] = _calendar(mr, end)
             monthly[t] = mr
-            if close is not None and div is not None and t in close.columns:
-                c = close[t].dropna().loc[:a]
-                d = div[t].fillna(0).loc[:a]
-                if len(c):
-                    last = c.index[-1]
-                    item["yield12m"] = float(d.loc[last - pd.Timedelta(days=365):last].sum() / c.iloc[-1])
             item["last_date"] = str(s.index[-1].date()) if len(s) else None
         series.append(item)
 
@@ -235,8 +227,7 @@ def build(cfg, data_dir: Path, out_path: Path, as_of, log=print) -> dict:
                v3_calendar=v3cal,
                notes=["수익률은 총수익(분배 재투자) 기준. 공모펀드·ETF는 보수 차감 후, 모델 백테스트는 ETF 보수 반영·거래비용 10bp 차감, 세금 미반영.",
                       "모델 백테스트는 현재 고정 파라미터로 과거를 계산한 부분 In-Sample 결과이며 과거 매크로는 빈티지를 쓰지 않음(K-7).",
-                      "v3.0 워크포워드(Honest OOS) 연도별 수익률은 이사 전 스크립트 산출물(정적, K-12).",
-                      "Peer 분배수익률 = 최근 365일 분배금 ÷ 종가(자본이득 분배 포함). 모델 = 목표 포트폴리오 TTM 분배수익률."])
+                      "v3.0 워크포워드(Honest OOS) 연도별 수익률은 이사 전 스크립트 산출물(정적, K-12)."])
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     log(f"peers.json: 시계열 {len(series)} · 차트 {len(all_idx)}개월 · 기준 월말 {end.date()}")

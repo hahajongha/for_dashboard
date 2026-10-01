@@ -683,11 +683,11 @@ const sgnPct = (x,d=1) => bad(x) ? "–" : (x>=0?"+":"−")+Math.abs(x*100).toFi
 function renderPeers(){
   const P = S.peers, body = $("#peerBody");
   if (!P){ $("#peerLead").textContent = ""; body.innerHTML = '<div class="notice">Peer 데이터가 아직 없습니다. GitHub Actions 데이터 업데이트(1단계 Update Data)가 한 번 실행되면 표시됩니다.</div>'; return; }
-  $("#peerLead").innerHTML = `비슷한 목표(멀티에셋 인컴, 분배 4~8%)의 공모펀드·ETF와 비교합니다. 기준 월말 <b>${esc(P.last_month_end)}</b> · 생성 ${esc(P.generated_at.replace("T"," ").replace("+00:00"," UTC"))}. `+
+  $("#peerLead").innerHTML = `비슷한 목표(멀티에셋 인컴, 분배 4~8%)의 공모펀드·ETF와 <b>총수익률(분배금 재투자)</b> 기준으로 비교합니다. 기준 월말 <b>${esc(P.last_month_end)}</b> · 생성 ${esc(P.generated_at.replace("T"," ").replace("+00:00"," UTC"))}. `+
     `우리 모델 수익률은 <b>현재 파라미터로 과거를 계산한 백테스트(부분 In-Sample)</b>이고, 연도별 표에는 v3.0 워크포워드(Honest OOS)를 따로 표시합니다.`;
   const ser = P.series, byId = Object.fromEntries(ser.map(x=>[x.id,x]));
-  const cols = [["yield12m","분배(12M)"],["r1m","1개월"],["r3m","3개월"],["ytd","YTD"],["r1y","1년"],["r3y","3년(연)"],["r5y","5년(연)"],["r10y","10년(연)"],["vol3y","3년 변동성"],["sharpe3y","3년 Sharpe"],["mdd3y","3년 MDD"]];
-  const cell = (x,k) => { const v = k==="yield12m" ? x.yield12m : (x.stats||{})[k]; if (bad(v)) return "–"; return k==="sharpe3y" ? nf(v,2) : (k==="yield12m"||k==="vol3y") ? pct(v,1) : sgnPct(v,1); };
+  const cols = [["r1m","1개월"],["r3m","3개월"],["ytd","YTD"],["r1y","1년"],["r3y","3년(연)"],["r5y","5년(연)"],["r10y","10년(연)"],["vol3y","3년 변동성"],["sharpe3y","3년 Sharpe"],["mdd3y","3년 MDD"]];
+  const cell = (x,k) => { const v = (x.stats||{})[k]; if (bad(v)) return "–"; return k==="sharpe3y" ? nf(v,2) : k==="vol3y" ? pct(v,1) : sgnPct(v,1); };
   let rows = "", tier = null;
   ser.filter(x=>x.kind!=="static").forEach(x => {
     if (x.tier !== tier){ tier = x.tier; rows += `<tr class="grp"><td class="l" colspan="${cols.length+2}">${esc(tier)}</td></tr>`; }
