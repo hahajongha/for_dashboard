@@ -103,6 +103,21 @@ td.pname{white-space:normal;min-width:200px;max-width:260px}
 tr.grp td{background:var(--soft);color:var(--ink2);font-size:12px;font-weight:600}
 .pre{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);padding:12px 14px;max-width:100ch}
 .trk-del{font:inherit;font-size:12px;padding:1px 7px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:3px;cursor:pointer}
+/* 실보유 입력표: 노란 칸 = 직접 입력, 나머지 = 자동 계산 */
+#manualTbl th,#manualTbl td{padding:4px 7px}
+#manualTbl input{width:84px;padding:3px 6px;background:var(--accent-soft);border-color:var(--accent)}
+#manualTbl td[data-c="pl"] .small{display:block}
+#manualTbl input.bad{border-color:var(--sell);background:var(--sell-soft)}
+#manualTbl th .tag{display:block;font-weight:400;font-size:11px;line-height:1.2}
+#manualTbl th .tag.in{color:var(--accent)}
+#manualTbl th .tag.auto{color:var(--ink2)}
+#manualTbl tfoot td{font-weight:700;border-top:2px solid var(--line);background:var(--soft)}
+[hidden]{display:none!important}
+#bookBar label{white-space:nowrap}
+#bookImport{max-width:230px}
+.sw{display:inline-block;width:12px;height:12px;border:1px solid var(--line);vertical-align:-2px;margin-right:4px;border-radius:2px}
+.sw.in{background:var(--accent-soft);border-color:var(--accent)}
+.sw.auto{background:var(--surface)}
 footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
 @media (max-width:980px){.tiles,.tiles.t6{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.step{border-bottom:1px solid var(--line)}.grid2,.card3{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -169,25 +184,28 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
 
 <section id="s-actual">
   <h2>실보유 입력과 리밸런싱 주문</h2>
-  <p class="lead">증권사에서 내려받은 CSV(Ticker·Quantity·Price·Market Value·Weight 중 일부)를 올리거나 직접 입력하세요. 수량×가격 또는 평가금액 중 하나만 있어도 됩니다. 실보유를 넣지 않으면 모델 추정 비중을 실보유로 간주하지 않습니다.</p>
-  <div class="inputs">
-    <label>CSV <input type="file" id="csvFile" accept=".csv,.txt"></label>
-    <label>총 평가금액 <input type="number" id="pvInput" placeholder="비중만 입력 시" min="0" step="1000"></label>
-    <label>추가 입금(+)/출금(−) <input type="number" id="cashInput" placeholder="0" step="1000"></label>
+  <p class="lead" id="bookLead"></p>
+  <div class="inputs" id="bookBar">
+    <span class="small"><i class="sw in"></i>입력 칸 <i class="sw auto" style="margin-left:8px"></i>자동 계산</span>
+    <span class="small muted" id="bookSaved"></span>
+    <button class="ghost" id="bookExport">CSV 내보내기</button>
+    <label>CSV 불러오기 <input type="file" id="bookImport" accept=".csv,.txt,text/csv"></label>
+    <span><input type="text" id="otherTicker" placeholder="유니버스 외 티커" maxlength="15" style="width:130px" aria-label="유니버스 외 종목 티커"> <button class="ghost" id="otherAdd">종목 추가</button></span>
+    <button class="ghost" id="bookUndo" hidden>되돌리기</button>
+    <button class="ghost" id="bookClear">보유 전체 지우기</button>
+  </div>
+  <div class="small" id="bookSummary" style="margin:10px 0 6px"></div>
+  <div class="small" id="bookMsg"></div>
+  <div class="tbl"><table id="manualTbl"></table></div>
+  <div class="inputs" style="margin-top:12px">
+    <label>추가 입금(+)/출금(−) <input type="number" id="cashInput" placeholder="0" step="any"></label>
     <button id="runRebal">비교하고 주문 만들기</button>
-    <button class="ghost" id="dlTemplate">입력 양식 받기</button>
-    <button class="ghost" id="clearActual">지우기</button>
+    <span class="small muted">아직 계좌에 들어오지 않은 적립금만 넣으세요. 이미 입금된 돈은 CASH 행에 포함합니다.</span>
   </div>
   <div class="inputs" style="border-top:0">
     <label><input type="checkbox" id="deployCash" checked> 남는 현금으로 목표 대비 부족한 종목 추가 매수 (적립금·분배금 투입)</label>
     <label>남겨 둘 현금 ($) <input type="number" id="deployBuf" min="0" step="10" value="0" style="width:100px"></label>
   </div>
-  <div class="inputs" style="border-top:0">
-    <span class="small muted">실보유 저장(내 PC에 CSV로 보관 → 다음 달 [CSV]로 불러오기, 가격은 비워 두어 최신 종가로 평가):</span>
-    <button class="ghost" id="saveActualNow" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">현재 실보유 CSV 저장</button>
-    <button class="ghost" id="saveActualPost" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">주문 체결 후 실보유 CSV 저장</button>
-  </div>
-  <details class="acc" id="manualBox" style="margin-top:8px"><summary>직접 입력 <span class="sub">ETF별 수량·가격·평가금액·비중(%) — 빈 칸은 무시</span></summary><div class="body"><div class="tbl"><table id="manualTbl"></table></div></div></details>
   <div class="err" id="rebalErr"></div>
   <div id="rebalOut"></div>
 </section>
@@ -420,7 +438,7 @@ function renderSteps(){
       : `<a class="btn" href="${esc((S.pub&&S.pub.workflow_url)||WORKFLOW_URL)}" target="_blank" rel="noopener" title="GitHub Actions에서 Run workflow → task 선택(data_only / model_run)">Update Data ↗</a>${pubStatus()}`}</div>`,
     `<div class="step"><div class="t"><span>2</span>데이터 검증</div><div class="d">결측·이상치·지연·발표시차 점검. 오류가 있으면 실행을 멈춥니다.</div>${stepBtn("bValidate","검증",be)}<div class="st ${v?(v.status==="FAIL"?"bad":v.status==="WARN"?"warn":"ok"):""}">${v?`${v.status} · 오류 ${v.errors} · 경고 ${v.warnings}`:""}</div></div>`,
     `<div class="step"><div class="t"><span>3</span>모델 실행</div><div class="d">국면→점수→리스크→최적화→다음 달 목표</div>${be?`<input type="date" id="asOf" aria-label="기준일(비우면 자동)">`:""}${stepBtn("bRun","실행",be)}<div class="st ${R?"ok":""}">${R?esc(R.meta.status):""}</div></div>`,
-    `<div class="step"><div class="t"><span>4</span>실보유 입력</div><div class="d">CSV 업로드 또는 직접 입력</div><button class="ghost" onclick="goTo('s-actual')">입력하러 가기</button><div class="st ${reb?"ok":"muted"}">${reb?"입력됨":"Actual Portfolio: Not Provided"}</div></div>`,
+    `<div class="step"><div class="t"><span>4</span>실보유 입력</div><div class="d">수량·평균매입단가 입력 (브라우저 자동 저장, CSV 백업)</div><button class="ghost" onclick="goTo('s-actual')">입력하러 가기</button><div class="st ${reb||bookHasData()?"ok":"muted"}">${reb?"입력됨 · 비교 완료":bookHasData()?"입력됨 · 비교 전":"Actual Portfolio: Not Provided"}</div></div>`,
     `<div class="step"><div class="t"><span>5</span>주문 확인</div><div class="d">밴드 ±${R?pct(R.meta.params.band,1):"1.5%"} 밖이면 BUY/SELL</div><button class="ghost" onclick="goTo('rebalOut')">주문 보기</button><div class="st">${reb?`매수 ${reb.totals.n_buy} · 매도 ${reb.totals.n_sell}`:""}</div></div>`,
     `<div class="step"><div class="t"><span>6</span>내보내기</div><div class="d">CSV는 바로, Excel은 백엔드에서</div><select id="csvSel" aria-label="CSV 종류"><option value="target">목표 포트폴리오</option><option value="orders">리밸런싱 주문</option><option value="actual">실보유</option><option value="scores">ETF 점수</option><option value="macro">매크로</option></select><button class="ghost" id="bCsv">CSV</button>${stepBtn("bXlsx","Excel",be)}</div>`
   ].join("");
@@ -536,37 +554,226 @@ function renderExplain(){
   <li><b>밴드</b> — 새 최적 비중과 현재 비중(${R.portfolio.current_basis==="actual"?"실보유":"Model Current"})의 차이가 ${pct(p.band,1)}p 미만이면 거래하지 않고 현재 비중을 유지합니다. 이번 달 ${kept}/25개 종목 유지.</li></ol>`;
 }
 
+// ---- 실보유 입력(보유 장부) ----
+// 입력: 수량·평균매입단가 (현금은 금액, 유니버스 외 종목은 현재가도) / 자동: 매입금액·현재가(Data As Of 종가)·평가금액·평가손익·수익률·비중·목표와 차이
+// 이 브라우저 localStorage(taaPm.holdings.v1)에 자동 저장 — 저장소·서버로 보내지 않음(공개 저장소, K-3). 백업·다른 기기는 CSV 내보내기/불러오기
+const BOOK_KEY = "taaPm.holdings.v1";
+const BOOK_CASH = new Set(["CASH","USD","현금","예수금","DEPOSIT","외화예수금","달러","USD예수금","달러예수금"]);
+const TICKER_RE = /^[A-Z0-9.\-^=]{1,15}$/;
+const numOrNull = v => (v===null || v===undefined || v==="" || !isFinite(Number(v))) ? null : Number(v);
+function bookEmpty(){ return {version:1, updated_at:null, cash:null, rows:[]}; }
+function bookClean(j){
+  if (!j || !Array.isArray(j.rows)) return null;
+  const seen = new Set(), rows = [];
+  for (const r of j.rows){ const t = String((r && r.ticker) || "").trim().toUpperCase();
+    if (!TICKER_RE.test(t) || t === "CASH" || seen.has(t)) continue; seen.add(t);
+    const q = numOrNull(r.quantity), a = numOrNull(r.avg_cost), p = numOrNull(r.price);
+    rows.push({ticker:t, quantity: q!==null && q>=0 ? q : null, avg_cost: a!==null && a>=0 ? a : null, price: p!==null && p>0 ? p : null}); }
+  return {version:1, updated_at: typeof j.updated_at==="string" ? j.updated_at : null, cash: numOrNull(j.cash), rows};
+}
+function bookLoad(){ try { return bookClean(JSON.parse(localStorage.getItem(BOOK_KEY) || "null")) || bookEmpty(); } catch(e){ return bookEmpty(); } }
+let BOOK = bookLoad(), BOOK_UNDO = null, BOOK_T = null;
+let BOOK_OK = (() => { try { localStorage.setItem("taaPm.probe","1"); localStorage.removeItem("taaPm.probe"); return true; } catch(e){ return false; } })();
+function bookPersist(){ clearTimeout(BOOK_T); BOOK_T = null; BOOK.updated_at = new Date().toISOString();
+  try { localStorage.setItem(BOOK_KEY, JSON.stringify(BOOK)); BOOK_OK = true; } catch(e){ BOOK_OK = false; } bookStatus(); }
+window.addEventListener("pagehide", () => { if (BOOK_T) bookPersist(); });
+// 다른 탭·창에서 바꾸면 이 화면도 갱신
+window.addEventListener("storage", e => { if (e.key !== BOOK_KEY || !S.result) return; BOOK = bookLoad(); renderManual(); bookMarkStale(); });
+const bookRow = t => BOOK.rows.find(r => r.ticker === t);
+const bookUni = () => new Set(S.result ? S.result.universe.tickers : []);
+const bookHasData = b => { b = b || BOOK; return b.rows.some(r => r.quantity > 0) || (b.cash !== null && b.cash !== 0); };
+function bookSet(t, f, v){ let r = bookRow(t); if (!r){ r = {ticker:t, quantity:null, avg_cost:null, price:null}; BOOK.rows.push(r); } r[f] = v; }
+// 유니버스 종목은 수량·단가가 모두 비면 장부에서 뺌. 유니버스 외 종목은 [×]로 지울 때까지 유지
+function bookPrune(){ const U = bookUni(); BOOK.rows = BOOK.rows.filter(r => !U.has(r.ticker) || r.quantity !== null || r.avg_cost !== null); }
+const money2 = x => bad(x) ? "–" : (x<0?"−":"")+"$"+Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+const pnl2 = x => bad(x) ? "–" : (x>=0?"+":"−")+"$"+Math.abs(x).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+const localDate = () => { const d = new Date(), z = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; };
+const localTime = iso => { const d = new Date(iso), z = n => String(n).padStart(2,"0"); return isNaN(d) ? "" : `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+function focusIn(el){ if (!el) return; el.focus({preventScroll:true}); const r = el.getBoundingClientRect(); if (r.top < 40 || r.bottom > innerHeight - 20) window.scrollBy({top: r.top - innerHeight/2, behavior:"smooth"}); }
+// 표 순서: 목표 포함(목표 비중 높은 순) → 목표 제외(유니버스 순) → 유니버스 외(입력 순)
+function bookOrder(){ const R = S.result, U = bookUni(), rows = R.portfolio.rows;
+  return {inT: rows.filter(r => r.target >= 0.0005).sort((a,b) => b.target - a.target), outT: rows.filter(r => r.target < 0.0005), others: BOOK.rows.filter(r => !U.has(r.ticker))}; }
+function bookCalc(){
+  const R = S.result, U = bookUni(), px = {}, tg = {};
+  R.portfolio.rows.forEach(r => { px[r.ticker] = r.price; tg[r.ticker] = r.target; });
+  const tick = R.portfolio.rows.map(r => r.ticker).concat(BOOK.rows.filter(r => !U.has(r.ticker)).map(r => r.ticker));
+  const L = {}; let invested = 0, cost = 0, pl = 0, noAvg = 0, noPx = 0, n = 0;
+  for (const t of tick){
+    const b = bookRow(t) || {}, q = b.quantity ?? null, a = b.avg_cost ?? null, p = U.has(t) ? (px[t] ?? null) : (b.price ?? null);
+    const x = {q, a, p, mv: q!==null && p!==null ? q*p : null, cost: q!==null && a!==null ? q*a : null, pl:null, ret:null, other:!U.has(t)};
+    if (q > 0){ n++;
+      if (x.mv === null) noPx++; else invested += x.mv;
+      if (x.cost !== null && x.mv !== null){ x.pl = x.mv - x.cost; x.ret = x.cost > 0 ? x.pl/x.cost : null; cost += x.cost; pl += x.pl; }
+      else if (a === null) noAvg++; }
+    L[t] = x; }
+  const cash = BOOK.cash ?? 0, total = invested + cash;
+  for (const t of tick){ const x = L[t]; x.w = total > 0 ? (x.mv ?? 0)/total : null; x.dev = x.w === null ? null : x.w - (tg[t] || 0); }
+  L.CASH = {mv:cash, w: total > 0 ? cash/total : null}; L.CASH.dev = L.CASH.w;
+  return {L, tick, tg, total, invested, cash, cost, pl, ret: cost > 0 ? pl/cost : null, noAvg, noPx, n};
+}
 function renderManual(){
-  const keep = {}; document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { if (i.value !== "") keep[i.closest("tr").dataset.t+"|"+i.dataset.f] = i.value; });
-  const R = S.result, rows = R.portfolio.rows;
-  // 목표 포함 종목(목표 비중 높은 순) → 목표 제외 종목(유니버스 순) → 현금. 0.05% 미만은 목표표와 같은 기준으로 제외
-  const inT = rows.filter(r => r.target >= 0.0005).sort((a,b) => b.target - a.target), outT = rows.filter(r => r.target < 0.0005);
-  const NC = 7, grp = t => `<tr class="grp"><td class="l" colspan="${NC}">${t}</td></tr>`;
-  const line = (t, r, tag) => `<tr data-t="${t}"><td class="l">${tag}</td><td class="l"><b>${t}</b>${t==="CASH"?' <span class="small muted">미투자 현금</span>':(r?` <span class="small muted">${esc(r.asset_class)}</span>`:"")}</td>`+
-    `<td>${r ? (r.target >= 0.0005 ? pct(r.target,2) : "0%") : "–"}</td>`+
-    `<td><input type="number" data-f="quantity" aria-label="${t} 수량"></td><td><input type="number" data-f="price" placeholder="${r?nf(r.price,2):"1"}" aria-label="${t} 가격"></td><td><input type="number" data-f="market_value" aria-label="${t} 평가금액"></td><td><input type="number" data-f="weight" aria-label="${t} 비중"></td></tr>`;
-  $("#manualTbl").innerHTML = `<tr><th class="l">구분</th><th class="l">ETF</th><th>목표 비중</th><th>수량</th><th>현재가</th><th>평가금액</th><th>비중(%)</th></tr>` +
+  const R = S.result, {inT, outT, others} = bookOrder();
+  const NC = 11, grp = t => `<tr class="grp"><td class="l" colspan="${NC}">${t}</td></tr>`;
+  const inp = (t, f, lab, v, neg) => `<input type="number" step="any"${neg?"":' min="0"'} inputmode="decimal" data-t="${esc(t)}" data-f="${f}" aria-label="${esc(t)} ${lab}" value="${v===null||v===undefined?"":esc(String(v))}">`;
+  const A = k => `<td data-c="${k}">–</td>`;
+  const line = (t, r, tag) => { const b = bookRow(t) || {};
+    return `<tr data-t="${esc(t)}"><td class="l">${tag}</td><td class="l"><b>${esc(t)}</b> ${r ? `<span class="small muted">${esc(r.asset_class)}</span>` : `<button class="trk-del" data-rm="${esc(t)}" title="이 종목 행 삭제" aria-label="${esc(t)} 행 삭제">×</button>`}</td>`+
+      `<td>${r ? (r.target >= 0.0005 ? pct(r.target,2) : "0%") : "–"}</td><td>${inp(t,"quantity","수량",b.quantity)}</td><td>${inp(t,"avg_cost","평균매입단가",b.avg_cost)}</td>${A("cost")}`+
+      (r ? A("price") : `<td>${inp(t,"price","현재가",b.price)}</td>`) + A("mv") + A("pl") + A("w") + A("dev") + `</tr>`; };
+  const TH = (txt, kind, l) => `<th${l?' class="l"':""}>${txt}${kind?`<span class="tag ${kind}">${kind==="in"?"입력":"자동"}</span>`:""}</th>`;
+  $("#manualTbl").innerHTML = `<thead><tr>${TH("구분","",1)}${TH("ETF","",1)}${TH("목표 비중")}${TH("수량","in")}${TH("평균매입단가","in")}${TH("매입금액","auto")}${TH("현재가","auto")}${TH("평가금액","auto")}${TH("평가손익 (수익률)","auto")}${TH("비중","auto")}${TH("목표와 차이","auto")}</tr></thead><tbody>` +
     grp(`이번 달 목표 포트폴리오 — ${inT.length}종목 (${esc(R.meta.target_month)} 목표, 비중 높은 순)`) + inT.map(r => line(r.ticker, r, '<span class="chip info">목표</span>')).join("") +
     grp(`목표 제외 — ${outT.length}종목 (보유 중이면 매도 대상)`) + outT.map(r => line(r.ticker, r, '<span class="chip">제외</span>')).join("") +
-    grp("현금") + line("CASH", null, '<span class="chip">현금</span>');
-  document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { const v = keep[i.closest("tr").dataset.t+"|"+i.dataset.f]; if (v !== undefined) i.value = v; });
-  const ok = !!(S.reb && S.reb.input_rows);
-  ["saveActualNow","saveActualPost"].forEach(id => { const b = document.getElementById(id); if (b){ b.disabled = !ok; b.title = ok ? "" : "[비교하고 주문 만들기]를 먼저 누르세요"; } });
+    (others.length ? grp(`유니버스 외 — ${others.length}종목 (현재가 직접 입력 · 리밸런싱 때 전량 매도 대상)`) + others.map(o => line(o.ticker, null, '<span class="chip warn">유니버스 외</span>')).join("") : "") +
+    grp("현금") + `<tr data-t="CASH"><td class="l"><span class="chip">현금</span></td><td class="l"><b>CASH</b> <span class="small muted">받은 분배금 포함 실제 잔고</span></td><td>–</td><td></td><td></td><td></td><td></td><td>${inp("CASH","cash","현금 금액",BOOK.cash,true)}</td><td></td>${A("w")}${A("dev")}</tr>` +
+    `</tbody><tfoot><tr><td class="l" colspan="2">합계</td><td data-c="tg"></td><td></td><td></td><td data-c="cost"></td><td></td><td data-c="mv"></td><td data-c="pl"></td><td data-c="w"></td><td></td></tr></tfoot>`;
+  $("#bookLead").innerHTML = `<b>노란 칸(수량·평균매입단가)만 입력</b>하세요. 현금은 CASH 행에 금액으로 넣습니다(받은 분배금 포함). 매입금액·현재가(Data As Of <b>${esc(R.meta.data_as_of)}</b> 종가 — 월간 모델 실행 때 갱신)·평가금액·평가손익·비중은 자동 계산됩니다. `+
+    `입력은 <b>이 브라우저에 자동 저장</b>되고 저장소·서버로 보내지 않습니다. 백업하거나 다른 기기에서 쓰려면 [CSV 내보내기] → 그 기기에서 [CSV 불러오기]. 실보유를 넣지 않으면 모델 추정 비중을 실보유로 간주하지 않습니다.`;
+  const u = $("#bookUndo"); u.hidden = !BOOK_UNDO; if (BOOK_UNDO) u.textContent = `되돌리기 (${BOOK_UNDO.label} 전)`;
+  bookRecalc(); bookStatus();
 }
-// ---- 실보유 CSV 저장: 업로드 양식(Ticker,Quantity,Price,Market Value,Weight) 그대로 — 다음 달 [CSV]로 다시 불러옴. 저장소·서버로 전송하지 않음 ----
-function holdingsCSV(list){
-  const q = v => (v===null || v===undefined || Number.isNaN(v)) ? "" : String(+(+v).toFixed(6));
-  // 수량을 알면 수량만(가격은 비워 다음 달 최신 종가로 평가), 모르면 평가금액으로 저장
-  return "Ticker,Quantity,Price,Market Value,Weight\n" + list.map(h => h.ticker==="CASH" ? `CASH,,1,${q(h.cash)},`
-    : (h.quantity !== null && h.quantity !== undefined) ? `${h.ticker},${q(h.quantity)},,,` : `${h.ticker},,,${q(h.mv)},`).join("\n") + "\n";
+function bookRecalc(){
+  if (!S.result || !document.querySelector("#manualTbl tbody")) return null;
+  const C = bookCalc(), band = S.result.meta.params.band;
+  const put = (td, txt, cls) => { if (td){ td.textContent = txt; td.className = cls || ""; } };
+  const plCell = (td, pl, ret) => { if (!td) return; td.className = pl === null ? "" : pl >= 0 ? "ok" : "bad";
+    td.innerHTML = pl === null ? "–" : `${pnl2(pl)}<span class="small">${ret === null ? "" : sgnPct(ret, 2)}</span>`; };
+  document.querySelectorAll("#manualTbl tbody tr[data-t]").forEach(tr => {
+    const t = tr.dataset.t, x = t === "CASH" ? C.L.CASH : C.L[t]; if (!x) return;
+    const c = k => tr.querySelector(`td[data-c="${k}"]`), held = t === "CASH" ? x.mv !== 0 : x.q > 0;
+    if (t !== "CASH"){
+      put(c("cost"), x.cost === null ? "–" : money2(x.cost));
+      if (!x.other) put(c("price"), x.p === null ? "–" : nf(x.p, 2));
+      put(c("mv"), x.mv === null ? (x.q > 0 ? "현재가 필요" : "–") : money2(x.mv), x.mv === null && x.q > 0 ? "warn" : "");
+      plCell(c("pl"), x.pl, x.ret);
+      tr.classList.toggle("zero", !held && !(C.tg[t] >= 0.0005));
+    }
+    put(c("w"), held && x.w !== null ? pct(x.w, 2) : "–");
+    const showDev = x.dev !== null && (held || (C.tg[t] || 0) >= 0.0005);
+    put(c("dev"), showDev ? pp(x.dev, 2) : "–", showDev && Math.abs(x.dev) > band ? "warn" : "");
+  });
+  const f = document.querySelector("#manualTbl tfoot"), F = k => f.querySelector(`td[data-c="${k}"]`);
+  put(F("tg"), pct(S.result.portfolio.rows.reduce((s,r)=>s+r.target,0), 1)); put(F("cost"), C.cost > 0 ? money2(C.cost) : "–");
+  put(F("mv"), C.total ? money2(C.total) : "–"); plCell(F("pl"), C.cost > 0 ? C.pl : null, C.ret); put(F("w"), C.total > 0 ? "100.00%" : "–");
+  $("#bookSummary").innerHTML = !(C.n || C.cash) ? '<span class="muted">보유 수량과 평균매입단가를 노란 칸에 입력하세요.</span>'
+    : `총 평가금액 <b>${money2(C.total)}</b> = 투자 ${money2(C.invested)} + 현금 ${money2(C.cash)}${C.total > 0 ? ` (${pct(C.cash/C.total,1)})` : ""} · 보유 ${C.n}종목` +
+      (C.cost > 0 ? ` · 매입금액 ${money2(C.cost)} · 평가손익 <b class="${C.pl >= 0 ? "ok" : "bad"}">${pnl2(C.pl)} (${sgnPct(C.ret,2)})</b>` : "") +
+      (C.noAvg ? ` · <span class="muted">평균매입단가 없는 ${C.noAvg}종목은 손익 합계에서 제외</span>` : "") +
+      (C.noPx ? ` · <span class="warn">유니버스 외 ${C.noPx}종목은 현재가를 입력하세요</span>` : "");
+  return C;
 }
-function currentHoldings(){
-  const rows = S.reb.input_rows, out = [];
-  rows.forEach(r => { if (r.is_cash || r.ticker==="CASH"){ out.push({ticker:"CASH", cash:r.market_value}); return; }
-    const qty = (r.quantity!==null && r.quantity!==undefined) ? r.quantity : (r.price ? r.market_value / r.price : null);
-    if (qty) out.push({ticker:r.ticker, quantity:qty}); else if (r.market_value) out.push({ticker:r.ticker, quantity:null, mv:r.market_value}); });
+function bookStatus(){ const el = $("#bookSaved"); if (!el) return;
+  el.className = BOOK_OK ? "small muted" : "small warn";
+  el.textContent = !BOOK_OK ? "이 브라우저에는 저장할 수 없습니다(사생활 보호 모드 등) — [CSV 내보내기]로 보관하세요"
+    : BOOK.updated_at ? "이 브라우저에 자동 저장됨 · " + localTime(BOOK.updated_at) : "입력하면 이 브라우저에 자동 저장됩니다"; }
+function bookMarkStale(){ if (S.reb && !S.rebStale){ S.rebStale = true; renderRebalance(); renderTrack(); } }
+function bookChanged(){ bookPrune(); bookRecalc(); clearTimeout(BOOK_T); BOOK_T = setTimeout(bookPersist, 300); bookMarkStale(); }
+function bookReplace(nb, label){ BOOK_UNDO = {book: JSON.parse(JSON.stringify(BOOK)), label}; BOOK = nb; bookPrune(); bookPersist(); bookMarkStale(); renderManual(); }
+// 비교 엔진 입력: 수량 > 0인 종목(유니버스 종목은 가격 비움 → 엔진이 Data As Of 종가 사용, 유니버스 외는 입력 현재가) + 현금
+function bookEngineRows(){
+  const U = bookUni(), out = [];
+  BOOK.rows.forEach(r => { if (!(r.quantity > 0)) return; out.push(U.has(r.ticker) ? {ticker:r.ticker, quantity:r.quantity} : {ticker:r.ticker, quantity:r.quantity, price:r.price}); });
+  if (BOOK.cash !== null && BOOK.cash !== 0) out.push({ticker:"CASH", market_value:BOOK.cash});
   return out;
 }
+// ---- 보유 CSV: 내보내기(보유 종목 + CASH, 보유가 없으면 전체 종목 양식) / 불러오기(이 양식, 이전 [실보유 CSV 저장] 양식, 증권사 CSV 열 이름) ----
+function bookCSV(){
+  const R = S.result, C = bookCalc(), U = bookUni(), {inT, outT, others} = bookOrder();
+  const f = (v, d) => (v === null || v === undefined || !isFinite(v)) ? "" : String(+Number(v).toFixed(d));
+  const q = s => /[",\n]/.test(String(s)) ? '"'+String(s).replace(/"/g,'""')+'"' : String(s);
+  const lines = [["Ticker","Quantity","Avg Cost","Cost Basis","Price","Price Date","Market Value","Weight %","Unrealized P/L","Return %","Note"]];
+  const held = BOOK.rows.filter(r => r.quantity > 0 || r.avg_cost !== null || !U.has(r.ticker));
+  if (!held.length && BOOK.cash === null){
+    R.portfolio.rows.forEach((r,i) => lines.push([r.ticker,"","","",f(r.price,4),R.meta.data_as_of,"","","","", i ? "" : "양식: Quantity·Avg Cost를 채워 [CSV 불러오기]"]));
+    lines.push(["CASH","","","","1","","","","","",""]);
+  } else {
+    inT.concat(outT).map(r => r.ticker).concat(others.map(o => o.ticker)).forEach(t => { const r = bookRow(t); if (!r || !(r.quantity > 0 || r.avg_cost !== null || !U.has(t))) return;
+      const x = C.L[t]; lines.push([t, f(x.q,6), f(x.a,4), f(x.cost,2), f(x.p,4), U.has(t) ? R.meta.data_as_of : "", f(x.mv,2), x.q > 0 && x.w !== null ? f(x.w*100,4) : "", f(x.pl,2), x.ret === null ? "" : f(x.ret*100,4), U.has(t) ? "" : "유니버스 외"]); });
+    lines.push(["CASH","","","","1","",f(C.cash,2), C.total > 0 ? f(C.cash/C.total*100,4) : "","","",""]);
+  }
+  return "﻿" + lines.map(l => l.map(q).join(",")).join("\n") + "\n";
+}
+function csvSplit(text, d){ const rows = []; let row = [], f = "", q = false;
+  for (let i=0; i<text.length; i++){ const c = text[i];
+    if (q){ if (c === '"'){ if (text[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true; else if (c === d){ row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r"){ if (c === "\r" && text[i+1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+    else f += c; }
+  if (f !== "" || row.length){ row.push(f); rows.push(row); } return rows; }
+const BOOK_ALIAS = {
+  ticker:["ticker","symbol","종목","종목코드","티커","code"],
+  quantity:["quantity","qty","shares","수량","보유수량","주수","잔고수량","보유주수"],
+  avg_cost:["avgcost","averagecost","avgprice","averageprice","costpershare","unitcost","avgcostpershare","평균단가","매입단가","평균매입단가","매입평균가","평단가","평균매수가","매수평균가","매입가","평균가","평균매입가"],
+  cost_basis:["costbasis","totalcost","cost","매입금액","매수금액","매입원금"],
+  price:["price","현재가","가격","종가","close","lastprice","currentprice","last"],
+  market_value:["marketvalue","mv","평가금액","value","amount","평가액"],
+  weight:["weight","비중","wt","weights"]};
+const csvNum = v => { if (v === null || v === undefined) return null; const s = String(v).trim().replace(/[,\s$₩%]|USD|주|원/g, "");
+  if (s === "" || s === "-") return null; const x = Number(s); return isFinite(x) ? x : null; };
+function bookParseCSV(text){
+  text = String(text).replace(/^﻿/, ""); const head = text.slice(0, 2000), cnt = ch => head.split(ch).length - 1;
+  const d = cnt(";") > cnt(",") ? ";" : (cnt("\t") > cnt(",") ? "\t" : ",");
+  const rows = csvSplit(text, d).filter(r => r.some(c => String(c).trim() !== ""));
+  const nk = k => String(k).trim().toLowerCase().replace(/[\s_.\-\/()%$₩:]/g, "");
+  const hi = rows.findIndex(r => r.some(h => BOOK_ALIAS.ticker.includes(nk(h))));
+  if (hi < 0) throw new Error("Ticker(종목) 열을 찾지 못했습니다.");
+  const map = {}; rows[hi].forEach((h, i) => { for (const [fld, al] of Object.entries(BOOK_ALIAS)) if (al.includes(nk(h)) && !Object.values(map).includes(fld)) map[i] = fld; });
+  return rows.slice(hi + 1).map(r => { const rec = {}; r.forEach((v, i) => { if (map[i]) rec[map[i]] = map[i] === "ticker" ? String(v).trim() : csvNum(v); }); return rec; }).filter(r => r.ticker);
+}
+function bookFromRecs(recs){
+  const R = S.result, U = bookUni(), px = {}; R.portfolio.rows.forEach(r => px[r.ticker] = r.price);
+  const nb = bookEmpty(), notes = [], skipped = []; let cash = null;
+  for (const rec of recs){
+    const raw = rec.ticker, t = raw.toUpperCase().replace(/\s/g, "");
+    if (BOOK_CASH.has(t) || BOOK_CASH.has(raw)){ const amt = rec.market_value ?? rec.quantity ?? rec.cost_basis ?? null; if (amt !== null) cash = (cash ?? 0) + amt; continue; }
+    if (!TICKER_RE.test(t)){ skipped.push(`${raw} (티커 형식 아님)`); continue; }
+    const other = !U.has(t), p = other ? rec.price : px[t]; let q = rec.quantity, a = rec.avg_cost;
+    if (q === null || q === undefined){
+      if (rec.market_value !== null && rec.market_value !== undefined && p > 0){ q = +(rec.market_value / p).toFixed(6); notes.push(`${t}: 수량이 없어 평가금액÷현재가로 환산 (${q}주) — 실제 수량으로 고치세요`); }
+      else { skipped.push(`${t} (수량 없음${rec.weight !== null && rec.weight !== undefined ? " — 비중만으로는 불러올 수 없음" : ""})`); continue; } }
+    if ((a === null || a === undefined) && rec.cost_basis !== null && rec.cost_basis !== undefined && q > 0) a = +(rec.cost_basis / q).toFixed(4);
+    if (q < 0 || (a !== null && a !== undefined && a < 0)){ skipped.push(`${t} (음수)`); continue; }
+    const prev = nb.rows.find(r => r.ticker === t);
+    if (prev){ const q2 = prev.quantity + q; prev.avg_cost = prev.avg_cost !== null && a !== null && a !== undefined && q2 > 0 ? +((prev.quantity*prev.avg_cost + q*a)/q2).toFixed(4) : null; prev.quantity = q2; notes.push(`${t}: 여러 행을 합쳤습니다`); }
+    else nb.rows.push({ticker:t, quantity:q, avg_cost: a ?? null, price: other && p > 0 ? p : null});
+  }
+  nb.cash = cash === null ? null : +cash.toFixed(2);
+  return {book:nb, notes, skipped};
+}
+$("#manualTbl").addEventListener("input", e => { const i = e.target; if (!i.matches || !i.matches("input[data-f]")) return;
+  const f = i.dataset.f, v = i.value === "" ? null : Number(i.value);
+  const ok = v === null || (isFinite(v) && (f === "cash" || v >= 0) && !(f === "price" && v === 0));
+  i.classList.toggle("bad", !ok); if (!ok) return;
+  if (f === "cash") BOOK.cash = v; else bookSet(i.dataset.t, f, v);
+  bookChanged(); });
+$("#manualTbl").addEventListener("keydown", e => { if (e.key !== "Enter") return; const i = e.target; if (!i.matches || !i.matches("input[data-f]")) return; e.preventDefault();
+  const all = [...document.querySelectorAll(`#manualTbl input[data-f="${i.dataset.f}"]`)]; focusIn(all[all.indexOf(i) + 1] || i); });
+$("#manualTbl").addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (!b) return; const t = b.dataset.rm;
+  if (!confirm(`${t} 행을 삭제할까요?`)) return; BOOK.rows = BOOK.rows.filter(r => r.ticker !== t); bookChanged(); renderManual(); });
+$("#otherAdd").addEventListener("click", () => { const inp = $("#otherTicker"), t = inp.value.trim().toUpperCase(), msg = $("#bookMsg"); msg.textContent = ""; msg.className = "small";
+  if (!t) return; if (BOOK_CASH.has(t)){ msg.textContent = "현금은 CASH 행에 금액으로 입력하세요."; return; }
+  if (!TICKER_RE.test(t)){ msg.textContent = "티커 형식이 아닙니다 (영문·숫자, 15자 이내)."; return; }
+  if (!bookUni().has(t) && !bookRow(t)) BOOK.rows.push({ticker:t, quantity:null, avg_cost:null, price:null});
+  inp.value = ""; bookChanged(); renderManual(); focusIn(document.querySelector(`#manualTbl input[data-t="${t}"][data-f="quantity"]`)); });
+$("#otherTicker").addEventListener("keydown", e => { if (e.key === "Enter") $("#otherAdd").click(); });
+$("#bookExport").addEventListener("click", () => download(`taa_holdings_${localDate()}.csv`, bookCSV()));
+$("#bookImport").addEventListener("change", async e => { const fl = e.target.files[0], msg = $("#bookMsg"); if (!fl) return; msg.className = "small"; msg.textContent = "";
+  try {
+    const res = bookFromRecs(bookParseCSV(await fl.text())), nb = res.book, n = nb.rows.filter(r => r.quantity > 0).length;
+    if (!n && nb.cash === null) throw new Error("불러올 보유가 없습니다" + (res.skipped.length ? " — 건너뜀: " + res.skipped.join(", ") : "") + ".");
+    if (bookHasData() && !confirm(`지금 입력(${BOOK.rows.filter(r => r.quantity > 0).length}종목 · 현금 ${money2(BOOK.cash ?? 0)})을 파일의 보유(${n}종목 · 현금 ${money2(nb.cash ?? 0)})로 바꿀까요?\n[되돌리기]로 되돌릴 수 있습니다.`)) return;
+    bookReplace(nb, "CSV 불러오기");
+    const oth = nb.rows.filter(r => !bookUni().has(r.ticker)).length;
+    msg.innerHTML = `<b>${esc(fl.name)}</b>에서 ${n}종목${oth ? ` (유니버스 외 ${oth})` : ""} · 현금 ${money2(nb.cash ?? 0)}을 불러왔습니다.` +
+      (res.notes.length ? `<br><span class="muted">${res.notes.map(esc).join(" · ")}</span>` : "") + (res.skipped.length ? `<br><span class="warn">건너뜀: ${res.skipped.map(esc).join(", ")}</span>` : "");
+  } catch(x){ msg.className = "small err"; msg.textContent = "CSV를 불러오지 못했습니다: " + x.message; }
+  finally { e.target.value = ""; } });
+$("#bookClear").addEventListener("click", () => { if (!BOOK.rows.length && BOOK.cash === null) return;
+  if (!confirm("보유 입력(수량·평균매입단가·현금)을 모두 지웁니다. [되돌리기]로 되돌릴 수 있습니다. 지울까요?")) return;
+  bookReplace(bookEmpty(), "전체 지우기"); $("#bookMsg").className = "small"; $("#bookMsg").textContent = "보유 입력을 모두 지웠습니다."; });
+$("#bookUndo").addEventListener("click", () => { if (!BOOK_UNDO) return;
+  if (!confirm(`${BOOK_UNDO.label} 전 상태로 되돌릴까요? 그 뒤에 고친 내용은 사라집니다.`)) return;
+  const u = BOOK_UNDO; BOOK_UNDO = null; BOOK = u.book; bookPersist(); bookMarkStale(); renderManual(); $("#bookMsg").className = "small"; $("#bookMsg").textContent = `${u.label} 전으로 되돌렸습니다.`; });
 // ---- 주문 실행 보정 (엔진 결과 위에서, 엔진·Python 결과는 그대로) ----
 // 엔진은 주수를 0 방향으로 내림 → 고가 ETF 매도가 0주가 되거나 매도 대금이 덜 들어와 현금이 모자랄 수 있음.
 // ① 매도: 1주 더 팔면 목표 금액에 더 가까워지면 올림  ② 주수 기준 현금이 [남겨 둘 현금]보다 적으면 효과가 가장 작은 매수부터 1주씩 줄임
@@ -625,56 +832,56 @@ function cashDeploy(reb, buffer){
 }
 function deployOn(){ const c = document.getElementById("deployCash"); return !c || c.checked; }
 function deployBuf(){ const v = Number((document.getElementById("deployBuf")||{}).value); return isFinite(v) && v > 0 ? v : 0; }
-function postTradeHoldings(){
-  const cur = currentHoldings(), byT = Object.fromEntries(cur.map(h=>[h.ticker,h]));
-  let cash = byT.CASH ? byT.CASH.cash : 0;
-  const plan = planNow();
-  plan.reb.rows.forEach(r => {
-    const h = byT[r.ticker] || (byT[r.ticker] = {ticker:r.ticker, quantity:0});
-    if (r.action === "SELL (유니버스 외)"){ h.quantity = 0; h.mv = 0; return; }
-    if (r.trade_shares && r.price) h.quantity = (h.quantity||0) + r.trade_shares;
-  });
-  cash = plan.cash_after_band;  // 실보유 현금 + 매도 − 매수 − 비용 (실행 주수 기준)
-  const dp = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
-  if (dp) dp.rows.forEach(d => { const h = byT[d.ticker] || (byT[d.ticker] = {ticker:d.ticker, quantity:0}); h.quantity = (h.quantity||0) + d.shares; cash -= d.amount; });
-  if (dp) cash -= dp.cost;
-  byT.CASH = {ticker:"CASH", cash: Math.max(0, cash)};
-  return Object.values(byT).filter(h => h.ticker==="CASH" || h.quantity > 1e-9 || (h.quantity === null && h.mv > 0));
-}
-function manualRows(){
-  const out=[]; document.querySelectorAll("#manualTbl tr[data-t]").forEach(tr=>{ const rec={ticker:tr.dataset.t}; let any=false;
-    tr.querySelectorAll("input").forEach(i=>{ if (i.value!==""){ rec[i.dataset.f]=i.value; if (i.dataset.f!=="price") any=true; } }); if (any) out.push(rec); });
-  return out;
-}
-
-let CSV_ROWS = null;
-$("#csvFile").addEventListener("change", async e => { const f = e.target.files[0]; if (!f) return; CSV_ROWS = RB.parseCSV(await f.text()); $("#rebalErr").textContent = CSV_ROWS.length ? "" : "CSV에서 Ticker 열을 찾지 못했습니다."; });
 $("#runRebal").addEventListener("click", async () => {
   const R = S.result; $("#rebalErr").textContent = "";
   try {
-    const rows = CSV_ROWS && CSV_ROWS.length ? CSV_ROWS : manualRows();
-    if (!rows.length) throw new Error("CSV를 올리거나 직접 입력 표에 값을 넣으세요.");
-    const pv = $("#pvInput").value ? Number($("#pvInput").value) : null, cash = $("#cashInput").value ? Number($("#cashInput").value) : 0;
+    const U = bookUni(), noPx = BOOK.rows.filter(r => !U.has(r.ticker) && r.quantity > 0 && !(r.price > 0)).map(r => r.ticker);
+    if (noPx.length) throw new Error("유니버스 외 종목의 현재가를 입력하세요: " + noPx.join(", "));
+    const rows = bookEngineRows();
+    if (!rows.length) throw new Error("보유 수량이나 현금을 위 표의 노란 칸에 입력하세요.");
+    const cash = $("#cashInput").value ? Number($("#cashInput").value) : 0;
     if (S.backend){
-      const r = await fetch("/api/actual", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({month:R.meta.month, rows, portfolio_value:pv, extra_cash:cash})});
+      const r = await fetch("/api/actual", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({month:R.meta.month, rows, portfolio_value:null, extra_cash:cash})});
       const j = await r.json(); if (!r.ok) throw new Error(j.error||("HTTP "+r.status)); await loadBackend(R.meta.month);
     } else {
       const lp={}, tg={}, beta={}, dur={}; R.portfolio.rows.forEach(r=>{ lp[r.ticker]=r.price; tg[r.ticker]=r.target; beta[r.ticker]=r.beta_eq||0; dur[r.ticker]=r.duration||0; });
-      const n = RB.normalize(rows, R.universe.tickers, lp, pv, cash);
+      const n = RB.normalize(rows, R.universe.tickers, lp, null, cash);
       S.reb = RB.compare(R.universe, tg, n.df, n.pv, R.meta.params.band, R.meta.params.tc_bps, beta, dur, lp); S.reb.notes = n.notes; S.reb.input_rows = n.df; S.reb.extra_cash = cash;
     }
-    render(); goTo("rebalOut");
+    S.rebStale = false; render(); goTo("rebalOut");
   } catch(err){ $("#rebalErr").textContent = err.message; }
 });
 ["deployCash","deployBuf"].forEach(id => $("#"+id).addEventListener("change", () => { if (S.reb) renderRebalance(); }));
-$("#clearActual").addEventListener("click", () => { S.reb = null; CSV_ROWS = null; $("#csvFile").value=""; document.querySelectorAll("#manualTbl input").forEach(i => i.value = ""); render(); });
-$("#saveActualNow").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(currentHoldings())); });
-$("#saveActualPost").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_after_orders_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(postTradeHoldings())); });
-$("#dlTemplate").addEventListener("click", () => { const t = S.result.portfolio.rows.map(r=>`${r.ticker},,${r.price.toFixed(2)},,`).join("\n");
-  download("actual_portfolio_template.csv", "Ticker,Quantity,Price,Market Value,Weight\n"+t+"\nCASH,,1,,\n"); });
+// ---- 주문 결과를 보유에 반영: 실행 주수(밴드 주문 + 남는 현금 투입)를 Data As Of 종가(체결 예상가)로 장부에 적용 ----
+// 매수: 평균매입단가 = (기존 수량×기존 단가 + 매수 수량×가격) ÷ 새 수량 / 매도: 단가 유지(평균법), 전량 매도 시 행 비움 / 유니버스 외: 전량 매도
+// 현금 = [거래 후 현금 (주수 기준)] (추가 입금 포함, 거래비용 차감). 실제 체결가·수량이 다르면 사용자가 표에서 고침
+function applyOrdersToBook(){
+  if (!(S.reb && S.reb.input_rows) || S.rebStale) return;
+  const R = S.result, U = bookUni(), plan = execPlan(S.reb, deployBuf()), dp = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
+  const finalCash = dp && dp.cash_before > 0 ? dp.cash_after : plan.cash_after_band;
+  const nb = JSON.parse(JSON.stringify(BOOK)); let nBuy = 0, nSell = 0;
+  const row = t => nb.rows.find(r => r.ticker === t) || (nb.rows.push({ticker:t, quantity:null, avg_cost:null, price:null}), nb.rows[nb.rows.length-1]);
+  const trade = (t, dq, p) => { const r = row(t), q0 = r.quantity || 0, q1 = +(q0 + dq).toFixed(8);
+    if (dq > 0){ nBuy++; r.avg_cost = q0 > 0 ? (r.avg_cost !== null ? +((q0*r.avg_cost + dq*p)/q1).toFixed(4) : null) : +p.toFixed(4); } else nSell++;
+    r.quantity = q1 > 0 ? q1 : null; if (r.quantity === null) r.avg_cost = null; };
+  plan.reb.rows.forEach(r => {
+    if (r.action === "SELL (유니버스 외)"){ nb.rows = nb.rows.filter(x => x.ticker !== r.ticker); nSell++; return; }
+    if (r.trade_shares && r.price) trade(r.ticker, r.trade_shares, r.price); });
+  if (dp) dp.rows.forEach(d => trade(d.ticker, d.shares, d.price));
+  nb.cash = +finalCash.toFixed(2);
+  const first = [...LEDGER.flows].sort((a,b) => a.date < b.date ? -1 : 1)[0];
+  const needRec = first && first.date <= R.meta.data_as_of && !LEDGER.records.some(r => r.date === R.meta.data_as_of);
+  if (!confirm(`주문 결과(매수 ${nBuy}건 · 매도 ${nSell}건)를 보유에 반영합니다.\n수량·평균매입단가·현금(${money2(nb.cash)})이 Data As Of 종가(체결 예상가) 기준으로 바뀝니다. 실제 체결가·수량이 다르면 표에서 고치세요.` +
+    (needRec ? `\n\n※ 내 포트폴리오 기록에 ${R.meta.data_as_of} 월말 평가가 아직 없습니다. 기록하려면 [취소] 후 먼저 [실보유 입력값으로 기록]을 누르세요.` : "") +
+    `\n\n[되돌리기]로 되돌릴 수 있습니다. 반영할까요?`)) return;
+  S.reb = null; S.rebStale = false; $("#cashInput").value = "";
+  bookReplace(nb, "주문 결과 반영"); render();
+  $("#bookMsg").className = "small"; $("#bookMsg").innerHTML = `주문 결과를 반영했습니다 (매수 ${nBuy}건 · 매도 ${nSell}건 · 현금 ${money2(nb.cash)}). 실제 체결가·수량이 다르면 노란 칸을 고치고, [CSV 내보내기]로 백업하세요.`;
+  goTo("s-actual");
+}
 document.getElementById("loadJson").addEventListener("change", async e => { const f = e.target.files[0]; if (!f) return;
-  try { const j = JSON.parse(await f.text()); S.result = j.result || j; S.reb = S.result.rebalance || null; render(); } catch(err){ alert("result.json을 읽지 못했습니다: "+err.message); } });
-document.getElementById("monthSel").addEventListener("change", async e => { S.reb = null; await loadBackend(e.target.value); render(); });
+  try { const j = JSON.parse(await f.text()); S.result = j.result || j; S.reb = S.result.rebalance || null; S.rebStale = false; render(); } catch(err){ alert("result.json을 읽지 못했습니다: "+err.message); } });
+document.getElementById("monthSel").addEventListener("change", async e => { S.reb = null; S.rebStale = false; await loadBackend(e.target.value); render(); });
 
 function renderRebalance(){
   const reb = S.reb, el = $("#rebalOut"); if (!reb){ el.innerHTML = ""; return; }
@@ -691,15 +898,20 @@ function renderRebalance(){
   const ex = (list, isRisk) => `<div class="tbl"><table><tr><th class="l">${isRisk?"리스크 노출":"자산군"}</th><th>목표</th><th>실보유</th><th>Δ</th><th>거래 후</th></tr>${list.map(x=>{
     const f = isRisk && /Beta|Duration/.test(x.name) ? (v=>nf(v,2)) : (v=>pct(v,1)); const d = isRisk && /Beta|Duration/.test(x.name) ? sg(x.delta,2) : pp(x.delta,1);
     return `<tr><td class="l">${esc(x.name)}</td><td>${f(x.target)}</td><td>${f(x.actual)}</td><td class="${Math.abs(x.delta)>(isRisk&&/Beta|Duration/.test(x.name)?0.05:0.015)?"warn":""}">${d}</td><td>${f(x.post)}</td></tr>`; }).join("")}</table></div>`;
-  el.innerHTML = `<h3>리밸런싱 주문</h3><div class="tiles t6">${tiles.map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("")}</div>
+  const canApply = !!reb.input_rows && !S.rebStale;
+  el.innerHTML = (S.rebStale ? `<div class="notice" style="border-color:var(--warn);color:var(--ink)">보유 입력이 바뀌었습니다. 아래 주문은 바뀌기 전 기준입니다 — <b>[비교하고 주문 만들기]</b>를 다시 누르세요.</div>` : "") +
+    `<h3>리밸런싱 주문</h3><div class="tiles t6">${tiles.map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("")}</div>
     ${(reb.notes||[]).length?`<p class="small muted">${reb.notes.map(esc).join(" · ")}</p>`:""}
     <div class="tbl" style="margin-top:12px"><table>${head}${ord.length?ord.map(tr).join(""):'<tr><td class="l" colspan="11">모든 종목이 밴드 이내입니다 — 거래 없음.</td></tr>'}</table></div>
     ${plan.adjusted ? `<p class="small">주수 보정 ${plan.adjusted}건: ${plan.reb.rows.filter(r=>r.adjust).map(r=>`${esc(r.ticker)} ${esc(r.adjust)}`).join(" · ")}. 엔진은 주수를 0 방향으로 내립니다${plan.reb.rows.some(r=>r.adjust.startsWith("매도")) ? " — 1주 더 팔면 목표 금액에 더 가까운 매도는 1주 올렸습니다(고가 ETF 매도가 0주가 되는 문제 방지)" : ""}${plan.trims ? ` — 주수 기준 현금이 [남겨 둘 현금]보다 모자라 목표 접근 효과가 가장 작은 매수부터 ${plan.trims}주 줄였습니다` : ""}.</p>` : ""}
     ${plan.short ? `<p class="err">매수를 모두 줄여도 현금이 ${money(-plan.cash_after_band)} 부족합니다. 입력한 현금·수량을 확인하세요.</p>` : ""}
     ${deployHtml(plan.reb)}
+    <div class="inputs" style="margin-top:10px"><button id="applyOrders" ${canApply?"":"disabled"} title="${canApply?"":esc(S.rebStale?"보유가 바뀌었습니다 — 다시 비교하세요":"브라우저 계산 모드에서 [비교하고 주문 만들기] 후 사용할 수 있습니다")}">주문 결과를 보유에 반영</button>
+      <span class="small muted">주문을 체결한 뒤 누르세요. [주문 주수]${deployOn()?"와 남는 현금 투입 주문":""}을 Data As Of 종가(체결 예상가)로 반영해 위 표의 수량·평균매입단가·현금을 갱신합니다. 실제 체결가·수량이 다르면 노란 칸을 고치세요.</span></div>
     <details class="acc" style="margin-top:6px"><summary>유지(HOLD) 종목 ${hold.length}개</summary><div class="body"><div class="tbl"><table>${head}${hold.map(tr).join("")}</table></div></div></details>
     <h3>노출 비교 — 비중 차이뿐 아니라 리스크가 얼마나 벗어났는지</h3><div class="grid2">${ex(reb.exposure_risk,true)}${ex(reb.exposure_class,false)}</div>
     <p class="small muted">규칙: 실보유 − 목표 > +밴드 → SELL, < −밴드 → BUY, 그 외 HOLD. 거래금액 = (목표 − 실보유) × 평가금액. 엔진 주수는 거래금액÷가격을 0 방향으로 내리고, [주문 주수]는 그 위에 매도 올림·현금 부족 조정을 한 실행 주수입니다. [거래 후 현금]은 실행 주수 × 가격과 거래비용 기준입니다. 노출 비교의 [거래 후]는 엔진(금액 기준) 값이며 주수 보정·남는 현금 투입은 반영하지 않습니다.</p>`;
+  const ab = $("#applyOrders"); if (ab) ab.onclick = applyOrdersToBook;
 }
 
 function deployHtml(reb){
@@ -946,11 +1158,11 @@ function renderAlloc(){
   $("#allocToActual").onclick = () => {
     if (!ALLOC_ROWS) return;
     const amt = Number($("#allocAmt").value), rows = ALLOC_ROWS, cash = amt - rows.reduce((a,x)=>a + x.amount, 0);
-    S.reb = null; CSV_ROWS = null; $("#csvFile").value = ""; document.querySelectorAll("#manualTbl input").forEach(i => i.value = "");
-    rows.forEach(x => { const inp = document.querySelector(`#manualTbl tr[data-t="${x.ticker}"] input[data-f="quantity"]`); if (inp && x.shares > 0) inp.value = x.shares; });
-    const c = document.querySelector('#manualTbl tr[data-t="CASH"] input[data-f="market_value"]'); if (c) c.value = cash.toFixed(2);
-    render(); $("#manualBox").open = true;
-    $("#rebalErr").textContent = ""; $("#rebalOut").innerHTML = '<div class="notice">배분 결과(주수·남는 현금)를 직접 입력 표에 넣었습니다. 실제 체결 수량이 다르면 고친 뒤 [비교하고 주문 만들기] → [현재 실보유 CSV 저장]으로 보관하세요.</div>';
+    if (bookHasData() && !confirm("실보유 입력을 배분 결과(수량·평균매입단가 = Data As Of 종가·남는 현금)로 바꿉니다.\n[되돌리기]로 되돌릴 수 있습니다. 계속할까요?")) return;
+    const nb = bookEmpty(); rows.forEach(x => { if (x.shares > 0) nb.rows.push({ticker:x.ticker, quantity:x.shares, avg_cost:+x.price.toFixed(4), price:null}); }); nb.cash = +cash.toFixed(2);
+    S.reb = null; S.rebStale = false; bookReplace(nb, "배분 결과 보내기"); render();
+    $("#rebalErr").textContent = ""; $("#bookMsg").className = "small";
+    $("#bookMsg").innerHTML = '배분 결과(주수·남는 현금)를 실보유 입력에 넣었습니다. 평균매입단가는 Data As Of 종가로 넣었으니 <b>실제 체결 수량·체결가·현금으로 고치세요</b>. 입력은 이 브라우저에 자동 저장됩니다.';
     goTo("s-actual");
   };
   $("#allocCsv").onclick = () => { if (ALLOC_ROWS) download(`taa_allocation_${R.meta.target_month}.csv`, toCSV(ALLOC_ROWS, ["ticker","asset_class","target","target_amt","price","shares","amount","weight","diff"])); };
@@ -1014,9 +1226,9 @@ function renderTrack(){
     `[비교하고 주문 만들기] → <b>[실보유 입력값으로 기록]</b>을 누르면 Data As Of(<b>${esc(R.meta.data_as_of)}</b>) 종가 × 수량 + 현금(받은 분배금 포함)이 그 날짜의 평가금액으로 저장됩니다. `+
     `기록은 <b>이 브라우저에만</b> 저장되므로(다른 기기·브라우저와 공유 안 됨, 인터넷 사용 기록 삭제 시 사라질 수 있음) 기록 후 [백업 내보내기]로 파일을 보관하세요.`;
   $("#taxRate").value = +(LEDGER.tax*100).toFixed(2);
-  const canSnap = !!(S.reb && S.reb.input_rows);
+  const canSnap = !!(S.reb && S.reb.input_rows) && !S.rebStale;
   const sb = $("#snapFromActual"); sb.disabled = !canSnap; sb.textContent = `실보유 입력값으로 기록 (${R.meta.data_as_of})`;
-  sb.title = canSnap ? "" : "실보유 입력에서 [비교하고 주문 만들기]를 먼저 누르세요";
+  sb.title = canSnap ? "" : (S.rebStale ? "보유가 바뀌었습니다 — [비교하고 주문 만들기]를 다시 누르세요" : "실보유 입력에서 [비교하고 주문 만들기]를 먼저 누르세요");
   if (!$("#snapDate").value) $("#snapDate").value = R.meta.data_as_of;
   if (!$("#flowDate").value) $("#flowDate").value = new Date().toISOString().slice(0,10);
   const C = ledgerCalc(LEDGER), rows = C.rows, flows = C.flows, out = $("#trackOut");
@@ -1081,7 +1293,7 @@ $("#flowAdd").addEventListener("click", () => {
 });
 $("#snapFromActual").addEventListener("click", () => {
   const R = S.result, err = $("#trackErr"); err.textContent = "";
-  if (!(S.reb && S.reb.input_rows)) return;
+  if (!(S.reb && S.reb.input_rows) || S.rebStale) return;
   const d = R.meta.data_as_of, extra = Number(S.reb.extra_cash) || 0;
   const first = [...LEDGER.flows].sort((a,b)=>a.date<b.date?-1:1)[0];
   if (first && d < first.date) return err.textContent = `기준일 ${d}가 첫 투입일 ${first.date}보다 이릅니다. 매수 후 첫 월말 데이터가 업데이트된 뒤(다음 달 초) 기록하세요.`;
@@ -1115,6 +1327,7 @@ function exportCSV(kind){
   if (kind==="target") return download(`target_portfolio_${m}.csv`, toCSV(R.portfolio.rows, ["ticker","name","asset_class","target","model_current","raw_opt","yield_ttm","exp_ret","score","price"]));
   if (kind==="scores") return download(`etf_scores_${m}.csv`, toCSV(R.scores, Object.keys(R.scores[0])));
   if (kind==="macro") return download(`macro_${m}.csv`, toCSV(R.macro.factors, ["factor","level_fmt","chg_1m","chg_3m","chg_6m","chg_unit","z","pct","regime","detail"]));
+  if (kind==="actual" && bookHasData()) return download(`taa_holdings_${localDate()}.csv`, bookCSV());
   if (!S.reb) return alert("실보유를 먼저 입력하세요 (Actual Portfolio: Not Provided).");
   if (kind==="orders"){ const plan = execPlan(S.reb, deployBuf()), d = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
     const extra = d ? d.rows.map(r=>({ticker:r.ticker, asset_class:r.asset_class, actual:r.before_weight, target:r.target, active:r.before_weight-r.target, band:S.reb.band, action:"BUY (현금 투입)", trade_amount:r.amount, trade_shares:r.shares, price:r.price, post_weight:r.post_weight})) : [];
