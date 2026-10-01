@@ -506,10 +506,16 @@ function renderExplain(){
 function renderManual(){
   const keep = {}; document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { if (i.value !== "") keep[i.closest("tr").dataset.t+"|"+i.dataset.f] = i.value; });
   const R = S.result, rows = R.portfolio.rows;
-  const tickers = rows.map(r=>r.ticker).concat(["CASH"]);
-  $("#manualTbl").innerHTML = `<tr><th class="l">ETF</th><th>수량</th><th>현재가</th><th>평가금액</th><th>비중(%)</th></tr>` +
-    tickers.map(t=>{ const r = rows.find(x=>x.ticker===t);
-      return `<tr data-t="${t}"><td class="l">${t}${t==="CASH"?' <span class="small muted">미투자 현금</span>':""}</td><td><input type="number" data-f="quantity" aria-label="${t} 수량"></td><td><input type="number" data-f="price" placeholder="${r?nf(r.price,2):"1"}" aria-label="${t} 가격"></td><td><input type="number" data-f="market_value" aria-label="${t} 평가금액"></td><td><input type="number" data-f="weight" aria-label="${t} 비중"></td></tr>`; }).join("");
+  // 목표 포함 종목(목표 비중 높은 순) → 목표 제외 종목(유니버스 순) → 현금. 0.05% 미만은 목표표와 같은 기준으로 제외
+  const inT = rows.filter(r => r.target >= 0.0005).sort((a,b) => b.target - a.target), outT = rows.filter(r => r.target < 0.0005);
+  const NC = 7, grp = t => `<tr class="grp"><td class="l" colspan="${NC}">${t}</td></tr>`;
+  const line = (t, r, tag) => `<tr data-t="${t}"><td class="l">${tag}</td><td class="l"><b>${t}</b>${t==="CASH"?' <span class="small muted">미투자 현금</span>':(r?` <span class="small muted">${esc(r.asset_class)}</span>`:"")}</td>`+
+    `<td>${r ? (r.target >= 0.0005 ? pct(r.target,2) : "0%") : "–"}</td>`+
+    `<td><input type="number" data-f="quantity" aria-label="${t} 수량"></td><td><input type="number" data-f="price" placeholder="${r?nf(r.price,2):"1"}" aria-label="${t} 가격"></td><td><input type="number" data-f="market_value" aria-label="${t} 평가금액"></td><td><input type="number" data-f="weight" aria-label="${t} 비중"></td></tr>`;
+  $("#manualTbl").innerHTML = `<tr><th class="l">구분</th><th class="l">ETF</th><th>목표 비중</th><th>수량</th><th>현재가</th><th>평가금액</th><th>비중(%)</th></tr>` +
+    grp(`이번 달 목표 포트폴리오 — ${inT.length}종목 (${esc(R.meta.target_month)} 목표, 비중 높은 순)`) + inT.map(r => line(r.ticker, r, '<span class="chip info">목표</span>')).join("") +
+    grp(`목표 제외 — ${outT.length}종목 (보유 중이면 매도 대상)`) + outT.map(r => line(r.ticker, r, '<span class="chip">제외</span>')).join("") +
+    grp("현금") + line("CASH", null, '<span class="chip">현금</span>');
   document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { const v = keep[i.closest("tr").dataset.t+"|"+i.dataset.f]; if (v !== undefined) i.value = v; });
   const ok = !!(S.reb && S.reb.input_rows);
   ["saveActualNow","saveActualPost"].forEach(id => { const b = document.getElementById(id); if (b){ b.disabled = !ok; b.title = ok ? "" : "[비교하고 주문 만들기]를 먼저 누르세요"; } });
