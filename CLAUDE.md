@@ -16,7 +16,7 @@ public GitHub Pages 정적 사이트입니다. 기본 브랜치(`claude/data-syn
 ## 원칙
 
 - 각 대시보드는 별도 HTML 문서(iframe)입니다. 스크립트·CSS를 합치지 않습니다(전역 이름 `$`, `S`, `.btn` 등이 겹침).
-- 모든 앱이 같은 origin(`hahajongha.github.io`)의 localStorage를 공유합니다. 새 키는 앱별 prefix를 씁니다(KOSPI는 `kospiSignal.*`, `theme`).
+- 모든 앱이 같은 origin(`hahajongha.github.io`)의 localStorage를 공유합니다. 새 키는 앱별 prefix를 씁니다(KOSPI는 `kospiSignal.*`, `theme`, TAA는 `taaPm.*`).
 - Pages 설정(branch deploy)과 기본 브랜치 이름을 바꾸지 않습니다 — for_data의 KOSPI 발행과 TAA 워크플로가 기본 브랜치에 push합니다.
 - API 키·토큰을 코드·HTML·커밋에 넣지 않습니다. TAA는 키 없는 FRED CSV 경로를 씁니다.
 - 실보유(Actual) 데이터를 커밋하지 않습니다 (`investment_model/CLAUDE.md` K-3). 공개 저장소입니다.
