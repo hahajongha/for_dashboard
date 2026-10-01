@@ -25,7 +25,7 @@
 | 항목 | 상태 | 내용 |
 |---|---|---|
 | 모델 코드 `qpm/`, `config/`, `params/`, `history/`, `data/` | [현재] | v1.0 zip 그대로 (코드 변경 없음) |
-| 대시보드 `dashboard/…v1.0.html` | [현재] | 보호 블록(seed 마커·주문 엔진) 밖만 수정: 정적 모드 1단계를 **Update Data 링크**(Actions 워크플로 페이지)로, `status.json` 표시(Last Update·Market/Macro Data Date·Update Status), `scrollIntoView` → 문서 내부 스크롤(런처 iframe 안에서 화면 밀림 방지), **투자금 배분 계산** 섹션(`#s-alloc`: 투자금 $ × 목표 비중 → Data As Of 종가 기준 정수 주수, 목표에 더 가까워질 때만 잔여 현금으로 1주씩 추가, CSV; 브라우저 계산·저장 안 함). 골든·parity PASS |
+| 대시보드 `dashboard/…v1.0.html` | [현재] | 보호 블록(seed 마커·주문 엔진) 밖만 수정: 정적 모드 1단계를 **Update Data 링크**(Actions 워크플로 페이지)로, `status.json` 표시(Last Update·Market/Macro Data Date·Update Status), `scrollIntoView` → 문서 내부 스크롤(런처 iframe 안에서 화면 밀림 방지), **투자금 배분 계산** 섹션(`#s-alloc`: 투자금 $ × 목표 비중 → Data As Of 종가 기준 정수 주수, 목표에 더 가까워질 때만 잔여 현금으로 1주씩 추가, CSV, **[실보유 입력란으로 보내기]**), 실보유 **CSV 저장**(`[현재 실보유 CSV 저장]`·`[주문 체결 후 실보유 CSV 저장]`: 업로드 양식 그대로, 수량만 저장해 다음 달 최신 종가로 평가, 수량 없는 종목은 평가금액, 유니버스 외 매도·거래비용 반영 → 다음 달 [CSV]로 불러오기; 실보유는 저장소·브라우저 저장소에 남기지 않음 — 사용자 결정), 직접 입력값이 [비교하고 주문 만들기] 후에도 유지. 골든·parity PASS |
 | 화면 게시 | [현재] | 런처 `index.html`의 `APPS` → `output/taa_pm_dashboard_v1.0_latest.html` |
 | CI 진입점 `scripts/ci_run.py` | [현재] 로컬 검증 / [부분] 러너 미검증 | 임시 복사본에서 update_data → `scripts/ci_guards.py` → `qpm.pipeline.validate` → (model_run·monthly) `portfolio_engine.py --as-of` → 실보유·키 점검 → **모두 통과 시에만** data/·history/·output/ 교체. 실패 시 `output/status.json`만 갱신. 고장 주입 6종(이력 잘림, proxy 결측, FRED 잘림·빈 파일, 빈티지 누락, 다운로드 실패)에서 기존 데이터 유지 확인 |
 | K-1 (검증 전 덮어쓰기) | [현재] CI 경로에서 해소 | 위 임시 복사본 방식. 로컬 `update_data.py`는 여전히 덮어씀 |

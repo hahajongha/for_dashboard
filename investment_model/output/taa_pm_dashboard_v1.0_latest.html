@@ -161,6 +161,7 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
     <label><input type="checkbox" id="allocTopup" checked> 남은 현금으로 목표에 더 가까워지는 종목만 1주씩 추가</label>
     <button id="allocRun">배분 계산</button>
     <button class="ghost" id="allocCsv" disabled>CSV 받기</button>
+    <button class="ghost" id="allocToActual" disabled title="매수 체결 후 누르세요. 체결 수량이 다르면 입력란에서 고치면 됩니다">실보유 입력란으로 보내기</button>
   </div>
   <div id="allocOut" style="margin-top:12px"></div>
 </section>
@@ -175,6 +176,11 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
     <button id="runRebal">비교하고 주문 만들기</button>
     <button class="ghost" id="dlTemplate">입력 양식 받기</button>
     <button class="ghost" id="clearActual">지우기</button>
+  </div>
+  <div class="inputs" style="border-top:0">
+    <span class="small muted">실보유 저장(내 PC에 CSV로 보관 → 다음 달 [CSV]로 불러오기, 가격은 비워 두어 최신 종가로 평가):</span>
+    <button class="ghost" id="saveActualNow" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">현재 실보유 CSV 저장</button>
+    <button class="ghost" id="saveActualPost" disabled title="[비교하고 주문 만들기]를 먼저 누르세요">주문 체결 후 실보유 CSV 저장</button>
   </div>
   <details class="acc" id="manualBox" style="margin-top:8px"><summary>직접 입력 <span class="sub">ETF별 수량·가격·평가금액·비중(%) — 빈 칸은 무시</span></summary><div class="body"><div class="tbl"><table id="manualTbl"></table></div></div></details>
   <div class="err" id="rebalErr"></div>
@@ -498,11 +504,41 @@ function renderExplain(){
 }
 
 function renderManual(){
+  const keep = {}; document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { if (i.value !== "") keep[i.closest("tr").dataset.t+"|"+i.dataset.f] = i.value; });
   const R = S.result, rows = R.portfolio.rows;
   const tickers = rows.map(r=>r.ticker).concat(["CASH"]);
   $("#manualTbl").innerHTML = `<tr><th class="l">ETF</th><th>수량</th><th>현재가</th><th>평가금액</th><th>비중(%)</th></tr>` +
     tickers.map(t=>{ const r = rows.find(x=>x.ticker===t);
       return `<tr data-t="${t}"><td class="l">${t}${t==="CASH"?' <span class="small muted">미투자 현금</span>':""}</td><td><input type="number" data-f="quantity" aria-label="${t} 수량"></td><td><input type="number" data-f="price" placeholder="${r?nf(r.price,2):"1"}" aria-label="${t} 가격"></td><td><input type="number" data-f="market_value" aria-label="${t} 평가금액"></td><td><input type="number" data-f="weight" aria-label="${t} 비중"></td></tr>`; }).join("");
+  document.querySelectorAll("#manualTbl tr[data-t] input").forEach(i => { const v = keep[i.closest("tr").dataset.t+"|"+i.dataset.f]; if (v !== undefined) i.value = v; });
+  const ok = !!(S.reb && S.reb.input_rows);
+  ["saveActualNow","saveActualPost"].forEach(id => { const b = document.getElementById(id); if (b){ b.disabled = !ok; b.title = ok ? "" : "[비교하고 주문 만들기]를 먼저 누르세요"; } });
+}
+// ---- 실보유 CSV 저장: 업로드 양식(Ticker,Quantity,Price,Market Value,Weight) 그대로 — 다음 달 [CSV]로 다시 불러옴. 저장소·서버로 전송하지 않음 ----
+function holdingsCSV(list){
+  const q = v => (v===null || v===undefined || Number.isNaN(v)) ? "" : String(+(+v).toFixed(6));
+  // 수량을 알면 수량만(가격은 비워 다음 달 최신 종가로 평가), 모르면 평가금액으로 저장
+  return "Ticker,Quantity,Price,Market Value,Weight\n" + list.map(h => h.ticker==="CASH" ? `CASH,,1,${q(h.cash)},`
+    : (h.quantity !== null && h.quantity !== undefined) ? `${h.ticker},${q(h.quantity)},,,` : `${h.ticker},,,${q(h.mv)},`).join("\n") + "\n";
+}
+function currentHoldings(){
+  const rows = S.reb.input_rows, out = [];
+  rows.forEach(r => { if (r.is_cash || r.ticker==="CASH"){ out.push({ticker:"CASH", cash:r.market_value}); return; }
+    const qty = (r.quantity!==null && r.quantity!==undefined) ? r.quantity : (r.price ? r.market_value / r.price : null);
+    if (qty) out.push({ticker:r.ticker, quantity:qty}); else if (r.market_value) out.push({ticker:r.ticker, quantity:null, mv:r.market_value}); });
+  return out;
+}
+function postTradeHoldings(){
+  const cur = currentHoldings(), byT = Object.fromEntries(cur.map(h=>[h.ticker,h]));
+  let cash = byT.CASH ? byT.CASH.cash : 0;
+  S.reb.rows.forEach(r => {
+    const h = byT[r.ticker] || (byT[r.ticker] = {ticker:r.ticker, quantity:0});
+    if (r.action === "SELL (유니버스 외)"){ cash += r.actual_value || 0; h.quantity = 0; h.mv = 0; return; }
+    if (r.trade_shares && r.price){ h.quantity = (h.quantity||0) + r.trade_shares; cash -= r.trade_shares * r.price; }
+  });
+  cash -= (S.reb.totals && S.reb.totals.est_cost) || 0;
+  byT.CASH = {ticker:"CASH", cash: Math.max(0, cash)};
+  return Object.values(byT).filter(h => h.ticker==="CASH" || h.quantity > 1e-9 || (h.quantity === null && h.mv > 0));
 }
 function manualRows(){
   const out=[]; document.querySelectorAll("#manualTbl tr[data-t]").forEach(tr=>{ const rec={ticker:tr.dataset.t}; let any=false;
@@ -529,7 +565,9 @@ $("#runRebal").addEventListener("click", async () => {
     render(); goTo("rebalOut");
   } catch(err){ $("#rebalErr").textContent = err.message; }
 });
-$("#clearActual").addEventListener("click", () => { S.reb = null; CSV_ROWS = null; $("#csvFile").value=""; render(); });
+$("#clearActual").addEventListener("click", () => { S.reb = null; CSV_ROWS = null; $("#csvFile").value=""; document.querySelectorAll("#manualTbl input").forEach(i => i.value = ""); render(); });
+$("#saveActualNow").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(currentHoldings())); });
+$("#saveActualPost").addEventListener("click", () => { if (S.reb && S.reb.input_rows) download(`actual_portfolio_after_orders_${new Date().toISOString().slice(0,10)}.csv`, holdingsCSV(postTradeHoldings())); });
 $("#dlTemplate").addEventListener("click", () => { const t = S.result.portfolio.rows.map(r=>`${r.ticker},,${r.price.toFixed(2)},,`).join("\n");
   download("actual_portfolio_template.csv", "Ticker,Quantity,Price,Market Value,Weight\n"+t+"\nCASH,,1,,\n"); });
 document.getElementById("loadJson").addEventListener("change", async e => { const f = e.target.files[0]; if (!f) return;
@@ -770,9 +808,9 @@ function renderAlloc(){
     `가격은 Data As Of <b>${esc(R.meta.data_as_of)}</b> 종가이므로 실제 주문 시 가격과 다를 수 있습니다. 입력값은 저장되지 않습니다.`;
   const run = () => {
     const amt = Number($("#allocAmt").value);
-    if (!(amt > 0)){ $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하세요.</p>'; ALLOC_ROWS = null; $("#allocCsv").disabled = true; return; }
+    if (!(amt > 0)){ $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하세요.</p>'; ALLOC_ROWS = null; $("#allocCsv").disabled = true; $("#allocToActual").disabled = true; return; }
     const a = allocate(amt, R.portfolio.rows, $("#allocTopup").checked);
-    ALLOC_ROWS = a.rows; $("#allocCsv").disabled = false;
+    ALLOC_ROWS = a.rows; $("#allocCsv").disabled = false; $("#allocToActual").disabled = false;
     const n = a.rows.filter(x=>x.shares>0).length, maxd = Math.max(...a.rows.map(x=>Math.abs(x.diff)));
     $("#allocOut").innerHTML = `<div class="tiles">
       <div class="tile"><div class="k">투자금</div><div class="v">${money(amt)}</div><div class="s">입력 금액</div></div>
@@ -787,6 +825,16 @@ function renderAlloc(){
   $("#allocRun").onclick = run;
   $("#allocAmt").onkeydown = e => { if (e.key === "Enter") run(); };
   $("#allocTopup").onchange = () => { if (Number($("#allocAmt").value) > 0) run(); };
+  $("#allocToActual").onclick = () => {
+    if (!ALLOC_ROWS) return;
+    const amt = Number($("#allocAmt").value), rows = ALLOC_ROWS, cash = amt - rows.reduce((a,x)=>a + x.amount, 0);
+    S.reb = null; CSV_ROWS = null; $("#csvFile").value = ""; document.querySelectorAll("#manualTbl input").forEach(i => i.value = "");
+    rows.forEach(x => { const inp = document.querySelector(`#manualTbl tr[data-t="${x.ticker}"] input[data-f="quantity"]`); if (inp && x.shares > 0) inp.value = x.shares; });
+    const c = document.querySelector('#manualTbl tr[data-t="CASH"] input[data-f="market_value"]'); if (c) c.value = cash.toFixed(2);
+    render(); $("#manualBox").open = true;
+    $("#rebalErr").textContent = ""; $("#rebalOut").innerHTML = '<div class="notice">배분 결과(주수·남는 현금)를 직접 입력 표에 넣었습니다. 실제 체결 수량이 다르면 고친 뒤 [비교하고 주문 만들기] → [현재 실보유 CSV 저장]으로 보관하세요.</div>';
+    goTo("s-actual");
+  };
   $("#allocCsv").onclick = () => { if (ALLOC_ROWS) download(`taa_allocation_${R.meta.target_month}.csv`, toCSV(ALLOC_ROWS, ["ticker","asset_class","target","target_amt","price","shares","amount","weight","diff"])); };
   if (Number($("#allocAmt").value) > 0) run(); else $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하고 [배분 계산]을 누르세요.</p>';
 }
