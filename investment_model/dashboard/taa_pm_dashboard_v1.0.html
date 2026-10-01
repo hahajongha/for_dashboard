@@ -567,6 +567,36 @@ function currentHoldings(){
     if (qty) out.push({ticker:r.ticker, quantity:qty}); else if (r.market_value) out.push({ticker:r.ticker, quantity:null, mv:r.market_value}); });
   return out;
 }
+// ---- 주문 실행 보정 (엔진 결과 위에서, 엔진·Python 결과는 그대로) ----
+// 엔진은 주수를 0 방향으로 내림 → 고가 ETF 매도가 0주가 되거나 매도 대금이 덜 들어와 현금이 모자랄 수 있음.
+// ① 매도: 1주 더 팔면 목표 금액에 더 가까워지면 올림  ② 주수 기준 현금이 [남겨 둘 현금]보다 적으면 효과가 가장 작은 매수부터 1주씩 줄임
+function cashOfRows(reb, rows){
+  const tc = (reb.tc_bps||0)/1e4; let cash = reb.totals.cash_available || 0;
+  rows.forEach(r => { if (r.action === "SELL (유니버스 외)"){ cash += (r.actual_value||0)*(1-tc); return; }
+    if (r.trade_shares && r.price){ const a = r.trade_shares*r.price; cash -= a + Math.abs(a)*tc; } });
+  return cash;
+}
+function execPlan(reb, buffer){
+  if (!reb || !reb.rows || !reb.totals) return null;
+  const pv = reb.totals.portfolio_value, rows = reb.rows.map(r => ({...r, engine_shares:r.trade_shares, adjust:""}));
+  rows.forEach(r => { if (r.action !== "SELL" || !(r.price > 0)) return;
+    const tv = r.target*pv, v0 = r.actual_value||0, s = r.trade_shares||0;
+    if (v0 + (s-1)*r.price >= -1e-6 && Math.abs(v0 + (s-1)*r.price - tv) < Math.abs(v0 + s*r.price - tv) - 1e-9){ r.trade_shares = s-1; r.adjust = "매도 1주 올림"; } });
+  const floor = Math.max(0, buffer||0); let trims = 0;
+  while (cashOfRows(reb, rows) < floor - 1e-9){
+    let best = null, bp = Infinity;
+    rows.forEach(r => { if (r.action !== "BUY" || !(r.trade_shares > 0) || !(r.price > 0)) return;
+      const gap = r.target*pv - ((r.actual_value||0) + r.trade_shares*r.price), pen = (Math.abs(gap + r.price) - Math.abs(gap))/r.price;
+      if (pen < bp - 1e-12){ bp = pen; best = r; } });
+    if (!best) break;
+    best.trade_shares -= 1; trims++; const k = best.engine_shares - best.trade_shares; best.adjust = `현금 부족 −${k}주`;
+  }
+  rows.forEach(r => { if (r.ticker && r.action !== "SELL (유니버스 외)" && r.price > 0) r.post_weight = ((r.actual_value||0) + (r.trade_shares||0)*r.price)/pv; });
+  const cash = cashOfRows(reb, rows);
+  return {reb:{...reb, rows}, cash_after_band:cash, engine_cash:reb.totals.post_trade_cash, short: cash < -1e-6, trims,
+    adjusted: rows.filter(r=>r.adjust).length};
+}
+function planNow(){ return execPlan(S.reb, deployBuf()); }
 // ---- 남는 현금 투입: 밴드 주문(엔진 결과)은 그대로 두고, 그 뒤 남는 현금으로 목표 대비 가장 부족한 종목부터 1주씩 추가 매수 ----
 // 목표에 더 가까워질 때만(부족액 ≥ 가격/2) 사고, 거래비용(tc_bps)과 [남겨 둘 현금]을 뺀 범위에서만 삼. 주문 엔진·Python 결과와 별개의 실행 보조
 function cashDeploy(reb, buffer){
@@ -598,13 +628,14 @@ function deployBuf(){ const v = Number((document.getElementById("deployBuf")||{}
 function postTradeHoldings(){
   const cur = currentHoldings(), byT = Object.fromEntries(cur.map(h=>[h.ticker,h]));
   let cash = byT.CASH ? byT.CASH.cash : 0;
-  S.reb.rows.forEach(r => {
+  const plan = planNow();
+  plan.reb.rows.forEach(r => {
     const h = byT[r.ticker] || (byT[r.ticker] = {ticker:r.ticker, quantity:0});
-    if (r.action === "SELL (유니버스 외)"){ cash += r.actual_value || 0; h.quantity = 0; h.mv = 0; return; }
-    if (r.trade_shares && r.price){ h.quantity = (h.quantity||0) + r.trade_shares; cash -= r.trade_shares * r.price; }
+    if (r.action === "SELL (유니버스 외)"){ h.quantity = 0; h.mv = 0; return; }
+    if (r.trade_shares && r.price) h.quantity = (h.quantity||0) + r.trade_shares;
   });
-  cash -= (S.reb.totals && S.reb.totals.est_cost) || 0;
-  const dp = deployOn() ? cashDeploy(S.reb, deployBuf()) : null;
+  cash = plan.cash_after_band;  // 실보유 현금 + 매도 − 매수 − 비용 (실행 주수 기준)
+  const dp = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
   if (dp) dp.rows.forEach(d => { const h = byT[d.ticker] || (byT[d.ticker] = {ticker:d.ticker, quantity:0}); h.quantity = (h.quantity||0) + d.shares; cash -= d.amount; });
   if (dp) cash -= dp.cost;
   byT.CASH = {ticker:"CASH", cash: Math.max(0, cash)};
@@ -647,24 +678,28 @@ document.getElementById("monthSel").addEventListener("change", async e => { S.re
 
 function renderRebalance(){
   const reb = S.reb, el = $("#rebalOut"); if (!reb){ el.innerHTML = ""; return; }
-  const t = reb.totals;
-  const tiles = [["총 매수", money(t.total_buy), `${t.n_buy}건`], ["총 매도", money(t.total_sell), `${t.n_sell}건`], ["순현금 필요", money(t.net_cash_requirement), t.net_cash_requirement>0?"추가 현금 필요":"거래 후 잔여 현금 "+money(t.post_trade_cash)],
+  const t = reb.totals, plan = execPlan(reb, deployBuf()), dp = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
+  const finalCash = dp && dp.cash_before > 0 ? dp.cash_after : plan.cash_after_band;
+  const tiles = [["총 매수", money(t.total_buy), `${t.n_buy}건`], ["총 매도", money(t.total_sell), `${t.n_sell}건`],
+    ["거래 후 현금 (주수 기준)", money(finalCash), plan.short ? "현금 부족 — 주문을 줄이세요" : `밴드 주문 후 ${money(plan.cash_after_band)} · 엔진(금액 기준) ${money(plan.engine_cash)}`],
     ["회전율", pct(t.turnover), "(매수+매도)/평가금액"], ["추정 거래비용", money(t.est_cost), `${reb.tc_bps}bp 가정`], ["평가금액", money(t.portfolio_value), `유지 ${t.n_hold}건`]];
-  const ord = reb.rows.filter(r=>r.action!=="HOLD").sort((a,b)=>Math.abs(b.trade_amount)-Math.abs(a.trade_amount));
-  const hold = reb.rows.filter(r=>r.action==="HOLD" && (r.target>0||r.actual>0));
+  const ord = plan.reb.rows.filter(r=>r.action!=="HOLD").sort((a,b)=>Math.abs(b.trade_amount)-Math.abs(a.trade_amount));
+  const hold = plan.reb.rows.filter(r=>r.action==="HOLD" && (r.target>0||r.actual>0));
   const tr = r => `<tr><td class="l"><b>${esc(r.ticker)}</b></td><td class="l">${esc(r.asset_class)}</td><td>${pct(r.actual,2)}</td><td>${pct(r.target,2)}</td><td>${pp(r.active,2)}</td><td>±${pct(r.band,1)}</td>
-    <td class="l"><span class="act-${r.action.split(" ")[0]}">${esc(r.action)}</span></td><td>${money(r.trade_amount)}</td><td>${r.trade_shares?r.trade_shares.toLocaleString("en-US"):"–"}</td><td>${bad(r.price)?"–":nf(r.price,2)}</td></tr>`;
-  const head = `<tr><th class="l">ETF</th><th class="l">자산군</th><th>실보유</th><th>목표</th><th>차이</th><th>밴드</th><th class="l">조치</th><th>거래금액</th><th>주수(내림)</th><th>가격</th></tr>`;
+    <td class="l"><span class="act-${r.action.split(" ")[0]}">${esc(r.action)}</span></td><td>${money(r.trade_amount)}</td><td>${r.trade_shares?`<b>${r.trade_shares.toLocaleString("en-US")}</b>`:"–"}${r.adjust?`<br><span class="small warn">${esc(r.adjust)} (엔진 ${r.engine_shares||0})</span>`:""}</td><td>${bad(r.price)?"–":nf(r.price,2)}</td><td>${r.trade_shares&&r.price?money(r.trade_shares*r.price):"–"}</td></tr>`;
+  const head = `<tr><th class="l">ETF</th><th class="l">자산군</th><th>실보유</th><th>목표</th><th>차이</th><th>밴드</th><th class="l">조치</th><th>거래금액</th><th>주문 주수</th><th>가격</th><th>체결 예상</th></tr>`;
   const ex = (list, isRisk) => `<div class="tbl"><table><tr><th class="l">${isRisk?"리스크 노출":"자산군"}</th><th>목표</th><th>실보유</th><th>Δ</th><th>거래 후</th></tr>${list.map(x=>{
     const f = isRisk && /Beta|Duration/.test(x.name) ? (v=>nf(v,2)) : (v=>pct(v,1)); const d = isRisk && /Beta|Duration/.test(x.name) ? sg(x.delta,2) : pp(x.delta,1);
     return `<tr><td class="l">${esc(x.name)}</td><td>${f(x.target)}</td><td>${f(x.actual)}</td><td class="${Math.abs(x.delta)>(isRisk&&/Beta|Duration/.test(x.name)?0.05:0.015)?"warn":""}">${d}</td><td>${f(x.post)}</td></tr>`; }).join("")}</table></div>`;
   el.innerHTML = `<h3>리밸런싱 주문</h3><div class="tiles t6">${tiles.map(([k,v,s])=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("")}</div>
     ${(reb.notes||[]).length?`<p class="small muted">${reb.notes.map(esc).join(" · ")}</p>`:""}
-    <div class="tbl" style="margin-top:12px"><table>${head}${ord.length?ord.map(tr).join(""):'<tr><td class="l" colspan="10">모든 종목이 밴드 이내입니다 — 거래 없음.</td></tr>'}</table></div>
-    ${deployHtml(reb)}
+    <div class="tbl" style="margin-top:12px"><table>${head}${ord.length?ord.map(tr).join(""):'<tr><td class="l" colspan="11">모든 종목이 밴드 이내입니다 — 거래 없음.</td></tr>'}</table></div>
+    ${plan.adjusted ? `<p class="small">주수 보정 ${plan.adjusted}건: ${plan.reb.rows.filter(r=>r.adjust).map(r=>`${esc(r.ticker)} ${esc(r.adjust)}`).join(" · ")}. 엔진은 주수를 0 방향으로 내립니다${plan.reb.rows.some(r=>r.adjust.startsWith("매도")) ? " — 1주 더 팔면 목표 금액에 더 가까운 매도는 1주 올렸습니다(고가 ETF 매도가 0주가 되는 문제 방지)" : ""}${plan.trims ? ` — 주수 기준 현금이 [남겨 둘 현금]보다 모자라 목표 접근 효과가 가장 작은 매수부터 ${plan.trims}주 줄였습니다` : ""}.</p>` : ""}
+    ${plan.short ? `<p class="err">매수를 모두 줄여도 현금이 ${money(-plan.cash_after_band)} 부족합니다. 입력한 현금·수량을 확인하세요.</p>` : ""}
+    ${deployHtml(plan.reb)}
     <details class="acc" style="margin-top:6px"><summary>유지(HOLD) 종목 ${hold.length}개</summary><div class="body"><div class="tbl"><table>${head}${hold.map(tr).join("")}</table></div></div></details>
     <h3>노출 비교 — 비중 차이뿐 아니라 리스크가 얼마나 벗어났는지</h3><div class="grid2">${ex(reb.exposure_risk,true)}${ex(reb.exposure_class,false)}</div>
-    <p class="small muted">규칙: 실보유 − 목표 > +밴드 → SELL, < −밴드 → BUY, 그 외 HOLD. 거래금액 = (목표 − 실보유) × 평가금액. 주수는 거래금액÷가격을 0 방향으로 내림. 노출 비교의 [거래 후]는 밴드 주문만 반영합니다(남는 현금 투입 제외).</p>`;
+    <p class="small muted">규칙: 실보유 − 목표 > +밴드 → SELL, < −밴드 → BUY, 그 외 HOLD. 거래금액 = (목표 − 실보유) × 평가금액. 엔진 주수는 거래금액÷가격을 0 방향으로 내리고, [주문 주수]는 그 위에 매도 올림·현금 부족 조정을 한 실행 주수입니다. [거래 후 현금]은 실행 주수 × 가격과 거래비용 기준입니다. 노출 비교의 [거래 후]는 엔진(금액 기준) 값이며 주수 보정·남는 현금 투입은 반영하지 않습니다.</p>`;
 }
 
 function deployHtml(reb){
@@ -1081,9 +1116,9 @@ function exportCSV(kind){
   if (kind==="scores") return download(`etf_scores_${m}.csv`, toCSV(R.scores, Object.keys(R.scores[0])));
   if (kind==="macro") return download(`macro_${m}.csv`, toCSV(R.macro.factors, ["factor","level_fmt","chg_1m","chg_3m","chg_6m","chg_unit","z","pct","regime","detail"]));
   if (!S.reb) return alert("실보유를 먼저 입력하세요 (Actual Portfolio: Not Provided).");
-  if (kind==="orders"){ const d = deployOn() ? cashDeploy(S.reb, deployBuf()) : null;
+  if (kind==="orders"){ const plan = execPlan(S.reb, deployBuf()), d = deployOn() ? cashDeploy(plan.reb, deployBuf()) : null;
     const extra = d ? d.rows.map(r=>({ticker:r.ticker, asset_class:r.asset_class, actual:r.before_weight, target:r.target, active:r.before_weight-r.target, band:S.reb.band, action:"BUY (현금 투입)", trade_amount:r.amount, trade_shares:r.shares, price:r.price, post_weight:r.post_weight})) : [];
-    return download(`rebalancing_order_${m}.csv`, toCSV(S.reb.rows.concat(extra), ["ticker","asset_class","actual","target","active","band","action","trade_amount","trade_shares","price","post_weight"])); }
+    return download(`rebalancing_order_${m}.csv`, toCSV(plan.reb.rows.concat(extra), ["ticker","asset_class","actual","target","active","band","action","trade_amount","engine_shares","trade_shares","adjust","price","post_weight"])); }
   if (kind==="actual"){ const rows = S.reb.input_rows || (R.actual && R.actual.rows) || []; return download(`actual_portfolio_${m}.csv`, toCSV(rows, ["ticker","quantity","price","market_value","weight"])); }
 }
 init();
