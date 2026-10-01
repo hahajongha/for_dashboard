@@ -1,5 +1,5 @@
 {
- "as_of": "2026-09-30",
+ "as_of": "2026-10-01",
  "fred_mode": "csv",
  "fred_report": [
   {
@@ -33,10 +33,10 @@
    "id": "ICSA",
    "status": "csv",
    "first": "1967-01-07",
-   "last": "2026-09-19",
-   "n": 3116,
-   "revised": 0,
-   "revised_max_abs": 0.0
+   "last": "2026-09-26",
+   "n": 3117,
+   "revised": 1,
+   "revised_max_abs": 1000.0
   },
   {
    "id": "RSXFS",
@@ -96,8 +96,8 @@
    "id": "T5YIE",
    "status": "csv",
    "first": "2003-01-02",
-   "last": "2026-09-30",
-   "n": 5941,
+   "last": "2026-10-01",
+   "n": 5942,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -105,8 +105,8 @@
    "id": "T10YIE",
    "status": "csv",
    "first": "2003-01-02",
-   "last": "2026-09-30",
-   "n": 5941,
+   "last": "2026-10-01",
+   "n": 5942,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -123,8 +123,8 @@
    "id": "DFF",
    "status": "csv",
    "first": "1954-07-01",
-   "last": "2026-09-29",
-   "n": 26389,
+   "last": "2026-09-30",
+   "n": 26390,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -132,49 +132,13 @@
    "id": "DGS3MO",
    "status": "csv",
    "first": "1981-09-01",
-   "last": "2026-09-29",
-   "n": 11269,
+   "last": "2026-09-30",
+   "n": 11270,
    "revised": 0,
    "revised_max_abs": 0.0
   },
   {
    "id": "DGS2",
-   "status": "csv",
-   "first": "1976-06-01",
-   "last": "2026-09-29",
-   "n": 12579,
-   "revised": 0,
-   "revised_max_abs": 0.0
-  },
-  {
-   "id": "DGS5",
-   "status": "csv",
-   "first": "1962-01-02",
-   "last": "2026-09-29",
-   "n": 16171,
-   "revised": 0,
-   "revised_max_abs": 0.0
-  },
-  {
-   "id": "DGS10",
-   "status": "csv",
-   "first": "1962-01-02",
-   "last": "2026-09-29",
-   "n": 16171,
-   "revised": 0,
-   "revised_max_abs": 0.0
-  },
-  {
-   "id": "DGS30",
-   "status": "csv",
-   "first": "1977-02-15",
-   "last": "2026-09-29",
-   "n": 12401,
-   "revised": 0,
-   "revised_max_abs": 0.0
-  },
-  {
-   "id": "T10Y2Y",
    "status": "csv",
    "first": "1976-06-01",
    "last": "2026-09-30",
@@ -183,11 +147,47 @@
    "revised_max_abs": 0.0
   },
   {
+   "id": "DGS5",
+   "status": "csv",
+   "first": "1962-01-02",
+   "last": "2026-09-30",
+   "n": 16172,
+   "revised": 0,
+   "revised_max_abs": 0.0
+  },
+  {
+   "id": "DGS10",
+   "status": "csv",
+   "first": "1962-01-02",
+   "last": "2026-09-30",
+   "n": 16172,
+   "revised": 0,
+   "revised_max_abs": 0.0
+  },
+  {
+   "id": "DGS30",
+   "status": "csv",
+   "first": "1977-02-15",
+   "last": "2026-09-30",
+   "n": 12402,
+   "revised": 0,
+   "revised_max_abs": 0.0
+  },
+  {
+   "id": "T10Y2Y",
+   "status": "csv",
+   "first": "1976-06-01",
+   "last": "2026-10-01",
+   "n": 12581,
+   "revised": 0,
+   "revised_max_abs": 0.0
+  },
+  {
    "id": "T10Y3M",
    "status": "csv",
    "first": "1982-01-04",
-   "last": "2026-09-30",
-   "n": 11189,
+   "last": "2026-10-01",
+   "n": 11190,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -195,8 +195,8 @@
    "id": "BAMLH0A0HYM2",
    "status": "csv",
    "first": "2023-10-02",
-   "last": "2026-09-29",
-   "n": 785,
+   "last": "2026-09-30",
+   "n": 786,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -204,8 +204,8 @@
    "id": "BAMLC0A0CM",
    "status": "csv",
    "first": "2023-10-02",
-   "last": "2026-09-29",
-   "n": 784,
+   "last": "2026-09-30",
+   "n": 785,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -213,8 +213,8 @@
    "id": "BAA10Y",
    "status": "csv",
    "first": "1986-01-02",
-   "last": "2026-09-29",
-   "n": 10186,
+   "last": "2026-09-30",
+   "n": 10187,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -222,8 +222,8 @@
    "id": "AAA10Y",
    "status": "csv",
    "first": "1983-01-03",
-   "last": "2026-09-29",
-   "n": 10933,
+   "last": "2026-09-30",
+   "n": 10934,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -231,8 +231,8 @@
    "id": "VIXCLS",
    "status": "csv",
    "first": "1990-01-02",
-   "last": "2026-09-29",
-   "n": 9284,
+   "last": "2026-09-30",
+   "n": 9285,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -258,8 +258,8 @@
    "id": "WALCL",
    "status": "csv",
    "first": "2002-12-18",
-   "last": "2026-09-23",
-   "n": 1241,
+   "last": "2026-09-30",
+   "n": 1242,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -267,8 +267,8 @@
    "id": "RRPONTSYD",
    "status": "csv",
    "first": "2003-02-07",
-   "last": "2026-09-30",
-   "n": 3337,
+   "last": "2026-10-01",
+   "n": 3338,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -276,8 +276,8 @@
    "id": "WRESBAL",
    "status": "csv",
    "first": "2002-12-18",
-   "last": "2026-09-23",
-   "n": 1241,
+   "last": "2026-09-30",
+   "n": 1242,
    "revised": 0,
    "revised_max_abs": 0.0
   },
@@ -303,76 +303,76 @@
  "vintage_report": [
   {
    "id": "INDPRO",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PAYEMS",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "UNRATE",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "RSXFS",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "GDPC1",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-04-01"
   },
   {
    "id": "CPIAUCSL",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "CPILFESL",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PCEPI",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "PCEPILFE",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "MICH",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-08-01"
   },
   {
    "id": "NFCI",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-09-25"
   },
   {
    "id": "ANFCI",
-   "status": "alfred_cache",
-   "vintage_date": "2026-09-30",
+   "status": "alfred_csv",
+   "vintage_date": "2026-10-01",
    "last_obs": "2026-09-25"
   }
  ],
- "updated_at": "2026-10-01T02:21:32"
+ "updated_at": "2026-10-01T23:52:48"
 }

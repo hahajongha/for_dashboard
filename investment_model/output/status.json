@@ -1,16 +1,52 @@
 {
- "task": "monthly",
- "updated_at": "2026-10-01T22:24:05+00:00",
- "status": "skipped",
- "message": "history/2026-09 가 이미 있습니다 (마감 월 보호, --force로 재계산)",
- "guards": null,
- "validation": null,
+ "task": "data_only",
+ "updated_at": "2026-10-01T23:52:26+00:00",
+ "status": "success",
+ "message": "데이터 갱신",
+ "guards": {
+  "status": "OK",
+  "errors": 0,
+  "warnings": 0,
+  "items": []
+ },
+ "validation": {
+  "summary": {
+   "status": "WARN",
+   "errors": 0,
+   "warnings": 1,
+   "info": 3
+  },
+  "items": [
+   {
+    "level": "WARN",
+    "area": "Market",
+    "check": "월말 여부",
+    "target": "2026-10-01",
+    "detail": "월 마지막 거래일(2026-10-30) 이전 데이터 — 부분 월 기준 산출(최근 확정 종가 사용)"
+   }
+  ]
+ },
  "model_ran": false,
- "market_data_date": "2026-09-30",
- "market_downloaded_at": "2026-10-01T02:21:22",
- "macro_data_date": "2026-09-30",
- "macro_updated_at": "2026-10-01T02:21:30",
- "data_as_of": "2026-09-30",
+ "as_of": "2026-10-01",
+ "peers": {
+  "status": "ok",
+  "tickers": 12,
+  "kept_old": [],
+  "failed": [],
+  "build": "ok"
+ },
+ "latest_prices": {
+  "date": "2026-10-01",
+  "tickers": 25,
+  "lagging": [],
+  "missing": []
+ },
+ "runtime_sec": 41.2,
+ "market_data_date": "2026-10-01",
+ "market_downloaded_at": "2026-10-01T23:52:33",
+ "macro_data_date": "2026-10-01",
+ "macro_updated_at": "2026-10-01T23:52:41",
+ "data_as_of": "2026-10-01",
  "alfred_vintages": 12,
  "model": {
   "month": "2026-09",
@@ -21,6 +57,6 @@
   "run_at": "2026-09-30T23:46:37"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36934782096",
- "last_success_at": "2026-10-01T02:21:14+00:00"
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/36943041000",
+ "last_success_at": "2026-10-01T23:52:26+00:00"
 }
