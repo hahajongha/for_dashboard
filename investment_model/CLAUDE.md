@@ -34,6 +34,7 @@
 | K-4 (마감 월) | [현재] | `history/<월>/result.json`(source=live)이 있으면 모델 건너뜀, `--force`로만 재계산 |
 | K-10 (버전) | [현재] | `requirements.lock` (Python 3.12, pandas 3.0.2, numpy 2.4.4, cvxpy 1.9.3, clarabel 0.11.1, scipy 1.18.1, yfinance 1.7.0) |
 | 관측일·이용가능일 저장소 | [현재] 기록만 | `scripts/fred_pit.py` → `data/fred_pit/<ID>.csv` (주간·월간·분기 16종, 추가 전용). `available_basis` = alfred_vintage / release_rule_est(추정) / first_seen(수정치). **모델은 읽지 않음** — 백테스트 적용은 methodology 변경(승인 필요) |
+| Peer 비교 | [현재] 로컬 검증 / [부분] 실데이터는 첫 Actions 실행 후 | `config/peers.json`(12종, 모델 유니버스와 무관) → `scripts/peers.py`: 데이터 업데이트마다 yfinance로 `data/peers/*.csv.gz` 수집(티커별 이력이 짧아지면 기존 유지, 실패해도 파이프라인 계속) → `output/peers.json`(기간 수익률·3년 변동성·Sharpe·MDD·연도별·누적 차트·Live 성과). 모델 수익률 = 현재 파라미터 `run_path` 백테스트(**Fixed params, partial in-sample**) + v3.0 연도별(**Honest OOS**, 정적) + 실제 발표 목표 보유 성과(Live). 대시보드 `#s-peer` (SVG 선 차트, 범주형 8색 light/dark 검증) |
 | FRED | [결정] | 키 없는 CSV·ALFRED 경로(`fred_mode=csv`) 유지. API 키 미사용 |
 | 워크플로 | [부분] 러너 접속 확인 (2026-09-30 첫 실행: yfinance 32종·FRED 33/33·ALFRED 12 다운로드 성공, ICE BofA 3년 이동 창 가드 오탐으로 실패 → 수정) | 저장소 루트 `.github/workflows/`: `update-investment-data.yml`(수동), `investment-model-monthly.yml`(매월 1~5일 22:17 UTC), `_investment-model-pipeline.yml`(공통), `investment-model-tests.yml`(골든) |
 | 골든 테스트 | [현재] | CI가 `data/`를 갱신하므로 `python scripts/golden_ci.py`로 실행 — `tests/fixtures/taa_pm_repo_v1.0.zip`(v1.0 원본)의 data·history·params로 임시 복사본에서 `tests/check_golden.py`, `check_rebalance_parity.py` 실행 |
