@@ -102,6 +102,7 @@ tr.mrow td{font-weight:600}
 td.pname{white-space:normal;min-width:200px;max-width:260px}
 tr.grp td{background:var(--soft);color:var(--ink2);font-size:12px;font-weight:600}
 .pre{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);padding:12px 14px;max-width:100ch}
+.trk-del{font:inherit;font-size:12px;padding:1px 7px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:3px;cursor:pointer}
 footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
 @media (max-width:980px){.tiles,.tiles.t6{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(2,1fr)}.step{border-bottom:1px solid var(--line)}.grid2,.card3{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -185,6 +186,34 @@ footer{margin-top:36px;color:var(--ink2);font-size:12px;border-top:1px solid var
   <details class="acc" id="manualBox" style="margin-top:8px"><summary>직접 입력 <span class="sub">ETF별 수량·가격·평가금액·비중(%) — 빈 칸은 무시</span></summary><div class="body"><div class="tbl"><table id="manualTbl"></table></div></div></details>
   <div class="err" id="rebalErr"></div>
   <div id="rebalOut"></div>
+</section>
+
+<section id="s-track">
+  <h2>내 포트폴리오 기록</h2>
+  <p class="lead" id="trackLead"></p>
+  <div class="inputs">
+    <b>원금 투입·인출</b>
+    <label>날짜 <input type="date" id="flowDate"></label>
+    <label>금액 ($, 인출은 −) <input type="number" id="flowAmt" step="100"></label>
+    <label>메모 <input type="text" id="flowMemo" maxlength="40" placeholder="예: 최초 투자, 11월 적립"></label>
+    <button id="flowAdd">투입 기록</button>
+  </div>
+  <div class="inputs" style="border-top:0">
+    <b>월말 평가 기록</b>
+    <button id="snapFromActual" disabled>실보유 입력값으로 기록</button>
+    <span class="small muted">또는</span>
+    <label>날짜 <input type="date" id="snapDate"></label>
+    <label>평가금액 ($, 현금 포함) <input type="number" id="snapVal" step="100" min="0"></label>
+    <button class="ghost" id="snapAdd">직접 기록</button>
+  </div>
+  <div class="inputs" style="border-top:0">
+    <label>분배금 세율 (%) <input type="number" id="taxRate" step="0.1" min="0" max="50" style="width:72px"></label>
+    <button class="ghost" id="ledgerExport">백업 내보내기 (JSON)</button>
+    <label>백업 불러오기 <input type="file" id="ledgerImport" accept=".json,application/json"></label>
+    <button class="ghost" id="ledgerClear">기록 전체 삭제</button>
+  </div>
+  <div class="err" id="trackErr"></div>
+  <div id="trackOut" style="margin-top:12px"></div>
 </section>
 
 <section id="s-cons">
@@ -359,7 +388,7 @@ function render(){
   const R = S.result;
   if (!R || !R.meta){ document.getElementById("s-summary").innerHTML = '<div class="notice"><b>표시할 결과가 없습니다.</b> server.py를 실행하고 모델을 돌리거나, 결과 파일(result.json)을 여세요.</div>'; renderHeader(); renderSteps(); return; }
   if (!S.reb && R.rebalance) S.reb = R.rebalance;
-  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderAlloc(); renderManual(); renderRebalance(); renderCons(); renderPeers();
+  renderHeader(); renderSteps(); renderSummary(); renderMacro(); renderTarget(); renderAlloc(); renderManual(); renderRebalance(); renderTrack(); renderCons(); renderPeers();
   renderScores(); renderSpecial(); renderFrontier(); renderStab(); renderStress(); renderZero(); renderBT(); renderWF(); renderHist(); renderVal(); renderLim(); renderComm();
   $("#foot").innerHTML = `HTML = 화면 · Python = 데이터·퀀트 엔진 · 해설 = 해석 전용. 모델 ${esc(R.meta.model_version)} · 시스템 ${esc(R.meta.system_version)} · 실행 ${esc(R.meta.run_at||"")} · 소요 ${esc(R.meta.runtime_sec??"–")}초`;
 }
@@ -566,7 +595,7 @@ $("#runRebal").addEventListener("click", async () => {
     } else {
       const lp={}, tg={}, beta={}, dur={}; R.portfolio.rows.forEach(r=>{ lp[r.ticker]=r.price; tg[r.ticker]=r.target; beta[r.ticker]=r.beta_eq||0; dur[r.ticker]=r.duration||0; });
       const n = RB.normalize(rows, R.universe.tickers, lp, pv, cash);
-      S.reb = RB.compare(R.universe, tg, n.df, n.pv, R.meta.params.band, R.meta.params.tc_bps, beta, dur, lp); S.reb.notes = n.notes; S.reb.input_rows = n.df;
+      S.reb = RB.compare(R.universe, tg, n.df, n.pv, R.meta.params.band, R.meta.params.tc_bps, beta, dur, lp); S.reb.notes = n.notes; S.reb.input_rows = n.df; S.reb.extra_cash = cash;
     }
     render(); goTo("rebalOut");
   } catch(err){ $("#rebalErr").textContent = err.message; }
@@ -752,7 +781,7 @@ function renderPeers(){
     <div class="tbl"><table><thead><tr><th class="l">대상</th>${years.map(y=>`<th>${y}${y===String(Y)?" YTD":""}</th>`).join("")}</tr></thead><tbody>${ser.filter(x=>x.kind!=="peer").map(calRow).join("")}${ser.filter(x=>x.kind==="peer").map(calRow).join("")}</tbody></table></div>
     <p class="small muted">v3.0 워크포워드 ${Y}년은 v3.0 산출 시점(${Y}-08)까지입니다.</p>
     <h3>실제 발표 목표 성과 (Live)</h3>${liveHtml}
-    <p class="small muted">${(P.notes||[]).map(esc).join("<br>")}</p>`;
+    <p class="small muted">${(P.notes||[]).map(esc).join("<br>")}<br>세전 비교입니다. 실제 계좌는 분배금에 세금(${(LEDGER.tax*100).toFixed(1)}%, [내 포트폴리오 기록]에서 변경)이 붙어 분배수익률 × 세율만큼 낮습니다 — 현재 모델 목표 인컴 ${pct(S.result.metrics && S.result.metrics.IncomeYield,2)} 기준 약 연 ${bad(S.result.metrics && S.result.metrics.IncomeYield)?"–":(S.result.metrics.IncomeYield*LEDGER.tax*100).toFixed(2)+"%p"}. 인컴 비중이 높은 Peer일수록 세후 차감이 큽니다.</p>`;
   $("#peerYears").onclick = e => { const b = e.target.closest("button"); if (!b) return; PEER_STATE.years = +b.dataset.y; [...$("#peerYears").children].forEach(c=>c.setAttribute("aria-pressed", String(+c.dataset.y===PEER_STATE.years))); drawPeerChart(); };
   drawPeerChart();
 }
@@ -844,6 +873,156 @@ function renderAlloc(){
   $("#allocCsv").onclick = () => { if (ALLOC_ROWS) download(`taa_allocation_${R.meta.target_month}.csv`, toCSV(ALLOC_ROWS, ["ticker","asset_class","target","target_amt","price","shares","amount","weight","diff"])); };
   if (Number($("#allocAmt").value) > 0) run(); else $("#allocOut").innerHTML = '<p class="muted">투자금을 입력하고 [배분 계산]을 누르세요.</p>';
 }
+
+// ---- 내 포트폴리오 기록: 원금 투입·인출 + 월말 평가금액 → 원금·손익·시간가중(TWR)·금액가중(IRR) 수익률 ----
+// 이 브라우저의 localStorage(키 taaPm.ledger.v1)에만 저장 — 저장소·서버로 보내지 않음(공개 저장소, K-3). 분배금은 따로 추적하지 않고 월말 현금에 포함된 금액으로 반영
+const LEDGER_KEY = "taaPm.ledger.v1";
+function ledgerEmpty(){ return {version:1, flows:[], records:[], tax:0.154}; }
+function ledgerClean(j){
+  if (!j || !Array.isArray(j.flows) || !Array.isArray(j.records)) return null;
+  const okD = d => typeof d==="string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const flows = j.flows.filter(f=>okD(f.date) && isFinite(f.amount) && Number(f.amount)!==0).map(f=>({date:f.date, amount:Number(f.amount), memo:String(f.memo||"").slice(0,40)}));
+  const records = j.records.filter(r=>okD(r.date) && isFinite(r.value) && Number(r.value)>=0).map(r=>({date:r.date, value:Number(r.value), source:r.source==="dashboard"?"dashboard":"manual", holdings:Array.isArray(r.holdings)?r.holdings:undefined, saved_at:r.saved_at}));
+  const tax = isFinite(j.tax) && j.tax>=0 && j.tax<0.5 ? Number(j.tax) : 0.154;
+  return {version:1, flows, records, tax};
+}
+function ledgerLoad(){ try { return ledgerClean(JSON.parse(localStorage.getItem(LEDGER_KEY) || "null")) || ledgerEmpty(); } catch(e){ return ledgerEmpty(); } }
+let LEDGER = ledgerLoad(), LEDGER_OK = true;
+function ledgerSave(){ try { localStorage.setItem(LEDGER_KEY, JSON.stringify(LEDGER)); LEDGER_OK = true; } catch(e){ LEDGER_OK = false; } renderTrack(); }
+const dayNum = d => Date.parse(d+"T00:00:00Z")/864e5;
+function ledgerCalc(L){
+  const flows = [...L.flows].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0), recs = [...L.records].sort((a,b)=>a.date<b.date?-1:1);
+  const rows = []; let prev = null, cum = 1, chain = true;
+  recs.forEach(r => {
+    const inP = flows.filter(f => (!prev || f.date > prev.date) && f.date <= r.date);
+    const F = inP.reduce((s,f)=>s+f.amount,0), principal = flows.filter(f=>f.date<=r.date).reduce((s,f)=>s+f.amount,0);
+    const start = prev ? prev.date : (inP.length ? inP[0].date : r.date), V0 = prev ? prev.value : 0, T = dayNum(r.date)-dayNum(start);
+    // Modified Dietz: 기간 중 투입액은 남은 기간 비율만큼 가중
+    const den = V0 + inP.reduce((s,f)=>s + f.amount*(T>0 ? (dayNum(r.date)-dayNum(f.date))/T : 1), 0);
+    const ret = den > 0 ? (r.value - V0 - F)/den : null;
+    if (ret === null) chain = false; else cum *= 1+ret;
+    rows.push({...r, start, v0:V0, flow:F, principal, pnl:r.value-principal, ret, cum: chain ? cum-1 : null});
+    prev = r;
+  });
+  return {flows, rows};
+}
+function xirr(cfs){ // cfs: [{d:일수, a:금액}] 투입 −, 평가금액 +. 연 수익률
+  if (cfs.length < 2 || !cfs.some(c=>c.a<0) || !cfs.some(c=>c.a>0)) return null;
+  const t0 = cfs[0].d, f = r => cfs.reduce((s,c)=>s + c.a/Math.pow(1+r, (c.d-t0)/365), 0);
+  let lo = -0.9999, hi = 100, flo = f(lo), fhi = f(hi); if (!(flo*fhi < 0)) return null;
+  for (let i=0;i<300;i++){ const m = (lo+hi)/2, fm = f(m); if (flo*fm <= 0){ hi = m; } else { lo = m; flo = fm; } }
+  return (lo+hi)/2;
+}
+function liveFor(row){ // 같은 기간 끝 날짜의 모델 Live(실제 발표 목표 보유) 수익률
+  const lr = (S.peers && S.peers.live && S.peers.live.rows) || [], m = lr.find(x=>x.end===row.date);
+  if (!m) return null;
+  const inc = S.index && S.index.income_history ? S.index.income_history[m.month] : null, days = dayNum(m.end)-dayNum(m.start);
+  return {ret:m.ret, after: bad(inc) ? null : m.ret - inc*LEDGER.tax*days/365, start:m.start};
+}
+function addRecord(rec){
+  const i = LEDGER.records.findIndex(r=>r.date===rec.date);
+  if (i >= 0){ if (!confirm(`${rec.date} 기록이 이미 있습니다 (${money(LEDGER.records[i].value)}). 새 값 ${money(rec.value)}으로 바꿀까요?`)) return false; LEDGER.records[i] = rec; }
+  else LEDGER.records.push(rec);
+  ledgerSave(); return true;
+}
+function renderTrack(){
+  const R = S.result;
+  $("#trackLead").innerHTML = `원금 투입·인출과 월말 평가금액을 기록해 <b>투자원금 대비 평가금액</b>과 수익률을 추적합니다. 월초 리밸런싱 <b>전에</b>, 지난달 말 보유 그대로 실보유를 입력하고 `+
+    `[비교하고 주문 만들기] → <b>[실보유 입력값으로 기록]</b>을 누르면 Data As Of(<b>${esc(R.meta.data_as_of)}</b>) 종가 × 수량 + 현금(받은 분배금 포함)이 그 날짜의 평가금액으로 저장됩니다. `+
+    `기록은 <b>이 브라우저에만</b> 저장되므로(다른 기기·브라우저와 공유 안 됨, 인터넷 사용 기록 삭제 시 사라질 수 있음) 기록 후 [백업 내보내기]로 파일을 보관하세요.`;
+  $("#taxRate").value = +(LEDGER.tax*100).toFixed(2);
+  const canSnap = !!(S.reb && S.reb.input_rows);
+  const sb = $("#snapFromActual"); sb.disabled = !canSnap; sb.textContent = `실보유 입력값으로 기록 (${R.meta.data_as_of})`;
+  sb.title = canSnap ? "" : "실보유 입력에서 [비교하고 주문 만들기]를 먼저 누르세요";
+  if (!$("#snapDate").value) $("#snapDate").value = R.meta.data_as_of;
+  if (!$("#flowDate").value) $("#flowDate").value = new Date().toISOString().slice(0,10);
+  const C = ledgerCalc(LEDGER), rows = C.rows, flows = C.flows, out = $("#trackOut");
+  const warn = LEDGER_OK ? "" : '<div class="notice">이 브라우저에서 저장소를 쓸 수 없습니다(사생활 보호 모드 등). 화면을 닫기 전에 [백업 내보내기]로 저장하세요.</div>';
+  if (!flows.length && !rows.length){ out.innerHTML = warn + '<div class="notice">아직 기록이 없습니다. 처음 투자한 날짜와 금액을 [투입 기록]으로 넣고, 다음 달 초에 월말 평가를 기록하세요.</div>'; return; }
+  const last = rows[rows.length-1];
+  const principalNow = flows.reduce((s,f)=>s+f.amount,0);
+  let irr = null, span = 0;
+  if (last){ const cf = flows.filter(f=>f.date<=last.date).map(f=>({d:dayNum(f.date), a:-f.amount})); cf.push({d:dayNum(last.date), a:last.value});
+    irr = xirr(cf); span = cf.length ? dayNum(last.date) - cf[0].d : 0; }
+  const irrTxt = irr===null ? "–" : span >= 365 ? sgnPct(irr,2)+" /년" : sgnPct(Math.pow(1+irr, span/365)-1, 2);
+  const lastLive = last ? liveFor(last) : null;
+  const tiles = `<div class="tiles">
+    <div class="tile"><div class="k">투자원금</div><div class="v">${money(last ? last.principal : principalNow)}</div><div class="s">${last ? esc(last.date)+" 기준 누적 순투입" : "평가 기록 전"}${last && principalNow!==last.principal ? ` · 이후 투입 포함 ${money(principalNow)}` : ""}</div></div>
+    <div class="tile"><div class="k">평가금액</div><div class="v">${last ? money(last.value) : "–"}</div><div class="s">${last ? esc(last.date)+" 종가 기준, 현금 포함" : "월말 평가를 기록하세요"}</div></div>
+    <div class="tile"><div class="k">평가손익</div><div class="v">${last ? money(last.pnl) : "–"}</div><div class="s">${last && last.principal>0 ? "원금 대비 "+sgnPct(last.pnl/last.principal,2) : ""}</div></div>
+    <div class="tile"><div class="k">수익률 (세후 실측)</div><div class="v">${last && !bad(last.cum) ? sgnPct(last.cum,2) : "–"}</div><div class="s">시간가중(TWR) · 금액가중(IRR) ${irrTxt}${span>=365?"":" (기간)"}</div></div></div>`;
+  const tr = rows.map((r,i)=>{ const lv = liveFor(r);
+    return `<tr><td class="l">${esc(r.date)}${r.source==="manual"?' <span class="chip">직접</span>':""}</td><td class="l small muted">${esc(r.start)} → ${esc(r.date)}</td><td>${money(r.principal)}</td><td>${r.flow ? money(r.flow) : "–"}</td><td><b>${money(r.value)}</b></td><td>${money(r.pnl)}</td>`+
+      `<td>${bad(r.ret)?"–":sgnPct(r.ret,2)}</td><td>${bad(r.cum)?"–":sgnPct(r.cum,2)}</td><td>${lv?sgnPct(lv.ret,2):"–"}</td><td>${lv&&!bad(lv.after)?sgnPct(lv.after,2):"–"}</td>`+
+      `<td><button class="trk-del" data-k="r" data-d="${esc(r.date)}" title="이 평가 기록 삭제">삭제</button></td></tr>`; }).join("");
+  const ft = flows.map(f=>`<tr><td class="l">${esc(f.date)}</td><td>${money(f.amount)}</td><td class="l">${esc(f.memo)}</td><td><button class="trk-del" data-k="f" data-d="${esc(f.date)}" data-a="${f.amount}" data-m="${esc(f.memo)}" title="이 투입 기록 삭제">삭제</button></td></tr>`).join("");
+  const tax = (LEDGER.tax*100).toFixed(1), inc = R.metrics && R.metrics.IncomeYield;
+  out.innerHTML = warn + tiles + (rows.length >= 2 ? '<h3>평가금액과 투자원금</h3><div class="pchart" id="trackChart"></div>' : "") +
+    `<h3>월말 기록</h3>${rows.length ? `<div class="tbl"><table><thead><tr><th class="l">기준일</th><th class="l">기간</th><th>투자원금</th><th>기간 순투입</th><th>평가금액</th><th>평가손익</th><th>기간 수익률</th><th>누적 수익률</th><th>모델 Live (세전)</th><th>모델 세후 추정</th><th></th></tr></thead><tbody>${tr}</tbody></table></div>` : '<p class="muted">월말 평가 기록이 아직 없습니다.</p>'}
+    <h3>원금 투입·인출</h3><div class="tbl"><table><thead><tr><th class="l">날짜</th><th>금액</th><th class="l">메모</th><th></th></tr></thead><tbody>${ft || '<tr><td class="l muted" colspan="4">없음</td></tr>'}</tbody></table></div>
+    <p class="small muted">수익률은 기간 중 투입액을 남은 기간 비율로 가중한 시간가중 수익률(Modified Dietz)을 이어 붙인 값입니다. 투입 시점·금액의 영향을 빼므로 모델·Peer와 비교할 때 씁니다. 금액가중(IRR)은 투입 시점까지 반영한 내 실제 수익률입니다(1년 미만이면 연환산하지 않은 기간 수익률).<br>`+
+    `내 수익률은 실제 계좌 기준이라 분배금 세금·거래비용·체결가 차이가 반영된 <b>세후</b> 값입니다. 모델 Live와 Peer 비교는 <b>세전</b> 총수익률이므로, 같은 기준으로 보려면 분배수익률 × 세율만큼 낮춰 봐야 합니다 `+
+    `(현재 목표 인컴 ${pct(inc,2)} × ${tax}% ≈ 연 ${bad(inc)?"–":(inc*LEDGER.tax*100).toFixed(2)+"%p"}). [모델 세후 추정] = 모델 Live − 그 달 목표 인컴 × 세율 × 보유 일수/365. `+
+    `모델 Live 기간은 Data As Of부터라 첫 달은 내 투입일과 시작일이 다를 수 있습니다.</p>`;
+  out.querySelectorAll(".trk-del").forEach(b => b.onclick = () => {
+    if (b.dataset.k === "r"){ if (!confirm(`${b.dataset.d} 평가 기록을 삭제할까요?`)) return; LEDGER.records = LEDGER.records.filter(r=>r.date!==b.dataset.d); }
+    else { if (!confirm(`${b.dataset.d} ${money(+b.dataset.a)} 투입 기록을 삭제할까요?`)) return;
+      const i = LEDGER.flows.findIndex(f=>f.date===b.dataset.d && f.amount===+b.dataset.a && f.memo===b.dataset.m); if (i>=0) LEDGER.flows.splice(i,1); }
+    ledgerSave(); });
+  if (rows.length >= 2) drawTrackChart(rows, flows);
+}
+function drawTrackChart(rows, flows){
+  const W = 900, H = 260, L = 70, Rm = 110, T = 12, B = 26, n = rows.length;
+  const d0 = dayNum(rows[0].date), d1 = dayNum(rows[n-1].date);
+  const all = rows.flatMap(r=>[r.value, r.principal]); let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi-lo)*0.08 || hi*0.05 || 1; lo = Math.max(0, lo-pad); hi += pad;
+  const x = d => L + (W-L-Rm)*(d-d0)/Math.max(1, d1-d0), y = v => T + (H-T-B)*(1-(v-lo)/(hi-lo));
+  const raw = (hi-lo)/5, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1,2,2.5,5,10].map(k=>k*mag).find(s=>s>=raw); let grid = "";
+  for (let g=Math.ceil(lo/step)*step; g<=hi; g+=step) grid += `<line x1="${L}" x2="${W-Rm}" y1="${y(g)}" y2="${y(g)}" stroke="var(--line)" stroke-dasharray="2 3"/><text x="${L-6}" y="${y(g)+4}" text-anchor="end">${money(g)}</text>`;
+  rows.forEach((r,i)=>{ if (n <= 13 || i % Math.ceil(n/12) === 0 || i===n-1) grid += `<text x="${x(dayNum(r.date))}" y="${H-8}" text-anchor="middle">${r.date.slice(2,7)}</text>`; });
+  // 원금: 투입일마다 계단 / 평가금액: 월말 기록을 잇는 선
+  let pd = `M${x(d0).toFixed(1)},${y(rows[0].principal).toFixed(1)}`, cum = rows[0].principal;
+  flows.filter(f => f.date > rows[0].date && f.date <= rows[n-1].date).forEach(f => { cum += f.amount; pd += `H${x(dayNum(f.date)).toFixed(1)}V${y(cum).toFixed(1)}`; });
+  pd += `H${x(d1).toFixed(1)}`;
+  const vd = rows.map((r,i)=>(i?"L":"M")+x(dayNum(r.date)).toFixed(1)+","+y(r.value).toFixed(1)).join("");
+  const last = rows[n-1];
+  const dots = rows.map(r=>`<circle cx="${x(dayNum(r.date)).toFixed(1)}" cy="${y(r.value).toFixed(1)}" r="3" fill="var(--pc1)"><title>${r.date} 평가 ${money(r.value)} · 원금 ${money(r.principal)}</title></circle>`).join("");
+  $("#trackChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="평가금액과 투자원금 추이">${grid}<path d="${pd}" fill="none" stroke="var(--pc2)" stroke-width="2" stroke-dasharray="5 4"/><path d="${vd}" fill="none" stroke="var(--pc1)" stroke-width="2.5" stroke-linejoin="round"/>${dots}`+
+    `<text x="${W-Rm+6}" y="${y(last.value)+4}" style="fill:var(--ink);font-weight:600">평가 ${money(last.value)}</text><text x="${W-Rm+6}" y="${y(last.principal)+(Math.abs(y(last.principal)-y(last.value))<14?18:4)}">원금 ${money(last.principal)}</text></svg>`+
+    `<div class="legend"><span><i style="background:var(--pc1)"></i>평가금액 (월말)</span><span><i style="background:var(--pc2)"></i>투자원금 (누적 순투입)</span></div>`;
+}
+$("#flowAdd").addEventListener("click", () => {
+  const d = $("#flowDate").value, a = Number($("#flowAmt").value), err = $("#trackErr"); err.textContent = "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return err.textContent = "날짜를 입력하세요.";
+  if (!isFinite(a) || a === 0 || $("#flowAmt").value === "") return err.textContent = "금액을 입력하세요 (인출은 −).";
+  LEDGER.flows.push({date:d, amount:a, memo:$("#flowMemo").value.trim().slice(0,40)}); $("#flowAmt").value = ""; $("#flowMemo").value = ""; ledgerSave();
+});
+$("#snapFromActual").addEventListener("click", () => {
+  const R = S.result, err = $("#trackErr"); err.textContent = "";
+  if (!(S.reb && S.reb.input_rows)) return;
+  const d = R.meta.data_as_of, extra = Number(S.reb.extra_cash) || 0;
+  const first = [...LEDGER.flows].sort((a,b)=>a.date<b.date?-1:1)[0];
+  if (first && d < first.date) return err.textContent = `기준일 ${d}가 첫 투입일 ${first.date}보다 이릅니다. 매수 후 첫 월말 데이터가 업데이트된 뒤(다음 달 초) 기록하세요.`;
+  const value = S.reb.input_rows.reduce((s,a)=>s+(a.market_value||0),0) - extra;
+  const holdings = S.reb.input_rows.map(a=>({ticker:a.ticker, quantity:a.quantity, price:a.price, market_value: a.ticker==="CASH" ? (a.market_value||0)-extra : a.market_value}));
+  if (!confirm(`${d} 평가금액 ${money(value)}을 기록할까요?\n(Data As Of 종가 × 입력 수량 + 현금${extra?`, [추가 입금/출금] ${money(extra)}은 제외 — 원금 투입으로 따로 기록하세요`:""})`)) return;
+  if (addRecord({date:d, value, source:"dashboard", holdings, saved_at:new Date().toISOString()})) goTo("s-track");
+});
+$("#snapAdd").addEventListener("click", () => {
+  const d = $("#snapDate").value, v = Number($("#snapVal").value), err = $("#trackErr"); err.textContent = "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return err.textContent = "평가 날짜를 입력하세요.";
+  if ($("#snapVal").value === "" || !isFinite(v) || v < 0) return err.textContent = "평가금액을 입력하세요.";
+  if (addRecord({date:d, value:v, source:"manual", saved_at:new Date().toISOString()})) $("#snapVal").value = "";
+});
+$("#taxRate").addEventListener("change", e => { const t = Number(e.target.value); if (isFinite(t) && t >= 0 && t < 50){ LEDGER.tax = t/100; ledgerSave(); } });
+$("#ledgerExport").addEventListener("click", () => { const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(LEDGER, null, 1)], {type:"application/json"})); a.download = `taa_portfolio_ledger_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500); });
+$("#ledgerImport").addEventListener("change", async e => { const f = e.target.files[0], err = $("#trackErr"); if (!f) return; err.textContent = "";
+  try { const j = ledgerClean(JSON.parse(await f.text())); if (!j) throw new Error("기록 파일 형식이 아닙니다.");
+    if ((LEDGER.flows.length || LEDGER.records.length) && !confirm(`현재 기록(투입 ${LEDGER.flows.length}건·평가 ${LEDGER.records.length}건)을 파일의 기록(투입 ${j.flows.length}건·평가 ${j.records.length}건)으로 바꿀까요?`)) return;
+    LEDGER = j; ledgerSave(); } catch(x){ err.textContent = "백업 파일을 읽지 못했습니다: " + x.message; } finally { e.target.value = ""; } });
+$("#ledgerClear").addEventListener("click", () => { if (!(LEDGER.flows.length || LEDGER.records.length)) return;
+  if (!confirm("이 브라우저에 저장된 투입·평가 기록을 모두 삭제합니다. 먼저 [백업 내보내기]를 권합니다. 삭제할까요?")) return; LEDGER = ledgerEmpty(); ledgerSave(); });
 
 function toCSV(rows, cols){ const q = v => { if (v===null||v===undefined) return ""; const s = String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
   return "\ufeff"+cols.join(",")+"\n"+rows.map(r=>cols.map(c=>q(r[c])).join(",")).join("\n")+"\n"; }
