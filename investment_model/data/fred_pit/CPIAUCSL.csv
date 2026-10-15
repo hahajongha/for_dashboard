@@ -954,3 +954,4 @@ observation_date,value,available_from,available_basis,first_seen
 2026-06-01,332.568,2026-07-15,alfred_vintage,2026-09-30
 2026-07-01,332.813,2026-08-15,alfred_vintage,2026-09-30
 2026-08-01,334.131,2026-09-15,alfred_vintage,2026-09-30
+2026-09-01,336.298,2026-10-15,release_rule_est,2026-10-15
