@@ -251,6 +251,7 @@ const ICONS = {
   computer: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="4" y="3" width="24" height="18" fill="#c0c0c0"/><rect x="6" y="5" width="20" height="13" fill="#000080"/><rect x="7" y="6" width="18" height="11" fill="#008080"/><rect x="8" y="7" width="7" height="2" fill="#ffffff"/><rect x="8" y="10" width="12" height="1" fill="#c0f0f0"/><rect x="8" y="12" width="9" height="1" fill="#c0f0f0"/><rect x="13" y="21" width="6" height="2" fill="#808080"/><rect x="8" y="23" width="16" height="4" fill="#c0c0c0"/><rect x="9" y="24" width="9" height="1" fill="#808080"/><rect x="21" y="24" width="2" height="2" fill="#00a300"/><rect x="4" y="3" width="24" height="1" fill="#ffffff"/><rect x="4" y="3" width="1" height="18" fill="#ffffff"/><rect x="27" y="3" width="1" height="18" fill="#404040"/><rect x="4" y="20" width="24" height="1" fill="#404040"/></svg>`,
   notepad: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="6" y="2" width="20" height="28" fill="#ffffff"/><rect x="6" y="2" width="20" height="1" fill="#808080"/><rect x="6" y="2" width="1" height="28" fill="#808080"/><rect x="25" y="2" width="1" height="28" fill="#404040"/><rect x="6" y="29" width="20" height="1" fill="#404040"/><rect x="9" y="7" width="14" height="1" fill="#3355aa"/><rect x="9" y="10" width="14" height="1" fill="#3355aa"/><rect x="9" y="13" width="14" height="1" fill="#3355aa"/><rect x="9" y="16" width="10" height="1" fill="#3355aa"/><rect x="9" y="1" width="2" height="3" fill="#c0c0c0"/><rect x="15" y="1" width="2" height="3" fill="#c0c0c0"/><rect x="21" y="1" width="2" height="3" fill="#c0c0c0"/></svg>`,
   trash: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="8" y="8" width="16" height="20" fill="#c0c0c0"/><rect x="6" y="6" width="20" height="3" fill="#808080"/><rect x="13" y="3" width="6" height="3" fill="#808080"/><rect x="11" y="11" width="2" height="14" fill="#606060"/><rect x="15" y="11" width="2" height="14" fill="#606060"/><rect x="19" y="11" width="2" height="14" fill="#606060"/><rect x="8" y="8" width="1" height="20" fill="#ffffff"/><rect x="23" y="8" width="1" height="20" fill="#404040"/><rect x="8" y="27" width="16" height="1" fill="#404040"/></svg>`,
+  graph: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="2" y="3" width="28" height="26" fill="#c0c0c0"/><rect x="2" y="3" width="28" height="4" fill="#000080"/><rect x="26" y="4" width="3" height="2" fill="#c0c0c0"/><rect x="4" y="9" width="24" height="18" fill="#ffffff"/><path d="M9 13 L24 22 M9 13 L14 23" stroke="#808080" stroke-width="1" fill="none"/><path d="M9 13 L22 12 M22 12 L24 22" stroke="#1c5cab" stroke-width="2" fill="none"/><path d="M14 23 L24 22" stroke="#c9302c" stroke-width="2" fill="none"/><rect x="7" y="11" width="4" height="4" fill="#000080"/><rect x="20" y="10" width="4" height="4" fill="#000080"/><rect x="12" y="21" width="4" height="4" fill="#404040"/><rect x="22" y="20" width="4" height="4" fill="#000080"/><rect x="2" y="3" width="1" height="26" fill="#ffffff"/><rect x="29" y="3" width="1" height="26" fill="#404040"/><rect x="2" y="28" width="28" height="1" fill="#404040"/></svg>`,
   folder: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="2" y="8" width="12" height="4" fill="#e8c14d"/><rect x="2" y="10" width="28" height="16" fill="#ffdf7f"/><rect x="2" y="10" width="28" height="2" fill="#fff0b3"/><rect x="2" y="8" width="1" height="18" fill="#fff0b3"/><rect x="29" y="10" width="1" height="16" fill="#8a6d1a"/><rect x="2" y="25" width="28" height="1" fill="#8a6d1a"/></svg>`,
   help: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="4" y="3" width="22" height="26" fill="#7b68ee"/><rect x="4" y="3" width="22" height="1" fill="#b0a4ff"/><rect x="4" y="3" width="1" height="26" fill="#b0a4ff"/><rect x="25" y="3" width="1" height="26" fill="#3a2d99"/><rect x="4" y="28" width="22" height="1" fill="#3a2d99"/><text x="15" y="23" font-size="18" font-weight="bold" fill="#ffffff" text-anchor="middle" font-family="monospace">?</text></svg>`,
   shutdown: `<svg viewBox="0 0 32 32" shape-rendering="crispEdges"><rect x="6" y="6" width="20" height="20" fill="#c0c0c0"/><circle cx="16" cy="16" r="7" fill="none" stroke="#c9302c" stroke-width="3"/><rect x="14" y="7" width="4" height="8" fill="#c0c0c0"/><rect x="15" y="8" width="2" height="8" fill="#c9302c"/></svg>`,
@@ -275,6 +276,11 @@ const APPS = [
   {
     id: "taa", name: "TAA 인컴 포트폴리오", icon: "chart",
     type: "iframe", url: "investment_model/output/taa_pm_dashboard_v1.0_latest.html",
+    desktop: true, startmenu: true, w: 1260, h: 820,
+  },
+  {
+    id: "kg", name: "Knowledge Graph", icon: "graph",
+    type: "iframe", url: "dashboards/kg.html",
     desktop: true, startmenu: true, w: 1260, h: 820,
   },
   {
@@ -312,6 +318,7 @@ const APPS = [
         <li><code>dashboards/kospi_signal_engine.js</code> — 시그널 랩 계산 엔진 (지표·신호·백테스트)</li>
         <li><code>data/kospi_signal.json</code> — KOSPI 일별 시가·고가·저가·종가 (2000년~ 전체 기간, 엑셀 업로드 시 자동 갱신)</li>
         <li><code>investment_model/</code> — TAA 인컴 포트폴리오 (Python 모델 · GitHub Actions 데이터 갱신 · 대시보드)</li>
+        <li><code>dashboards/kg.html</code> — Knowledge Graph (비공개 저장소의 연구 노트를 열람용 토큰으로 읽어 연결·보완·충돌·공백을 장력 그래프로 탐색 · 이 사이트에는 데이터 없음)</li>
       </ul>
       <h2>새 대시보드 추가</h2>
       <p><code>dashboards/</code>에 HTML을 추가하고 <code>index.html</code>의

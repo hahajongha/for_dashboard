@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 이 창의 연결은 api.github.com 으로만: 그 밖의 연결·인라인 스크립트는 막는다 (KaTeX·글꼴만 고정 버전으로 허용).
+     저장된 토큰(kg.token)은 같은 출처의 다른 페이지도 읽을 수 있다 — for_kg README '한계' 참고 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/ https://fonts.googleapis.com; font-src https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/ https://fonts.gstatic.com; img-src 'self' data:; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Knowledge Graph</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><path d=%22M8 9 L23 7 L25 22 L9 24Z M8 9 L25 22%22 fill=%22none%22 stroke=%22%23898781%22 stroke-width=%221.6%22/><circle cx=%228%22 cy=%229%22 r=%224%22 fill=%22%232a78d6%22/><circle cx=%2223%22 cy=%227%22 r=%223.4%22 fill=%22%23e34948%22/><circle cx=%2225%22 cy=%2222%22 r=%223.8%22 fill=%22%232a78d6%22/><circle cx=%229%22 cy=%2224%22 r=%223%22 fill=%22%2352514e%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<style>
+/* 색 토큰 — dataviz 기준 팔레트. 관계 극성: 보완(파랑) ↔ 충돌(빨강), 가운데는 회색 (validate_palette 통과) */
+:root {
+  --font: "IBM Plex Sans KR", system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
+  --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f2f1ee; --surface-3: #e9e8e3;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --rule: #e1e0d9; --rule-2: #ecebe6;
+  --pos: #2a78d6; --neg: #e34948; --neu: #52514e; --edge-muted: #898781;
+  --pos-soft: rgba(42,120,214,.10); --neg-soft: rgba(227,73,72,.10);
+  --focus: #2a78d6; --warn-bg: #fff4e0; --warn-ink: #8a5300; --err-ink: #b42525;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --rule: #2c2c2a; --rule-2: #252523;
+    --pos: #3987e5; --neg: #e66767; --neu: #c3c2b7; --edge-muted: #898781;
+    --pos-soft: rgba(57,135,229,.16); --neg-soft: rgba(230,103,103,.16);
+    --focus: #3987e5; --warn-bg: #3a2a10; --warn-ink: #f2c27a; --err-ink: #ff8f8f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --rule: #2c2c2a; --rule-2: #252523;
+  --pos: #3987e5; --neg: #e66767; --neu: #c3c2b7; --edge-muted: #898781;
+  --pos-soft: rgba(57,135,229,.16); --neg-soft: rgba(230,103,103,.16);
+  --focus: #3987e5; --warn-bg: #3a2a10; --warn-ink: #f2c27a; --err-ink: #ff8f8f;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.55 var(--font); -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+a { color: var(--pos); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.dim { color: var(--ink-2); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--rule); background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--ink); }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.small { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.btn.link { border: 0; background: none; padding: 0 2px; height: auto; color: var(--pos); text-decoration: underline; text-underline-offset: 2px; }
+
+/* 머리글 */
+.top { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--rule); }
+.top h1 { margin: 0; font-size: 19px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; }
+.top .sub { margin: 3px 0 0; color: var(--ink-2); font-size: 12.5px; }
+.top-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.repo-info { font-size: 12px; color: var(--ink-2); }
+
+/* 토큰 입력 */
+.gate { flex: 1; display: grid; place-items: center; padding: 28px 16px; overflow: auto; }
+.card { width: min(560px, 100%); background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 22px 24px; }
+.card h2 { margin: 0 0 8px; font-size: 17px; }
+.card p { margin: 0 0 14px; color: var(--ink-2); font-size: 13.5px; }
+.card form { display: grid; gap: 10px; }
+.card label { font-size: 13px; font-weight: 600; }
+.card input[type=password], .card input[type=text] { height: 38px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface-2); width: 100%; }
+.card .check { display: flex; gap: 8px; align-items: center; font-weight: 400; color: var(--ink-2); }
+.card details { font-size: 13px; color: var(--ink-2); }
+.card details .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.card details label { font-weight: 400; display: grid; gap: 4px; }
+.card .msg { min-height: 1.4em; margin: 0; font-size: 13px; color: var(--err-ink); }
+.card ul.notes { margin: 16px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 12.5px; display: grid; gap: 4px; }
+
+/* 앱 */
+.app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--rule); }
+.toolbar input[type=search] { height: 30px; width: 210px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; border: 0; margin: 0; padding: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--surface); cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink-2); background: var(--surface-2); }
+.chip svg { flex: none; }
+.switch { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.spacer { flex: 1; }
+.stage { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.graph-wrap { position: relative; min-height: 0; background: var(--surface); border-right: 1px solid var(--rule); overflow: hidden; }
+.canvas-box { position: absolute; inset: 0; }
+canvas#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+canvas#graph.dragging { cursor: grabbing; }
+canvas#graph.on-item { cursor: pointer; }
+.tip { position: absolute; z-index: 3; pointer-events: none; max-width: 300px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.tip b { display: block; font-size: 13px; }
+.tip .t2 { color: var(--ink-2); }
+.legend { position: absolute; left: 12px; bottom: 12px; z-index: 2; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--ink-2); display: grid; gap: 3px; max-width: calc(100% - 24px); }
+.legend .lg-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.legend .lg-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.legend .lg-title { font-weight: 600; color: var(--ink); margin-right: 2px; }
+.stat { position: absolute; right: 12px; top: 10px; z-index: 2; margin: 0; font-size: 12px; color: var(--ink-2); background: color-mix(in srgb, var(--surface) 92%, transparent); padding: 2px 8px; border-radius: 6px; }
+.disclaim { position: absolute; right: 12px; bottom: 12px; z-index: 2; margin: 0; font-size: 11.5px; color: var(--ink-2); max-width: 260px; text-align: right; }
+
+/* 오른쪽 패널 */
+.panel { min-height: 0; display: flex; flex-direction: column; background: var(--page); }
+.tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--rule); background: var(--surface); }
+.tab { border: 0; background: none; padding: 7px 10px 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; border-bottom: 2px solid transparent; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.panel-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 28px; }
+.empty { color: var(--ink-2); font-size: 13px; }
+.sec { margin: 0 0 16px; }
+.sec > h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.sec > h4 { margin: 10px 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.n-title { margin: 0 0 2px; font-size: 16px; line-height: 1.35; font-weight: 700; }
+.n-meta { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-2); }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.tag { font-size: 11.5px; padding: 1px 8px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--rule); color: var(--ink-2); }
+.tag.strong { color: var(--ink); border-color: var(--ink-2); }
+.tag.pos { color: var(--pos); border-color: var(--pos); background: var(--pos-soft); }
+.tag.neg { color: var(--neg); border-color: var(--neg); background: var(--neg-soft); }
+.kv { display: grid; grid-template-columns: 76px 1fr; gap: 3px 10px; font-size: 12.5px; margin: 6px 0; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; word-break: break-word; }
+.summary { font-size: 13.5px; margin: 8px 0; }
+.rel { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin: 6px 0; background: var(--surface); }
+.rel-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; }
+.rel-head .who { font-weight: 600; }
+.rel p { margin: 5px 0 0; font-size: 12.5px; color: var(--ink-2); }
+blockquote.q { margin: 6px 0; padding: 4px 10px; border-left: 3px solid var(--rule); color: var(--ink); font-size: 12.5px; }
+blockquote.q .src { display: block; color: var(--ink-2); font-size: 11.5px; margin-top: 2px; }
+.claim { margin: 8px 0; }
+.claim .cid, .eqn .cid { font-size: 11px; font-weight: 700; color: var(--ink-2); margin-right: 4px; }
+.eqn { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: var(--surface); overflow-x: auto; }
+.eqn .lbl { font-size: 12.5px; font-weight: 600; }
+.eqn .tex { margin: 6px 0 2px; font-size: 14px; }
+.eqn .tex code { white-space: pre-wrap; }
+.eqn .meta { font-size: 11.5px; color: var(--ink-2); }
+.md h1 { font-size: 15px; margin: 14px 0 6px; }
+.md h2 { font-size: 13.5px; margin: 14px 0 6px; }
+.md h3 { font-size: 13px; margin: 10px 0 4px; }
+.md p, .md li { font-size: 13px; }
+.md ul, .md ol { padding-left: 18px; margin: 4px 0 8px; }
+.md blockquote { margin: 6px 0; padding: 4px 10px; border-left: 3px solid var(--rule); color: var(--ink-2); }
+.ref-tag { font-size: 11px; font-weight: 600; color: var(--ink-2); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; cursor: pointer; background: var(--surface-2); }
+table.list { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.list th, table.list td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+table.list th { color: var(--ink-2); font-weight: 600; }
+table.list td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rowbtn { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 2px; }
+.explain { font-size: 12.5px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
+.loading { opacity: .55; transition: opacity .2s; }
+.notice { font-size: 12.5px; padding: 6px 10px; border-radius: 6px; background: var(--warn-bg); color: var(--warn-ink); margin: 0 0 10px; }
+
+@media (max-width: 860px) {
+  /* 좁은 화면: 고정 높이 배치를 풀고 문서 전체가 스크롤되게 한다 */
+  html, body { height: auto; }
+  body { display: block; }
+  .app { display: block; }
+  .stage { display: block; overflow: visible; }
+  .graph-wrap { display: flex; flex-direction: column; min-height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .canvas-box { position: relative; inset: auto; height: 58vh; min-height: 340px; }
+  .panel { min-height: 0; }
+  .panel-body { overflow: visible; }
+  .toolbar input[type=search] { width: 100%; }
+  .legend { position: static; margin: 0; border: 0; border-top: 1px solid var(--rule); border-radius: 0; max-width: none; background: var(--surface); }
+  .disclaim { position: static; max-width: none; text-align: left; padding: 0 10px 10px; background: var(--surface); }
+}
+@media (forced-colors: active) { .chip[aria-pressed="true"] { outline: 2px solid; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Knowledge Graph</h1>
+    <p class="sub">연구 지식 Vault — 노트 사이의 연결·보완·충돌·공백을 물리엔진의 장력으로 탐색합니다.</p>
+  </div>
+  <div class="top-actions">
+    <span class="repo-info" id="repoInfo"></span>
+    <button class="btn" id="reloadBtn" type="button" hidden>새로고침</button>
+    <button class="btn" id="lockBtn" type="button" hidden>잠그기</button>
+    <button class="btn" id="themeBtn" type="button">테마 전환</button>
+  </div>
+</header>
+
+<section class="gate" id="gate" aria-labelledby="gateTitle">
+  <div class="card">
+    <h2 id="gateTitle">열람용 토큰 입력</h2>
+    <p>이 창은 비공개 저장소 <code id="gateRepo">hahajongha/for_kg</code>의 노트를 읽습니다. 공개 사이트에는 화면 코드만 있고, 노트와 그래프는 입력한 토큰으로 GitHub에서 직접 받습니다.</p>
+    <form id="gateForm" autocomplete="off" novalidate>
+      <label for="tokenIn">GitHub fine-grained PAT (읽기 전용)</label>
+      <input id="tokenIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…" aria-describedby="gateMsg">
+      <label class="check"><input type="checkbox" id="rememberIn"> 이 기기에 기억 (끄면 이 탭을 닫을 때 지워집니다)</label>
+      <details>
+        <summary>저장소 설정</summary>
+        <div class="row">
+          <label>소유자 / 저장소<input type="text" id="repoIn" placeholder="hahajongha/for_kg" spellcheck="false"></label>
+          <label>브랜치 (비우면 기본 브랜치)<input type="text" id="refIn" placeholder="" spellcheck="false"></label>
+        </div>
+      </details>
+      <button class="btn primary" type="submit">열기</button>
+      <p class="msg" id="gateMsg" role="alert"></p>
+    </form>
+    <ul class="notes">
+      <li><a id="tokenLink" href="https://github.com/settings/personal-access-tokens/new?name=kg-dashboard-read&amp;description=Knowledge%20Graph%20dashboard%20(read-only%2C%20for_kg)&amp;target_name=hahajongha&amp;expires_in=90&amp;contents=read" target="_blank" rel="noopener noreferrer">열람용 토큰 만들기 ↗</a> — Repository access에서 <b>for_kg만</b> 선택하고 Contents는 <b>Read-only</b>로 둡니다.</li>
+      <li>이 창은 토큰을 <code>api.github.com</code> 요청에만 싣고, 보안 정책(CSP)으로 이 창의 다른 연결을 막습니다. 다만 브라우저 저장소는 <code>hahajongha.github.io</code>의 모든 페이지(같은 계정의 다른 Pages 사이트 포함)가 함께 쓰므로, 공용 기기에서는 '기억'을 끄고 다 본 뒤 잠그세요.</li>
+      <li>노트 커밋용 쓰기 토큰은 넣지 마세요. 읽기 전용 토큰은 새어도 노트를 바꿀 수 없습니다.</li>
+    </ul>
+  </div>
+</section>
+
+<main class="app" id="app" hidden>
+  <div class="toolbar" role="toolbar" aria-label="그래프 보기 설정">
+    <input type="search" id="searchIn" placeholder="제목·키워드·토픽 검색" aria-label="노드 검색">
+    <fieldset class="chips" id="edgeFilters" aria-label="간선 종류 표시"></fieldset>
+    <label class="switch"><input type="checkbox" id="tensionIn" checked> 장력 강조</label>
+    <span class="spacer"></span>
+    <button class="btn small" id="reheatBtn" type="button" title="노드를 다시 흔들어 배치">다시 배치</button>
+    <button class="btn small" id="fitBtn" type="button" title="모든 노드가 보이게">화면 맞춤</button>
+  </div>
+  <div class="stage">
+    <div class="graph-wrap">
+      <div class="canvas-box" id="graphWrap">
+        <canvas id="graph" tabindex="0" role="img" aria-label="노트 관계 그래프 — 목록 탭에서 같은 내용을 표로 볼 수 있습니다"></canvas>
+        <div class="tip" id="tip" role="tooltip" hidden></div>
+        <p class="stat" id="stat"></p>
+      </div>
+      <div class="legend" id="legend" aria-label="범례"></div>
+      <p class="disclaim">장력은 지식의 진위가 아니라 연결 구조의 긴장을 보여 주는 탐색용 표시입니다.</p>
+    </div>
+    <aside class="panel" aria-label="상세">
+      <div class="tabs" role="tablist" aria-label="상세 보기">
+        <button class="tab" role="tab" id="tab-sel" aria-selected="true" aria-controls="panelBody" data-tab="sel">선택</button>
+        <button class="tab" role="tab" id="tab-tension" aria-selected="false" aria-controls="panelBody" data-tab="tension">장력</button>
+        <button class="tab" role="tab" id="tab-gaps" aria-selected="false" aria-controls="panelBody" data-tab="gaps">공백</button>
+        <button class="tab" role="tab" id="tab-list" aria-selected="false" aria-controls="panelBody" data-tab="list">목록</button>
+      </div>
+      <div class="panel-body" id="panelBody" role="tabpanel" tabindex="0"></div>
+    </aside>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous" defer></script>
+<script src="kg.js" defer></script>
+</body>
+</html>
