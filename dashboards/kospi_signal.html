@@ -2033,6 +2033,19 @@ async function loadDefault() {
   if (!norm.data.dates.length) throw new Error("빈 데이터");
   return { data: norm.data, src: { kind: "default", meta: j.meta || {}, report: norm.report } };
 }
+// 저장된 업로드보다 발행된 기본 데이터가 최신이면 기본 데이터로 바꾼다 (자동 갱신이 업로드에 가려지지 않게).
+// 업로드가 같은 날짜까지거나 더 최신이면(발행 전 파일을 미리 보는 경우) 그대로 둔다.
+async function preferNewerDefault(stored) {
+  let d;
+  try { d = await loadDefault(); } catch (e) { return; }
+  const last = (x) => x.dates[x.dates.length - 1];
+  if (last(d.data) <= last(stored.data) || S.src !== stored.src) return; // 그 사이 다른 파일을 올렸으면 건드리지 않음
+  store.del(KEY_UPLOAD);
+  setData(d.data, d.src);
+  const m = `새 기본 데이터(${last(d.data)}까지)를 불러왔습니다 — 저장된 업로드 '${stored.src.name}'(${last(stored.data)}까지)보다 최신입니다.`;
+  setStatus(m); toast(m, false, 8000);
+  if ($("dataDlg").open) renderReport();
+}
 function setData(data, src) {
   S.data = data; S.src = src; S.ver++;
   S.bt = S.ind = S.sig = S.ev = S.yr = null; S.k = {}; S.loadFailed = false;
@@ -2221,7 +2234,7 @@ async function init() {
   showPanels();
   if (h === "data") openData();
   const stored = loadStored();
-  if (stored) { setData(stored.data, stored.src); return; }
+  if (stored) { setData(stored.data, stored.src); preferNewerDefault(stored); return; }
   try {
     const d = await loadDefault();
     setData(d.data, d.src);
