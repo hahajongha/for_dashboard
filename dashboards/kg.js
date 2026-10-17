@@ -63,6 +63,7 @@
     filters: Object.fromEntries(GROUPS.map((g) => [g.id, true])), tension: true, search: "", hits: null,
     view: { cx: 0, cy: 0, k: 1 }, size: { w: 0, h: 0, dpr: 1 }, ctx: null, colors: null, font: "sans-serif",
     running: false, calm: 0, steps: 0, fitted: false, drag: null, pointers: new Map(), loadSeq: 0, tip: null,
+    ptr: null, panelView: "", notice: "",
   };
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
   const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
@@ -271,7 +272,8 @@
   function settle() { // 움직임 줄이기 설정이면 화면에 그리지 않고 바로 수렴시킨다
     for (let i = 0; i < 4000; i++) { if (step() < 0.002 && i > 200) break; }
     measure(); // step()은 움직이기 전 위치의 장력을 남기므로 멈춘 위치에서 다시 잰다
-    S.running = false; if (!S.fitted) { fitView(); S.fitted = true; }
+    S.running = false; if (!S.fitted) S.fitted = fitView(); // 캔버스 크기를 아직 모르면 크기가 정해질 때 맞춘다
+    rehover(true);
     draw(); if (S.tab !== "sel") renderPanel(); else refreshLive();
   }
   function tick() {
@@ -281,7 +283,8 @@
     S.steps += 2;
     S.calm = e < 0.01 ? S.calm + 1 : 0;
     measure(); // 그릴 위치(이동 후)에서 장력·응력을 다시 잰다 — 표시값이 화면의 길이와 같은 순간을 가리킨다
-    if (!S.fitted && S.steps > 140) { fitView(); S.fitted = true; }
+    if (!S.fitted && (S.steps > 140 || S.calm > 40)) S.fitted = fitView(); // 첫 화면 맞춤: 140걸음째, 또는 그 전에 잠잠해져 멈출 때
+    rehover(true); // 노드가 움직여도 멈춰 있는 포인터 아래 항목을 다시 찾는다
     if (S.calm > 40 || S.steps > 3000) { S.running = false; if (S.tab === "tension" || S.tab === "list") renderPanel(); else refreshLive(); }
     else refreshLive(); // 매 프레임 — 노드를 끄는 동안(kick이 steps를 되돌려도) 값이 멈추지 않는다
     draw();
@@ -298,7 +301,7 @@
   const toWorld = (sx, sy) => [S.view.cx + (sx - S.size.w / 2) / S.view.k, S.view.cy + (sy - S.size.h / 2) / S.view.k];
   function fitView() {
     const ns = S.nodes.filter(nodeOn);
-    if (!ns.length || !S.size.w) return;
+    if (!ns.length || !S.size.w) return false;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const n of ns) { x0 = Math.min(x0, n.x - n.r); x1 = Math.max(x1, n.x + n.r); y0 = Math.min(y0, n.y - n.r); y1 = Math.max(y1, n.y + n.r); }
     // 여백은 화면 px 기준: 라벨(노드 아래 고정 크기 글자)과 위쪽 통계 줄 자리를 남긴다
@@ -306,6 +309,7 @@
     const padX = 64, padTop = 44, padBottom = Math.max(40, overlay ? lg.offsetHeight + 26 : 0);
     S.view.k = Math.max(0.3, Math.min(1.6, (S.size.w - padX * 2) / Math.max(1, x1 - x0), (S.size.h - padTop - padBottom) / Math.max(1, y1 - y0)));
     S.view.cx = (x0 + x1) / 2; S.view.cy = (y0 + y1) / 2 + (padBottom - padTop) / (2 * S.view.k);
+    return true;
   }
   function zoomAt(sx, sy, f) {
     const [wx, wy] = toWorld(sx, sy);
@@ -448,7 +452,8 @@
       const r = $("graphWrap").getBoundingClientRect(), dpr = Math.min(2.5, window.devicePixelRatio || 1);
       S.size = { w: r.width, h: r.height, dpr };
       cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
-      draw();
+      if (!S.fitted && S.graph && !S.running) S.fitted = fitView(); // 움직임 줄이기: 첫 배치를 크기가 정해진 뒤 화면에 맞춘다
+      draw(); rehover(); // 크기가 바뀌면 화면↔그래프 좌표가 달라지므로 멈춰 있는 포인터 아래를 다시 찾는다
     });
     ro.observe($("graphWrap"));
 
@@ -463,6 +468,7 @@
     });
     cv.addEventListener("pointermove", (ev) => {
       const [sx, sy] = canvasPoint(ev);
+      if (ev.pointerType !== "touch") S.ptr = { x: ev.clientX, y: ev.clientY }; // 마우스가 멈춰 있어도 화면이 움직이면 hover를 다시 찾는다 (창 기준 좌표)
       if (S.pointers.has(ev.pointerId)) S.pointers.set(ev.pointerId, { sx, sy });
       if (S.pinch && S.pointers.size === 2) {
         const p = [...S.pointers.values()], d = Math.hypot(p[0].sx - p[1].sx, p[0].sy - p[1].sy);
@@ -489,7 +495,7 @@
     };
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
-    cv.addEventListener("pointerleave", () => { if (S.hover) { S.hover = null; draw(); } hideTip(); });
+    cv.addEventListener("pointerleave", () => { S.ptr = null; if (S.hover) { S.hover = null; draw(); } hideTip(); });
     cv.addEventListener("dblclick", (ev) => {
       const [sx, sy] = canvasPoint(ev), t = hit(sx, sy);
       if (t && t.kind === "node") { const n = S.byId.get(t.id); n.pinned = !n.pinned; kick(false); }
@@ -501,29 +507,36 @@
       else if (ev.key === "-") zoomAt(S.size.w / 2, S.size.h / 2, 1 / 1.2);
       else if (ev.key === "0") { fitView(); draw(); }
       else return;
+      rehover();
       ev.preventDefault();
     });
   }
-  function hoverAt(sx, sy) { // 포인터 아래 항목을 hover로 두고 툴팁을 띄운다
+  function hoverAt(sx, sy, noDraw) { // 포인터 아래 항목을 hover로 두고 툴팁을 띄운다
     const t = hit(sx, sy), prev = S.hover;
     S.hover = t;
     S.canvas.classList.toggle("on-item", !!t);
-    if ((prev && prev.id) !== (t && t.id)) draw();
+    if (!noDraw && (prev && prev.id) !== (t && t.id)) draw();
     if (t) showTip(t, sx, sy); else hideTip();
   }
+  // 확대·화면 맞춤·배치로 그림이 움직인 뒤, 멈춰 있는 마우스 아래 항목을 다시 찾는다 (끄는 중·두 손가락 확대 중에는 안 함)
+  const rehover = (noDraw) => {
+    if (!S.ptr || S.drag || S.pinch || !S.graph) return;
+    const r = S.canvas.getBoundingClientRect(); hoverAt(S.ptr.x - r.left, S.ptr.y - r.top, noDraw);
+  };
   function showTip(t, sx, sy) {
     S.tip = { t, sx, sy };
-    const tip = $("tip"); tip.replaceChildren();
+    const tip = $("tip"), kids = [];
     if (t.kind === "node") {
       const n = S.byId.get(t.id);
-      tip.append(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
-      if (n.kind === "note" && S.tension) tip.append(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
+      kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
+      if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
     } else {
       const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
-      tip.append(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
+      kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
         h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
         h("div", { class: "t2" }, tensionText(e)));
     }
+    if (tip.hidden || tip.textContent !== kids.map((k) => k.textContent).join("")) tip.replaceChildren(...kids); // 같은 내용이면 그대로 둔다
     tip.hidden = false;
     const W = S.size.w, tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = `${Math.min(W - tw - 8, sx + 14)}px`; tip.style.top = `${Math.max(8, Math.min(S.size.h - th - 8, sy + 14))}px`;
@@ -549,19 +562,23 @@
   function refreshLive() {
     for (const el of $("panelBody").querySelectorAll("[data-live]")) {
       const id = el.dataset.id;
-      if (el.dataset.live === "stress") { const n = S.byId.get(id); if (n) el.textContent = n.stress.toFixed(2); }
-      else { const e = S.edgeById.get(id); if (e) el.textContent = el.dataset.live === "tension" ? tensionText(e) : e.L ? fmtT(e.T) : "-"; }
+      let v = null;
+      if (el.dataset.live === "stress") { const n = S.byId.get(id); if (n) v = n.stress.toFixed(2); }
+      else { const e = S.edgeById.get(id); if (e) v = el.dataset.live === "tension" ? tensionText(e) : e.L ? fmtT(e.T) : "-"; }
+      if (v !== null && el.textContent !== v) el.textContent = v; // 값이 그대로면 건드리지 않는다 (선택한 글자가 풀리지 않게)
     }
     refreshTip();
   }
   function select(t) {
-    S.sel = t; S.tab = "sel"; renderTabs(); renderPanel(); draw();
+    S.sel = t; S.tab = "sel"; S.notice = ""; renderTabs(); renderPanel(); draw();
   }
 
   /* ---------- 패널 ---------- */
   function renderTabs() { document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === S.tab))); }
   function renderPanel() {
-    const body = $("panelBody"); body.replaceChildren();
+    const body = $("panelBody"), view = S.tab === "sel" ? `sel|${S.sel ? `${S.sel.kind}:${S.sel.id}` : ""}` : S.tab;
+    const same = view === S.panelView, act = document.activeElement, fk = same && act && act !== body && body.contains(act) ? focusKey(body, act) : null, top = body.scrollTop;
+    S.panelView = view; body.replaceChildren();
     if (!S.graph) return;
     if (S.tab === "tension") body.append(...panelTension());
     else if (S.tab === "gaps") body.append(...panelGaps());
@@ -569,17 +586,23 @@
     else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
     else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
     else body.append(...panelOverview());
+    if (S.notice) body.prepend(h("p", { class: "notice" }, S.notice)); // 토큰 보관 안내: 다른 화면으로 옮길 때까지 남긴다
+    if (same) { body.scrollTop = top; if (fk) restoreFocus(body, fk); } // 같은 패널을 다시 그리면 스크롤·키보드 포커스를 지킨다
     refreshTip();
   }
+  // 버튼은 data-k(노드·간선 id)로, 그 밖에는 태그·글자로 찾고, 같은 것이 여럿이면 몇 번째인지로 고른다
+  const focusSig = (el) => el.dataset.k ? `k:${el.dataset.k}` : `${el.tagName}|${el.textContent}`;
+  function focusKey(body, el) { const sig = focusSig(el); return { sig, tag: el.tagName, i: [...body.querySelectorAll(el.tagName)].filter((x) => focusSig(x) === sig).indexOf(el) }; }
+  function restoreFocus(body, k) { const c = [...body.querySelectorAll(k.tag)].filter((x) => focusSig(x) === k.sig); const el = c[k.i] || c[0]; if (el) el.focus({ preventScroll: true }); }
   const vocab = (kind, key) => (S.graph.vocab && S.graph.vocab[kind] && S.graph.vocab[kind][key]) || key;
   const relLabel = (type) => (S.graph.vocab.relations[type] || {}).label || ESTYLE[type]?.label || type;
-  const nodeBtn = (id) => { const n = S.byId.get(id); return h("button", { class: "rowbtn", type: "button", onclick: () => select({ kind: "node", id }) }, n ? n.label : id); };
-  const edgeBtn = (e, text) => h("button", { class: "rowbtn", type: "button", onclick: () => select({ kind: "edge", id: e.id }) }, text);
+  const nodeBtn = (id) => { const n = S.byId.get(id); return h("button", { class: "rowbtn", type: "button", "data-k": `n:${id}`, onclick: () => select({ kind: "node", id }) }, n ? n.label : id); };
+  const edgeBtn = (e, text) => h("button", { class: "rowbtn", type: "button", "data-k": `e:${e.id}`, onclick: () => select({ kind: "edge", id: e.id }) }, text);
   function polTag(e) { const c = ESTYLE[e.sk].color; return h("span", { class: `tag ${c === "pos" ? "pos" : c === "neg" ? "neg" : "strong"}` }, ESTYLE[e.sk].label); }
   const hiddenNote = (n) => n > 0 ? h("p", { class: "dim", style: "font-size:12px;margin:4px 0 0" }, `필터로 숨긴 간선 ${n}개는 목록에서 뺐습니다.`) : null;
-  const hiddenSelf = (what) => h("p", { class: "notice" }, `이 ${what}은(는) 지금 필터로 숨겨져 있습니다. 위쪽 간선 종류 버튼으로 다시 켜면 장력이 다시 계산됩니다.`);
+  const hiddenSelf = (what) => h("p", { class: "notice" }, `이 ${what} 지금 필터로 숨겨져 있습니다. 위쪽 간선 종류 버튼으로 다시 켜면 장력이 다시 계산됩니다.`);
   function quote(ev) { return h("blockquote", { class: "q" }, `“${ev.quote}”`, h("span", { class: "src" }, `PDF p.${ev.page}${ev.printed_page != null ? ` · 인쇄 p.${ev.printed_page}` : ""}${ev.section ? ` · ${ev.section}` : ""}`)); }
-  function relationCounts(pred) { // pred 없으면 graph.json 전체 (통계 줄), edgeOn이면 보이는 간선만 (패널)
+  function relationCounts(pred) { // pred(예: edgeOn)를 주면 그 간선만 센다
     const c = { relation: 0, cites: 0, similar: 0, gap: 0 };
     for (const e of S.edges) if (!pred || pred(e)) c[e.kind] = (c[e.kind] || 0) + 1;
     return c;
@@ -605,7 +628,7 @@
     if (n.kind === "gap") {
       const on = nodeOn(n);
       return [
-        on ? null : hiddenSelf("노드"),
+        on ? null : hiddenSelf("노드는"),
         h("span", { class: "tag" }, "공백 후보 — vault 밖 문헌"),
         h("h2", { class: "n-title" }, n.label), h("p", { class: "n-meta" }, n.title),
         on ? h("section", { class: "sec" }, h("h3", null, `인용한 노트 ${n.cited_by.length}편`), h("ul", { style: "padding-left:18px;margin:0" }, n.cited_by.map((id) => h("li", null, nodeBtn(id)))))
@@ -652,7 +675,7 @@
     const holder = h("div");
     const btn = h("button", { class: "btn", type: "button", onclick: () => openDetail(n, holder, btn) }, "노트 전문 열기");
     out.push(h("section", { class: "sec" }, btn), holder);
-    if (S.detail.has(n.id)) queueMicrotask(() => openDetail(n, holder, btn));
+    if (S.detail.has(n.id)) { btn.remove(); holder.replaceChildren(...renderDetail(S.detail.get(n.id))); } // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
     return out;
   }
 
@@ -702,7 +725,7 @@
       const gaps = new Set(S.graph.gaps.missing_references.map((r) => r.key));
       out.push(h("section", { class: "sec" }, h("h3", null, `참고문헌 (주요 ${m.references.length})`),
         h("ul", { style: "padding-left:18px;margin:0;font-size:12.5px" }, m.references.map((r) => h("li", null, r.cite, " ",
-          inVault.has(r.key) ? nodeBtn(inVault.get(r.key)) : gaps.has(r.key) ? h("button", { class: "ref-tag", type: "button", onclick: () => select({ kind: "node", id: `ref:${r.key}` }) }, "공백 후보") : null)))));
+          inVault.has(r.key) ? nodeBtn(inVault.get(r.key)) : gaps.has(r.key) && S.filters.gap ? h("button", { class: "ref-tag", type: "button", onclick: () => select({ kind: "node", id: `ref:${r.key}` }) }, "공백 후보") : null)))));
     }
     if (m.open_questions.length) out.push(h("section", { class: "sec" }, h("h3", null, "열린 질문"), h("ul", { style: "padding-left:18px;margin:0;font-size:12.5px" }, m.open_questions.map((q) => h("li", null, q)))));
     if (m.reviewed) out.push(h("section", { class: "sec" }, h("h3", null, "검토"), h("p", { class: "dim", style: "font-size:12.5px;margin:0" }, `${m.reviewed.by} · ${m.reviewed.at} · ${m.reviewed.status === "verified" ? "검증됨" : "초안"}${m.reviewed.checks ? ` — ${m.reviewed.checks.join(", ")}` : ""}`)));
@@ -718,15 +741,22 @@
   }
 
   /* 노트 본문용 최소 Markdown — 제목·문단·목록(2단)·인용·굵게·코드·[[링크]]·[c1] 태그. HTML은 해석하지 않는다. */
-  const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\[\[[^\]]+\]\]|\[(?:c|e|eq)\d+\])/g;
-  function inline(text, ctx) {
+  // 링크는 검증기 WIKILINK_RE와 같은 식으로 찾는다 ([[ 바로 뒤가 | 나 # 이면 링크가 아니다). 굵게·코드 구간에는 완전한 링크만 들어갈 수 있고,
+  // 구간 끝이 링크 중간에 걸리면 그 구간은 서식으로 보지 않는다 — 검증기가 읽는 링크는 언제나 링크로 보인다
+  const LINK = String.raw`\[\[[^\]|#\n]+(?:[|#][^\]\n]*)?\]\]`, NOT_LINK = String.raw`\[(?!\[[^\]|#\n]+(?:[|#][^\]\n]*)?\]\])`, TAG = String.raw`\[(?:c|e|eq)\d+\]`;
+  const INLINE = new RegExp(`(\\*\\*(?:${LINK}|${NOT_LINK}|[^*\\[])+\\*\\*|\`(?:${LINK}|${NOT_LINK}|[^\`\\[])+\`|${LINK}|${TAG})`, "g");
+  const REFS = new RegExp(`(${LINK}|${TAG})`, "g"); // 코드 안에서는 링크·태그만
+  // 검증기(Python str.strip)와 같은 공백 집합으로 링크 대상의 앞뒤를 자른다 — JS trim()과는 U+0085·U+001C–1F·U+FEFF가 다르다
+  const PY_WS = "[\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]";
+  const PY_STRIP = new RegExp(`^${PY_WS}+|${PY_WS}+$`, "g");
+  function inline(text, ctx, refsOnly) {
     const out = []; let last = 0;
-    for (const m of text.matchAll(INLINE)) {
+    for (const m of text.matchAll(refsOnly ? REFS : INLINE)) {
       if (m.index > last) out.push(text.slice(last, m.index));
       const t = m[0];
-      if (t.startsWith("**")) out.push(h("strong", null, t.slice(2, -2)));
-      else if (t.startsWith("`")) out.push(h("code", null, t.slice(1, -1)));
-      else if (t.startsWith("[[")) { const id = t.slice(2, -2).split(/[|#]/)[0].trim(); /* [[id]] [[id|별칭]] [[id#절]] — 검증기 WIKILINK_RE와 같은 규칙 */ out.push(S.byId.has(id) ? nodeBtn(id) : t); }
+      if (t.startsWith("**")) out.push(h("strong", null, inline(t.slice(2, -2), ctx)));
+      else if (t.startsWith("`")) out.push(h("code", null, inline(t.slice(1, -1), ctx, true)));
+      else if (t.startsWith("[[")) { const id = t.slice(2, -2).split(/[|#]/)[0].replace(PY_STRIP, ""); /* [[id]] [[id|별칭]] [[id#절]] — 검증기 WIKILINK_RE와 같은 규칙 */ out.push(S.byId.has(id) ? nodeBtn(id) : t); }
       else { const id = t.slice(1, -1); out.push(h("button", { class: "ref-tag", type: "button", title: (ctx.titles[id] || id).slice(0, 160), onclick: () => ctx.jump(id) }, id)); }
       last = m.index + t.length;
     }
@@ -735,8 +765,10 @@
   }
   function renderMarkdown(src, ctx) {
     const root = h("div", { class: "md" }), lines = src.replace(/\r\n/g, "\n").split("\n");
-    let list = null, para = [];
-    const flush = () => { if (para.length) { root.append(h("p", null, inline(para.join(" "), ctx))); para = []; } };
+    let list = null, para = [], item = null; // item: 글을 아직 넣지 않은 목록 항목 — 이어지는 줄까지 모아 한 번에 그린다
+    const flushItem = () => { if (item) { item.el.prepend(...inline(item.text, ctx)); item = null; } };
+    // 줄은 \n으로 이어 붙인다 (화면에는 공백으로 보임): 링크는 검증기처럼 한 줄 안에서만 찾는다
+    const flush = () => { flushItem(); if (para.length) { root.append(h("p", null, inline(para.join("\n"), ctx))); para = []; } };
     for (const raw of lines) {
       const line = raw.trimEnd(); let m;
       if (!line.trim()) { flush(); list = null; continue; }
@@ -744,20 +776,21 @@
       if ((m = line.match(/^>\s?(.*)$/))) { flush(); list = null; root.append(h("blockquote", null, inline(m[1], ctx))); continue; }
       if ((m = raw.match(/^(\s*)([-*]|\d+\.)\s+(.*)$/))) {
         flush();
-        const ordered = /\d/.test(m[2]);
+        const ordered = /\d/.test(m[2]), li = h("li");
         if (m[1].length >= 2 && list && list.lastElementChild) {
-          const li = list.lastElementChild;
-          let sub = [...li.children].find((c) => c.tagName === "UL" || c.tagName === "OL");
-          if (!sub) { sub = h(ordered ? "ol" : "ul"); li.append(sub); }
-          sub.append(h("li", null, inline(m[3], ctx)));
+          const parent = list.lastElementChild;
+          let sub = [...parent.children].find((c) => c.tagName === "UL" || c.tagName === "OL");
+          if (!sub) { sub = h(ordered ? "ol" : "ul"); parent.append(sub); }
+          sub.append(li);
         } else {
           if (!list || list.tagName !== (ordered ? "OL" : "UL")) { list = h(ordered ? "ol" : "ul"); root.append(list); }
-          list.append(h("li", null, inline(m[3], ctx)));
+          list.append(li);
         }
+        item = { el: li, text: m[3] };
         continue;
       }
-      if (list && /^\s{2,}\S/.test(raw) && list.lastElementChild) { list.lastElementChild.append(" ", ...inline(line.trim(), ctx)); continue; }
-      list = null; para.push(line.trim());
+      if (list && /^\s{2,}\S/.test(raw) && item) { item.text += "\n" + line.trim(); continue; }
+      flushItem(); list = null; para.push(line.trim());
     }
     flush();
     return root;
@@ -767,7 +800,7 @@
     const a = S.byId.get(e.source), b = S.byId.get(e.target), out = [];
     out.push(h("div", { class: "tags" }, polTag(e), e.confidence && h("span", { class: "tag" }, `신뢰도 ${CONF[e.confidence]}`)));
     out.push(h("h2", { class: "n-title" }, nodeBtn(a.id), e.sk === "similar" ? " ↔ " : " → ", nodeBtn(b.id)));
-    if (!edgeOn(e)) out.push(hiddenSelf("간선"));
+    if (!edgeOn(e)) out.push(hiddenSelf("간선은"));
     else if (S.tension) out.push(h("p", { class: "n-meta", "data-live": "tension", "data-id": e.id }, tensionText(e)));
     if (e.kind === "relation") {
       const rv = S.graph.vocab.relations[e.type];
@@ -780,7 +813,7 @@
     } else if (e.kind === "cites") {
       out.push(h("section", { class: "sec" }, h("h3", null, "인용"), h("p", { style: "margin:0;font-size:13px" }, `${a.label}의 참고문헌에 ${b.label}가 있습니다.`), e.cite ? h("p", { class: "dim", style: "font-size:12.5px" }, e.cite) : null));
     } else if (e.kind === "gap") {
-      out.push(h("section", { class: "sec" }, h("h3", null, "공백 후보 인용"), h("p", { style: "margin:0;font-size:13px" }, `${a.label}가 vault에 없는 ${b.label}를 인용합니다. 이 문헌을 인용한 노트: ${b.cited_by.length}편.`)));
+      out.push(h("section", { class: "sec" }, h("h3", null, "공백 후보 인용"), h("p", { style: "margin:0;font-size:13px" }, `${a.label}가 vault에 없는 ${b.label}를 인용합니다.${edgeOn(e) ? ` 이 문헌을 인용한 노트: ${b.cited_by.length}편.` : ""}`)));
     } else {
       const sh = e.shared || {}, p = e.parts || {};
       const row = (name, key, lab) => h("li", null, `${name} ${((p[key] || 0) * 100).toFixed(0)}% — `, (sh[key] || []).length ? (sh[key] || []).map((x) => lab ? vocab(lab, x) : x).join(", ") : "공통 없음");
@@ -862,7 +895,7 @@
     const fs = $("edgeFilters"); fs.replaceChildren(h("legend", { class: "sr-only", style: "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" }, "간선 종류"));
     for (const g of GROUPS) {
       fs.append(h("button", { class: "chip", type: "button", "aria-pressed": String(S.filters[g.id]), title: g.keys.map((k) => ESTYLE[k].label).join(" · "),
-        onclick: (ev) => { S.filters[g.id] = !S.filters[g.id]; ev.currentTarget.setAttribute("aria-pressed", String(S.filters[g.id])); saveUi(); measure(); kick(false); draw(); renderPanel(); } },
+        onclick: (ev) => { S.filters[g.id] = !S.filters[g.id]; ev.currentTarget.setAttribute("aria-pressed", String(S.filters[g.id])); saveUi(); measure(); kick(false); draw(); renderStat(); renderPanel(); } },
         lineKey(g.sample || g.keys[g.keys.length - 1]), g.label));
     }
     const lg = $("legend"); lg.replaceChildren();
@@ -874,9 +907,12 @@
     lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "분야"),
       areas.map((a) => h("span", { class: "lg-item" }, shapeKey(shapeOf(a)), vocab("areas", a))),
       h("span", { class: "lg-item" }, shapeKey("circle", true), "vault 밖 문헌")));
-    const c = relationCounts();
-    $("stat").textContent = `노트 ${S.nodes.filter((n) => n.kind === "note").length} · 관계 ${c.relation} · 인용 ${c.cites} · 유사도 ${c.similar} · 공백 문헌 ${S.graph.gaps.missing_references.length} · 갱신 ${S.graph.meta.updated || "-"}`;
+    renderStat();
     $("repoInfo").textContent = `${S.repo.owner}/${S.repo.repo}${S.repo.ref ? ` @ ${S.repo.ref}` : ""}`;
+  }
+  function renderStat() { // 맨 위 통계 줄: 보이는 것만 세고, 필터로 숨긴 간선이 있으면 그 수를 따로 밝힌다
+    const c = relationCounts(edgeOn), hidden = S.edges.filter((e) => !edgeOn(e)).length;
+    $("stat").textContent = `노트 ${S.nodes.filter((n) => n.kind === "note").length} · 관계 ${c.relation} · 인용 ${c.cites} · 유사도 ${c.similar} · 공백 문헌 ${S.nodes.filter((n) => n.kind === "gap" && nodeOn(n)).length}${hidden ? ` · 숨긴 간선 ${hidden}` : ""} · 갱신 ${S.graph.meta.updated || "-"}`;
   }
   function saveUi() { ls.set(KEY.ui, JSON.stringify({ filters: S.filters, tension: S.tension })); }
   function loadUi() {
@@ -903,16 +939,26 @@
       if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab) throw new Error("graph.json 형식이 올바르지 않습니다");
       S.graph = g; S.detail.clear();
       buildModel(g); measure(); showApp(); readColors(); renderChrome(); renderTabs(); renderPanel();
-      if (!S.nodes.length) { $("panelBody").replaceChildren(h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다.")); }
+      if (!S.nodes.length) { $("panelBody").replaceChildren(...(S.notice ? [h("p", { class: "notice" }, S.notice)] : []), h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다.")); }
       S.fitted = false; kick(false);
       return true;
     } catch (err) {
       if (seq !== S.loadSeq) return false;
       if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); showGate(errorText(err)); }
-      else if (S.graph) { $("panelBody").prepend(h("p", { class: "notice" }, errorText(err))); }
+      else if (S.graph && !$("app").hidden) { $("panelBody").prepend(h("p", { class: "notice" }, errorText(err))); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에)
       else showGate(errorText(err));
       return false;
     } finally { $("panelBody").classList.remove("loading"); }
+  }
+  // 토큰 보관: 기억이면 기기(localStorage), 아니면 이 탭(sessionStorage). 기기에 저장되지 않으면(용량·차단) 이 탭에 두고 기억을 끈다.
+  // 이 탭 저장소도 막혀 있으면 토큰은 이 페이지에만 있으므로 그렇게 알린다
+  const SAVE_FAIL = "이 기기에 저장하지 못해(저장 공간 부족 또는 차단) 이 탭에만 보관합니다.";
+  const KEEP_FAIL = "브라우저가 저장소를 막고 있어 토큰을 보관하지 못했습니다. 페이지를 새로 고치면 다시 넣어야 합니다.";
+  function keepToken(tok, remember) {
+    if (remember && ls.set(KEY.token, tok)) { ss.del(KEY.token); return ""; }
+    const kept = ss.set(KEY.token, tok); ls.del(KEY.token);
+    if (remember) $("rememberIn").checked = false;
+    return !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
   }
   function forgetToken() { S.token = null; ss.del(KEY.token); ls.del(KEY.token); $("rememberIn").checked = false; }
   function parseRepo(text) {
@@ -946,25 +992,28 @@
       S.repo = { ...r, ref: $("refIn").value.trim() };
       ls.set(KEY.repo, JSON.stringify(S.repo));
       S.token = tok; $("tokenIn").value = "";
-      if ($("rememberIn").checked) { ls.set(KEY.token, tok); ss.del(KEY.token); } else { ss.set(KEY.token, tok); ls.del(KEY.token); }
-      $("gateMsg").textContent = "불러오는 중…";
+      S.notice = keepToken(tok, $("rememberIn").checked);
+      $("gateMsg").textContent = S.notice || "불러오는 중…";
       await load();
     });
     $("rememberIn").addEventListener("change", (ev) => { // 기억 여부를 바로 반영: 끄면 기기 저장소에서 지우고 이 탭에만 둔다
       if (!S.token) return;
-      if (ev.currentTarget.checked) { ls.set(KEY.token, S.token); ss.del(KEY.token); } else { ss.set(KEY.token, S.token); ls.del(KEY.token); }
+      const msg = keepToken(S.token, ev.currentTarget.checked);
+      S.notice = msg; // 다음에 열릴 때 보일 안내도 지금 상태를 따른다
+      if (msg) $("gateMsg").textContent = msg;
+      else if ([SAVE_FAIL, KEEP_FAIL].includes($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
     });
-    $("lockBtn").addEventListener("click", () => { S.loadSeq++; forgetToken(); S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.sel = null; $("panelBody").replaceChildren(); showGate("잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다."); });
+    $("lockBtn").addEventListener("click", () => { S.loadSeq++; forgetToken(); S.notice = ""; S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.sel = null; $("panelBody").replaceChildren(); showGate("잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다."); });
     $("reloadBtn").addEventListener("click", () => load());
     $("reheatBtn").addEventListener("click", () => { for (const n of S.nodes) n.pinned = false; kick(true); });
-    $("fitBtn").addEventListener("click", () => { fitView(); draw(); });
+    $("fitBtn").addEventListener("click", () => { fitView(); draw(); rehover(); });
     $("tensionIn").addEventListener("change", (ev) => { S.tension = ev.currentTarget.checked; saveUi(); draw(); renderPanel(); });
     $("searchIn").addEventListener("input", (ev) => {
       const q = ev.currentTarget.value.trim().toLowerCase(); S.search = q;
       S.hits = q ? new Set(S.nodes.filter((n) => [n.label, n.title, ...(n.keywords || []), ...(n.topics || []).flatMap((t) => [t, vocab("topics", t)])].some((s) => String(s).toLowerCase().includes(q))).map((n) => n.id)) : null;
       draw();
     });
-    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; renderTabs(); renderPanel(); }));
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; renderTabs(); renderPanel(); }));
     $("panelBody").addEventListener("keydown", (ev) => { if (ev.key === "Escape") select(null); });
 
     S.token = ss.get(KEY.token) || ls.get(KEY.token);
