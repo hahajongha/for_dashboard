@@ -65,6 +65,7 @@
     view: { cx: 0, cy: 0, k: 1 }, size: { w: 0, h: 0, dpr: 1 }, ctx: null, colors: null, font: "sans-serif",
     running: false, calm: 0, steps: 0, fitted: false, drag: null, pointers: new Map(), loadSeq: 0, tip: null,
     ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(), detailErr: null,
+    epoch: 0, // 그래프를 새로 받거나 토큰을 잊을 때마다(잠그기·토큰 거부) 늘린다 — 그 전에 보낸 노트 전문 요청의 늦은 응답은 버린다
   };
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
   const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
@@ -592,13 +593,17 @@
     const same = view === S.panelView, act = document.activeElement, fk = same && act && act !== body && body.contains(act) ? focusKey(body, act) : null, top = body.scrollTop;
     S.panelView = view; body.replaceChildren();
     if (!S.graph) return;
-    if (!S.nodes.length) body.append(h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다."));
-    else if (S.tab === "tension") body.append(...panelTension());
-    else if (S.tab === "gaps") body.append(...panelGaps());
-    else if (S.tab === "list") body.append(...panelList());
-    else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
-    else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
-    else body.append(...panelOverview());
+    try {
+      if (!S.nodes.length) body.append(h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다."));
+      else if (S.tab === "tension") body.append(...panelTension());
+      else if (S.tab === "gaps") body.append(...panelGaps());
+      else if (S.tab === "list") body.append(...panelList());
+      else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
+      else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
+      else body.append(...panelOverview());
+    } catch (err) { // graph.json에 필요한 값이 빠져 그리지 못하면 빈 패널 대신 이유를 보인다 (아래 알림도 그대로 붙는다)
+      body.replaceChildren(h("p", { class: "notice" }, `이 화면을 그리지 못했습니다: ${err && err.message ? err.message : err}`));
+    }
     // 새로고침 실패·토큰 보관 안내: 다시 그려도 남기고, 다른 화면으로 옮기거나 다시 불러오면 지운다
     body.prepend(...[S.loadErr, S.notice].filter(Boolean).map((t) => h("p", { class: "notice" }, t)));
     if (same) { body.scrollTop = top; if (fk) restoreFocus(body, fk); } // 같은 패널을 다시 그리면 스크롤·키보드 포커스를 지킨다
@@ -700,12 +705,13 @@
     let d = S.detail.get(n.id);
     if (!d) {
       btn.disabled = true; btn.textContent = "불러오는 중…";
-      const seq = S.loadSeq, mark = {};
+      const epoch = S.epoch, mark = {};
       S.detailWait.set(n.id, mark); S.detailErr = null;
       let err = null;
       try { d = await gh(n.detail); } catch (e) { err = e; }
       if (S.detailWait.get(n.id) === mark) S.detailWait.delete(n.id);
-      if (seq !== S.loadSeq) return; // 그사이 잠갔거나 다시 불러왔으면 버린다
+      // 그사이 잠갔거나 토큰이 거부됐거나(그 뒤 토큰을 다시 넣었어도) 그래프를 새로 받았으면 버린다. 새로고침이 실패해 그래프가 그대로면 이어서 붙인다
+      if (S.epoch !== epoch) return;
       if (err) {
         S.detailErr = { id: n.id, msg: errorText(err) };
         if (holder.isConnected) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.msg)); }
@@ -964,8 +970,8 @@
     try {
       const g = await gh("vault/_build/graph.json");
       if (seq !== S.loadSeq) return false;
-      if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab) throw new Error("graph.json 형식이 올바르지 않습니다");
-      S.graph = g; S.detail.clear(); S.detailWait.clear(); S.detailErr = null; S.loadErr = "";
+      if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab || !g.meta || typeof g.meta !== "object") throw new Error("graph.json 형식이 올바르지 않습니다");
+      S.graph = g; S.epoch++; S.detail.clear(); S.detailWait.clear(); S.detailErr = null; S.loadErr = "";
       buildModel(g); measure(); showApp(); readColors(); renderChrome(); renderTabs(); renderPanel();
       S.fitted = false; kick(false);
       return true;
@@ -992,7 +998,7 @@
     const msg = !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
     return ssOk && lsOk ? msg : [msg, LEFT_OVER].filter(Boolean).join(" "); // 지우지 못한 사본이 있을 수 있으면 그렇게 밝힌다
   }
-  function forgetToken() { S.token = null; const a = ss.del(KEY.token), b = ls.del(KEY.token); $("rememberIn").checked = false; return a && b; }
+  function forgetToken() { S.token = null; S.epoch++; const a = ss.del(KEY.token), b = ls.del(KEY.token); $("rememberIn").checked = false; return a && b; }
   function parseRepo(text) {
     const m = String(text || "").trim().match(/^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/);
     return m ? { owner: m[1], repo: m[2] } : null;
