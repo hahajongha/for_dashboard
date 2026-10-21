@@ -36,7 +36,8 @@
     { id: "gap", label: "공백", keys: ["gap"] },
   ];
   // color: pos(보완·파랑) / neg(충돌·빨강) / neu(가운데 회색) / muted(보조 회색). 극성 안의 유형은 선 모양으로 구분.
-  const ESTYLE = {
+  // ESTYLE·SPRING은 프로토타입 없는 객체: vocab의 관계 유형이 'constructor'처럼 Object 기본 속성 이름이어도 기존 스타일로 잘못 찾지 않고 새 유형으로 등록한다
+  const ESTYLE = Object.assign(Object.create(null), {
     extends:     { color: "pos", dash: [],     w: 2.2, arrow: true,  label: "확장" },
     supports:    { color: "pos", dash: [7, 5], w: 2.2, arrow: true,  label: "지지" },
     same_method: { color: "neu", dash: [2, 4], w: 2.0, arrow: false, label: "같은 방법론" },
@@ -45,12 +46,12 @@
     cites:       { color: "muted", dash: [],   w: 1.2, arrow: true,  label: "인용" },
     similar:     { color: "muted", dash: [],   w: 1.0, arrow: false, label: "유사도" },
     gap:         { color: "muted", dash: [3, 4], w: 1.2, arrow: true, label: "공백 문헌 인용" },
-  };
-  const SPRING = { // 자연 길이(px)·강성. 충돌은 자연 길이가 길어 다른 연결과 겨루며 장력이 생긴다
+  });
+  const SPRING = Object.assign(Object.create(null), { // 자연 길이(px)·강성. 충돌은 자연 길이가 길어 다른 연결과 겨루며 장력이 생긴다
     extends: { L: 150, k: 0.05 }, supports: { L: 150, k: 0.05 }, same_method: { L: 175, k: 0.035 },
     challenges: { L: 280, k: 0.035 }, refutes: { L: 320, k: 0.045 },
     cites: { L: 200, k: 0.025 }, similar: { L: 240, k: 0.02 }, gap: { L: 120, k: 0.03 },
-  };
+  });
   const PHYS = { repulse: 7000, gravity: 0.015, damp: 0.85, maxV: 24 };
   const AREA_ORDER = ["portfolio-theory", "asset-pricing", "active-management", "fixed-income", "credit", "currency", "macro", "econometrics"];
   const SHAPES = ["circle", "square", "diamond", "triangle", "hexagon", "triangleDown", "pentagon", "octagon"];
@@ -64,7 +65,8 @@
     filters: Object.fromEntries(GROUPS.map((g) => [g.id, true])), tension: true, search: "", hits: null,
     view: { cx: 0, cy: 0, k: 1 }, size: { w: 0, h: 0, dpr: 1 }, ctx: null, colors: null, font: "sans-serif",
     running: false, calm: 0, steps: 0, fitted: false, drag: null, pointers: new Map(), loadSeq: 0, tip: null,
-    ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(), detailErr: null,
+    ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(),
+    detailErr: new Map(), // 노드 id → 노트 전문 오류 문구. 노드마다 따로 두어 떠난 노트의 늦은 실패가 지금 노트의 오류를 지우지 않는다
     epoch: 0, // 그래프를 새로 받거나 토큰을 잊을 때마다(잠그기·토큰 거부) 늘린다 — 그 전에 보낸 노트 전문 요청의 늦은 응답은 버린다
   };
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
@@ -537,18 +539,20 @@
     const r = S.canvas.getBoundingClientRect(); hoverAt(S.ptr.x - r.left, S.ptr.y - r.top, noDraw);
   };
   function showTip(t, sx, sy) {
-    S.tip = { t, sx, sy };
     const tip = $("tip"), kids = [];
-    if (t.kind === "node") {
-      const n = S.byId.get(t.id);
-      kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
-      if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
-    } else {
-      const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
-      kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
-        h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
-        h("div", { class: "t2" }, tensionText(e)));
-    }
+    try {
+      if (t.kind === "node") {
+        const n = S.byId.get(t.id);
+        kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
+        if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
+      } else {
+        const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
+        kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
+          h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
+          h("div", { class: "t2" }, tensionText(e)));
+      }
+    } catch (err) { hideTip(); return; } // graph.json에 필요한 값이 빠져 툴팁을 만들지 못하면 닫는다 — 패널·새로고침·배치가 이 예외로 멈추지 않게
+    S.tip = { t, sx, sy };
     if (tip.hidden || tip.textContent !== kids.map((k) => k.textContent).join("")) tip.replaceChildren(...kids); // 같은 내용이면 그대로 둔다
     tip.hidden = false;
     const W = S.size.w, tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -583,7 +587,7 @@
     refreshTip();
   }
   function select(t) {
-    S.sel = t; S.tab = "sel"; S.notice = ""; S.loadErr = ""; S.detailErr = null; renderTabs(); renderPanel(); draw();
+    S.sel = t; S.tab = "sel"; S.notice = ""; S.loadErr = ""; S.detailErr.clear(); renderTabs(); renderPanel(); draw();
   }
 
   /* ---------- 패널 ---------- */
@@ -694,9 +698,9 @@
     const holder = h("div");
     const btn = h("button", { class: "btn", type: "button", onclick: () => openDetail(n, holder, btn) }, "노트 전문 열기");
     out.push(h("section", { class: "sec" }, btn), holder);
-    if (S.detail.has(n.id)) { btn.remove(); holder.replaceChildren(...renderDetail(S.detail.get(n.id))); } // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
+    if (S.detail.has(n.id)) showDetail(n, holder, btn, S.detail.get(n.id)); // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
     else if (S.detailWait.has(n.id)) { btn.disabled = true; btn.textContent = "불러오는 중…"; } // 받는 중에 패널을 다시 그렸다 — 받으면 이 패널에 붙인다
-    else if (S.detailErr && S.detailErr.id === n.id) holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.msg));
+    else if (S.detailErr.has(n.id)) holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.get(n.id)));
     return out;
   }
 
@@ -706,23 +710,37 @@
     if (!d) {
       btn.disabled = true; btn.textContent = "불러오는 중…";
       const epoch = S.epoch, mark = {};
-      S.detailWait.set(n.id, mark); S.detailErr = null;
+      S.detailWait.set(n.id, mark); S.detailErr.delete(n.id);
       let err = null;
       try { d = await gh(n.detail); } catch (e) { err = e; }
       if (S.detailWait.get(n.id) === mark) S.detailWait.delete(n.id);
       // 그사이 잠갔거나 토큰이 거부됐거나(그 뒤 토큰을 다시 넣었어도) 그래프를 새로 받았으면 버린다. 새로고침이 실패해 그래프가 그대로면 이어서 붙인다
       if (S.epoch !== epoch) return;
       if (err) {
-        S.detailErr = { id: n.id, msg: errorText(err) };
-        if (holder.isConnected) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.msg)); }
+        const msg = errorText(err);
+        S.detailErr.set(n.id, msg); // 이 노드의 오류만 바꾼다 — 다른 노드에 보이는 오류는 그대로
+        if (holder.isConnected) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, msg)); }
         else if (showing(n.id)) renderPanel(); // 받는 동안 패널을 다시 그렸으면 새 패널에 오류를 보인다
         return;
       }
       S.detail.set(n.id, d);
     }
     if (!holder.isConnected) { if (showing(n.id)) renderPanel(); return; } // 받는 동안 패널을 다시 그렸으면 받은 전문을 새 패널에 붙인다
+    showDetail(n, holder, btn, d);
+  }
+  // 받은 전문을 holder에 그린다. 노트 JSON이나 graph.json에 필요한 값이 빠져 그리지 못하면 빈 칸 대신 이유를 보이고,
+  // 받아 둔 것을 버려 버튼을 다시 누르면 새로 받게 한다
+  function showDetail(n, holder, btn, d) {
+    let kids;
+    try { kids = renderDetail(d); }
+    catch (err) {
+      const msg = `노트 전문을 그리지 못했습니다: ${err && err.message ? err.message : err}`;
+      S.detail.delete(n.id); S.detailErr.set(n.id, msg);
+      btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, msg));
+      return;
+    }
     btn.remove();
-    holder.replaceChildren(...renderDetail(d));
+    holder.replaceChildren(...kids);
   }
 
   function renderDetail(d) {
@@ -971,7 +989,7 @@
       const g = await gh("vault/_build/graph.json");
       if (seq !== S.loadSeq) return false;
       if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab || !g.meta || typeof g.meta !== "object") throw new Error("graph.json 형식이 올바르지 않습니다");
-      S.graph = g; S.epoch++; S.detail.clear(); S.detailWait.clear(); S.detailErr = null; S.loadErr = "";
+      S.graph = g; S.epoch++; S.detail.clear(); S.detailWait.clear(); S.detailErr.clear(); S.loadErr = "";
       buildModel(g); measure(); showApp(); readColors(); renderChrome(); renderTabs(); renderPanel();
       S.fitted = false; kick(false);
       return true;
@@ -1042,7 +1060,7 @@
       else if (storeMsg($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
     });
     $("lockBtn").addEventListener("click", () => {
-      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; S.detailErr = null; S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.detailWait.clear(); S.sel = null; $("panelBody").replaceChildren();
+      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; S.detailErr.clear(); S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.detailWait.clear(); S.sel = null; $("panelBody").replaceChildren();
       showGate(gone ? "잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다." : `잠갔습니다. ${LEFT_OVER}`); // 지우지 못했으면 지웠다고 하지 않는다
     });
     $("reloadBtn").addEventListener("click", () => load());
@@ -1054,7 +1072,7 @@
       S.hits = q ? new Set(S.nodes.filter((n) => [n.label, n.title, ...(n.keywords || []), ...(n.topics || []).flatMap((t) => [t, vocab("topics", t)])].some((s) => String(s).toLowerCase().includes(q))).map((n) => n.id)) : null;
       draw();
     });
-    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; S.loadErr = ""; S.detailErr = null; renderTabs(); renderPanel(); }));
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; S.loadErr = ""; S.detailErr.clear(); renderTabs(); renderPanel(); }));
     $("panelBody").addEventListener("keydown", (ev) => { if (ev.key === "Escape") select(null); });
 
     S.token = ss.get(KEY.token) || ls.get(KEY.token);
