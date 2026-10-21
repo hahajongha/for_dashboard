@@ -21,7 +21,8 @@
   const storage = (kind) => ({
     get(k) { try { return window[kind].getItem(k); } catch (e) { return null; } },
     set(k, v) { try { window[kind].setItem(k, v); return true; } catch (e) { return false; } },
-    del(k) { try { window[kind].removeItem(k); } catch (e) { /* 저장소 차단 */ } },
+    del(k) { try { window[kind].removeItem(k); return true; } catch (e) { return false; } }, // false: 저장소 차단으로 지우지 못함
+    ok() { try { return !!window[kind]; } catch (e) { return false; } }, // 사이트 데이터를 막으면 저장소에 접근하는 것만으로 예외가 난다
   });
   const ss = storage("sessionStorage"), ls = storage("localStorage");
 
@@ -63,7 +64,7 @@
     filters: Object.fromEntries(GROUPS.map((g) => [g.id, true])), tension: true, search: "", hits: null,
     view: { cx: 0, cy: 0, k: 1 }, size: { w: 0, h: 0, dpr: 1 }, ctx: null, colors: null, font: "sans-serif",
     running: false, calm: 0, steps: 0, fitted: false, drag: null, pointers: new Map(), loadSeq: 0, tip: null,
-    ptr: null, panelView: "", notice: "",
+    ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(), detailErr: null,
   };
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
   const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
@@ -495,7 +496,18 @@
     };
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
-    cv.addEventListener("pointerleave", () => { S.ptr = null; if (S.hover) { S.hover = null; draw(); } hideTip(); });
+    const leave = () => { S.ptr = null; if (S.hover) { S.hover = null; draw(); } hideTip(); };
+    cv.addEventListener("pointerleave", leave);
+    // 좁은 화면에서는 문서가 스크롤되어 멈춰 있는 포인터 아래가 바뀐다. 캔버스 밖에서 스크롤해 캔버스가 포인터 아래로 들어오기도 하므로
+    // 마지막 마우스 위치는 문서 전체에서 기억하고, 스크롤 뒤 그 자리가 캔버스인지 다시 본다
+    let last = null;
+    document.addEventListener("pointermove", (ev) => { last = ev.pointerType === "touch" ? null : { x: ev.clientX, y: ev.clientY }; }, { passive: true });
+    document.addEventListener("pointerout", (ev) => { if (!ev.relatedTarget) last = null; }); // 창 밖으로 나가면 잊는다
+    window.addEventListener("scroll", () => {
+      if (!last || S.drag || S.pinch) return;
+      if (document.elementFromPoint(last.x, last.y) === cv) { S.ptr = last; rehover(); }
+      else if (S.ptr) leave();
+    }, { passive: true });
     cv.addEventListener("dblclick", (ev) => {
       const [sx, sy] = canvasPoint(ev), t = hit(sx, sy);
       if (t && t.kind === "node") { const n = S.byId.get(t.id); n.pinned = !n.pinned; kick(false); }
@@ -570,7 +582,7 @@
     refreshTip();
   }
   function select(t) {
-    S.sel = t; S.tab = "sel"; S.notice = ""; renderTabs(); renderPanel(); draw();
+    S.sel = t; S.tab = "sel"; S.notice = ""; S.loadErr = ""; S.detailErr = null; renderTabs(); renderPanel(); draw();
   }
 
   /* ---------- 패널 ---------- */
@@ -580,13 +592,15 @@
     const same = view === S.panelView, act = document.activeElement, fk = same && act && act !== body && body.contains(act) ? focusKey(body, act) : null, top = body.scrollTop;
     S.panelView = view; body.replaceChildren();
     if (!S.graph) return;
-    if (S.tab === "tension") body.append(...panelTension());
+    if (!S.nodes.length) body.append(h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다."));
+    else if (S.tab === "tension") body.append(...panelTension());
     else if (S.tab === "gaps") body.append(...panelGaps());
     else if (S.tab === "list") body.append(...panelList());
     else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
     else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
     else body.append(...panelOverview());
-    if (S.notice) body.prepend(h("p", { class: "notice" }, S.notice)); // 토큰 보관 안내: 다른 화면으로 옮길 때까지 남긴다
+    // 새로고침 실패·토큰 보관 안내: 다시 그려도 남기고, 다른 화면으로 옮기거나 다시 불러오면 지운다
+    body.prepend(...[S.loadErr, S.notice].filter(Boolean).map((t) => h("p", { class: "notice" }, t)));
     if (same) { body.scrollTop = top; if (fk) restoreFocus(body, fk); } // 같은 패널을 다시 그리면 스크롤·키보드 포커스를 지킨다
     refreshTip();
   }
@@ -676,17 +690,31 @@
     const btn = h("button", { class: "btn", type: "button", onclick: () => openDetail(n, holder, btn) }, "노트 전문 열기");
     out.push(h("section", { class: "sec" }, btn), holder);
     if (S.detail.has(n.id)) { btn.remove(); holder.replaceChildren(...renderDetail(S.detail.get(n.id))); } // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
+    else if (S.detailWait.has(n.id)) { btn.disabled = true; btn.textContent = "불러오는 중…"; } // 받는 중에 패널을 다시 그렸다 — 받으면 이 패널에 붙인다
+    else if (S.detailErr && S.detailErr.id === n.id) holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.msg));
     return out;
   }
 
+  const showing = (id) => S.tab === "sel" && S.sel && S.sel.kind === "node" && S.sel.id === id;
   async function openDetail(n, holder, btn) {
     let d = S.detail.get(n.id);
     if (!d) {
       btn.disabled = true; btn.textContent = "불러오는 중…";
-      const seq = S.loadSeq;
-      try { d = await gh(n.detail); if (seq !== S.loadSeq) return; S.detail.set(n.id, d); } // 그사이 잠갔거나 다시 불러왔으면 버린다
-      catch (err) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, errorText(err))); return; }
+      const seq = S.loadSeq, mark = {};
+      S.detailWait.set(n.id, mark); S.detailErr = null;
+      let err = null;
+      try { d = await gh(n.detail); } catch (e) { err = e; }
+      if (S.detailWait.get(n.id) === mark) S.detailWait.delete(n.id);
+      if (seq !== S.loadSeq) return; // 그사이 잠갔거나 다시 불러왔으면 버린다
+      if (err) {
+        S.detailErr = { id: n.id, msg: errorText(err) };
+        if (holder.isConnected) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.msg)); }
+        else if (showing(n.id)) renderPanel(); // 받는 동안 패널을 다시 그렸으면 새 패널에 오류를 보인다
+        return;
+      }
+      S.detail.set(n.id, d);
     }
+    if (!holder.isConnected) { if (showing(n.id)) renderPanel(); return; } // 받는 동안 패널을 다시 그렸으면 받은 전문을 새 패널에 붙인다
     btn.remove();
     holder.replaceChildren(...renderDetail(d));
   }
@@ -937,15 +965,14 @@
       const g = await gh("vault/_build/graph.json");
       if (seq !== S.loadSeq) return false;
       if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab) throw new Error("graph.json 형식이 올바르지 않습니다");
-      S.graph = g; S.detail.clear();
+      S.graph = g; S.detail.clear(); S.detailWait.clear(); S.detailErr = null; S.loadErr = "";
       buildModel(g); measure(); showApp(); readColors(); renderChrome(); renderTabs(); renderPanel();
-      if (!S.nodes.length) { $("panelBody").replaceChildren(...(S.notice ? [h("p", { class: "notice" }, S.notice)] : []), h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다.")); }
       S.fitted = false; kick(false);
       return true;
     } catch (err) {
       if (seq !== S.loadSeq) return false;
       if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); showGate(errorText(err)); }
-      else if (S.graph && !$("app").hidden) { $("panelBody").prepend(h("p", { class: "notice" }, errorText(err))); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에)
+      else if (S.graph && !$("app").hidden) { S.loadErr = errorText(err); renderPanel(); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에) — 배치가 끝나 다시 그려도 남는다
       else showGate(errorText(err));
       return false;
     } finally { $("panelBody").classList.remove("loading"); }
@@ -954,13 +981,18 @@
   // 이 탭 저장소도 막혀 있으면 토큰은 이 페이지에만 있으므로 그렇게 알린다
   const SAVE_FAIL = "이 기기에 저장하지 못해(저장 공간 부족 또는 차단) 이 탭에만 보관합니다.";
   const KEEP_FAIL = "브라우저가 저장소를 막고 있어 토큰을 보관하지 못했습니다. 페이지를 새로 고치면 다시 넣어야 합니다.";
+  const LEFT_OVER = "전에 이 기기에 저장한 토큰이 있다면 저장소가 막혀 지우지 못했습니다 — 브라우저 설정에서 이 사이트의 데이터를 지우세요.";
+  const BLOCKED = "브라우저가 이 사이트의 저장소를 막고 있어 토큰은 이 페이지에서만 씁니다(새로 고치면 다시 입력). 전에 이 기기에 저장한 토큰이 남아 있을 수 있으니 브라우저 설정에서 이 사이트의 데이터를 지우세요.";
+  const storeMsg = (t) => t.startsWith(SAVE_FAIL) || t.startsWith(KEEP_FAIL) || t === LEFT_OVER || t === BLOCKED;
   function keepToken(tok, remember) {
     if (remember && ls.set(KEY.token, tok)) { ss.del(KEY.token); return ""; }
-    const kept = ss.set(KEY.token, tok); ls.del(KEY.token);
+    const kept = ss.set(KEY.token, tok) || ss.get(KEY.token) === tok; // 쓰기가 막혀도 이 탭에 같은 토큰이 이미 있으면 보관된 것이다
+    const ssOk = kept || ss.del(KEY.token), lsOk = ls.del(KEY.token); // 보관하지 못했으면 이 탭의 옛 토큰도 지운다 (다음에 그 토큰으로 조용히 열리지 않게)
     if (remember) $("rememberIn").checked = false;
-    return !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
+    const msg = !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
+    return ssOk && lsOk ? msg : [msg, LEFT_OVER].filter(Boolean).join(" "); // 지우지 못한 사본이 있을 수 있으면 그렇게 밝힌다
   }
-  function forgetToken() { S.token = null; ss.del(KEY.token); ls.del(KEY.token); $("rememberIn").checked = false; }
+  function forgetToken() { S.token = null; const a = ss.del(KEY.token), b = ls.del(KEY.token); $("rememberIn").checked = false; return a && b; }
   function parseRepo(text) {
     const m = String(text || "").trim().match(/^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/);
     return m ? { owner: m[1], repo: m[2] } : null;
@@ -1001,9 +1033,12 @@
       const msg = keepToken(S.token, ev.currentTarget.checked);
       S.notice = msg; // 다음에 열릴 때 보일 안내도 지금 상태를 따른다
       if (msg) $("gateMsg").textContent = msg;
-      else if ([SAVE_FAIL, KEEP_FAIL].includes($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
+      else if (storeMsg($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
     });
-    $("lockBtn").addEventListener("click", () => { S.loadSeq++; forgetToken(); S.notice = ""; S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.sel = null; $("panelBody").replaceChildren(); showGate("잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다."); });
+    $("lockBtn").addEventListener("click", () => {
+      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; S.detailErr = null; S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.detailWait.clear(); S.sel = null; $("panelBody").replaceChildren();
+      showGate(gone ? "잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다." : `잠갔습니다. ${LEFT_OVER}`); // 지우지 못했으면 지웠다고 하지 않는다
+    });
     $("reloadBtn").addEventListener("click", () => load());
     $("reheatBtn").addEventListener("click", () => { for (const n of S.nodes) n.pinned = false; kick(true); });
     $("fitBtn").addEventListener("click", () => { fitView(); draw(); rehover(); });
@@ -1013,13 +1048,14 @@
       S.hits = q ? new Set(S.nodes.filter((n) => [n.label, n.title, ...(n.keywords || []), ...(n.topics || []).flatMap((t) => [t, vocab("topics", t)])].some((s) => String(s).toLowerCase().includes(q))).map((n) => n.id)) : null;
       draw();
     });
-    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; renderTabs(); renderPanel(); }));
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; S.loadErr = ""; S.detailErr = null; renderTabs(); renderPanel(); }));
     $("panelBody").addEventListener("keydown", (ev) => { if (ev.key === "Escape") select(null); });
 
     S.token = ss.get(KEY.token) || ls.get(KEY.token);
     if (S.token && !TOKEN_RE.test(S.token)) forgetToken(); // 저장된 값도 같은 형식만 쓴다
     $("rememberIn").checked = !!ls.get(KEY.token);
-    if (S.token) { $("gate").hidden = true; load(); } else showGate("");
+    if (S.token) { $("gate").hidden = true; load(); }
+    else showGate(ss.ok() && ls.ok() ? "" : BLOCKED); // 저장소가 막혀 있으면 왜 매번 넣어야 하는지 처음부터 알린다
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
