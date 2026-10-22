@@ -62,8 +62,19 @@ button, input, select { font: inherit; color: inherit; }
 .btn.primary:hover { opacity: .9; }
 .btn.small { height: 28px; padding: 0 10px; font-size: 12px; }
 
+/* 전략 묶음 (번호 = 추가한 순서) — 맨 위 단계, 묶음 안에 탭 */
+.groups { display: flex; gap: 10px; max-width: 1600px; margin: 0 auto; padding: 16px 24px 4px; overflow-x: auto; }
+.groups button { flex: 0 1 300px; min-width: 210px; display: flex; align-items: center; gap: 11px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); cursor: pointer; text-align: left; color: var(--ink-2); }
+.groups button:hover { border-color: var(--ink-2); }
+.groups button[aria-selected=true] { border-color: var(--ink); color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); }
+.gno { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--rule); background: var(--surface-2); font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.groups button[aria-selected=true] .gno { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.gtx { min-width: 0; line-height: 1.35; }
+.gtx b { display: block; font-size: 14px; font-weight: 700; }
+.gtx span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* 배치 */
-.layout { display: grid; grid-template-columns: 292px minmax(0, 1fr); gap: 20px; padding: 20px 24px 40px; max-width: 1600px; margin: 0 auto; }
+.layout { display: grid; grid-template-columns: 292px minmax(0, 1fr); gap: 20px; padding: 14px 24px 40px; max-width: 1600px; margin: 0 auto; }
 main { min-width: 0; }
 aside.settings { position: sticky; top: 14px; align-self: start; max-height: calc(100vh - 28px); overflow: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 6px 16px 16px; }
 .set-toggle { display: none; }
@@ -211,6 +222,9 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
 .dlg-head h2 { margin: 0; font-size: 16px; }
 .dlg-body { padding: 4px 18px 18px; }
 .dlg-body h3 { font-size: 14px; margin: 18px 0 8px; }
+.dlg-body h4 { font-size: 13px; margin: 14px 0 6px; }
+.dlg-body h3.gsec { display: flex; align-items: center; gap: 8px; margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.h-note { font-size: 12.5px; font-weight: 400; color: var(--muted); margin-left: 4px; }
 .dlg-body .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
 .drop { border: 1.5px dashed var(--rule); border-radius: 10px; padding: 20px 16px; text-align: center; color: var(--ink-2); cursor: pointer; background: var(--surface-2); font-size: 13px; }
 .drop b { color: var(--ink); }
@@ -228,7 +242,7 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
 .busy { opacity: .55; transition: opacity .15s; }
 .foot { max-width: 1600px; margin: 0 auto; padding: 0 24px 32px; font-size: 12px; color: var(--muted); }
 
-/* 업종 2등주 탭 (왼쪽 설정은 KOSPI 신호용이라 이 탭에서는 숨김) */
+/* 왼쪽 설정을 쓰지 않는 묶음(2 업종 2등주 …)은 한 칸 배치 */
 .layout.solo { grid-template-columns: minmax(0, 1fr); }
 .layout.solo aside.settings { display: none; }
 .heat-ctl input[type=month] { width: 136px; text-align: left; }
@@ -248,7 +262,9 @@ table.trans td { min-width: 76px; }
 
 @media (max-width: 1080px) { .two { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 960px) {
-  .layout { grid-template-columns: minmax(0, 1fr); padding: 14px 16px 36px; gap: 14px; }
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 36px; gap: 14px; }
+  .groups { padding: 12px 16px 4px; gap: 8px; }
+  .groups button { min-width: 168px; padding: 8px 10px; gap: 9px; }
   aside.settings { position: static; max-height: none; }
   .set-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; height: 40px; border: 0; background: none; padding: 0; font-weight: 700; cursor: pointer; }
   aside.settings.closed .set-body { display: none; }
@@ -271,7 +287,7 @@ table.trans td { min-width: 76px; }
 <header class="top">
   <div>
     <h1>KOSPI 시그널 랩</h1>
-    <p class="sub">BOP 평균이 낮아지면 매수(B), 이격도가 높아지면 매도(S) — 이 신호가 실제로 통했는지 KOSPI 보유와 비교합니다</p>
+    <p class="sub" id="labSub">BOP 평균이 낮아지면 매수(B), 이격도가 높아지면 매도(S) — 이 신호가 실제로 통했는지 KOSPI 보유와 비교합니다</p>
   </div>
   <div class="data-box">
     <div class="data-info" id="dataInfo">불러오는 중…</div>
@@ -284,8 +300,10 @@ table.trans td { min-width: 76px; }
   </div>
 </header>
 
-<div class="layout">
-  <aside class="settings" id="settings" aria-label="분석 조건 (모든 탭에 적용)">
+<nav class="groups" id="groups" role="tablist" aria-label="전략 묶음 선택"></nav>
+
+<div class="layout" id="layout">
+  <aside class="settings" id="settings" aria-label="1 BOP · 이격도 분석 조건 (이 묶음의 모든 탭에 적용)">
     <button class="set-toggle" id="setToggle" type="button" aria-expanded="true">설정 <span id="setToggleTxt">접기</span></button>
     <div class="set-body">
       <section class="set-sec">
@@ -340,19 +358,15 @@ table.trans td { min-width: 76px; }
   </aside>
 
   <main>
-    <nav class="tabs" id="tabs" role="tablist" aria-label="화면 선택">
-      <button type="button" role="tab" id="t-chart" data-tab="chart" aria-controls="p-chart" aria-selected="true">차트·신호</button>
-      <button type="button" role="tab" id="t-perf" data-tab="perf" aria-controls="p-perf" aria-selected="false">성과·최적 조합</button>
-      <button type="button" role="tab" id="t-check" data-tab="check" aria-controls="p-check" aria-selected="false">신호 검증</button>
-      <button type="button" role="tab" id="t-tiger" data-tab="tiger" aria-controls="p-tiger" aria-selected="false">업종 2등주</button>
-    </nav>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="화면 선택"></nav><!-- 묶음 안의 탭: GROUPS 에서 생성 -->
     <div id="periodWarn" class="warnbox" hidden></div>
     <div class="panel" id="noData" hidden>
       <div class="panel-head"><div><h3>데이터가 없습니다</h3><p id="noDataMsg"></p></div></div>
       <button class="btn primary" type="button" id="noDataGo">엑셀 업로드</button>
     </div>
 
-    <!-- 1. 차트·신호 -->
+    <!-- ===== 1 BOP · 이격도 ===== -->
+    <!-- 1-1. 차트·신호 -->
     <section role="tabpanel" id="p-chart" aria-labelledby="t-chart">
       <p class="verdict" id="vChart"></p>
       <div class="panel">
@@ -386,7 +400,7 @@ table.trans td { min-width: 76px; }
       </div></details>
     </section>
 
-    <!-- 2. 성과·최적 조합 -->
+    <!-- 1-2. 성과·최적 조합 -->
     <section role="tabpanel" id="p-perf" aria-labelledby="t-perf" hidden>
       <p class="verdict" id="vPerf"></p>
       <div class="panel">
@@ -446,7 +460,7 @@ table.trans td { min-width: 76px; }
       </div></details>
     </section>
 
-    <!-- 3. 신호 검증 -->
+    <!-- 1-3. 신호 검증 -->
     <section role="tabpanel" id="p-check" aria-labelledby="t-check" hidden>
       <p class="verdict" id="vCheck"></p>
       <div class="two">
@@ -479,7 +493,7 @@ table.trans td { min-width: 76px; }
       </div></details>
     </section>
 
-    <!-- 4. 업종 2등주 (TIGER 반도체 · 헬스케어 · 2차전지테마) -->
+    <!-- ===== 2 업종 2등주 (TIGER 반도체 · 헬스케어 · 2차전지테마) ===== -->
     <section role="tabpanel" id="p-tiger" aria-labelledby="t-tiger" hidden>
       <p class="verdict" id="vTiger">업종 ETF 데이터를 불러오는 중…</p>
       <div class="panel" id="tgNoData" hidden>
@@ -494,7 +508,7 @@ table.trans td { min-width: 76px; }
           <div class="tbl-wrap"><table class="tbl" id="tgNowTbl"></table></div>
         </div>
         <div class="panel">
-          <div class="panel-head"><div><h3>분석 조건</h3><p>이 탭에만 적용됩니다 (왼쪽 KOSPI 신호 설정과 무관) · 이 브라우저에 저장</p></div></div>
+          <div class="panel-head"><div><h3>분석 조건</h3><p>2 업종 2등주에만 적용됩니다 (1 BOP · 이격도 설정과 무관) · 이 브라우저에 저장</p></div></div>
           <div class="heat-ctl">
             <div class="presets" id="tgPresets">
               <button type="button" data-tgp="all">전체</button><button type="button" data-tgp="report" title="한화투자증권 MP전략(2024.8) 분석 구간과 같은 끝 월">보고서 구간 (~2024.07)</button><button type="button" data-tgp="5y">최근 5년</button><button type="button" data-tgp="3y">최근 3년</button><button type="button" data-tgp="1y">최근 1년</button>
@@ -559,45 +573,53 @@ table.trans td { min-width: 76px; }
 <dialog id="dataDlg" aria-labelledby="dlgTitle">
   <div class="dlg-head"><h2 id="dlgTitle">데이터 · 계산 방법</h2><button class="btn small" id="dlgClose" type="button">닫기</button></div>
   <div class="dlg-body">
-    <h3>데이터</h3>
+    <h3>데이터 <span class="h-note">모든 전략 묶음이 같은 엑셀을 씁니다</span></h3>
     <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="엑셀 파일 선택 또는 끌어다 놓기">
       <b>엑셀 파일을 여기로 끌어다 놓거나 눌러서 선택</b><br>
-      <span class="dim">Infomax 원본 양식 그대로 (.xlsx · .xlsm, BOP 시트: 일자·시가·고가·저가·종가 · TIGER 시트가 있으면 업종 2등주 탭에도 반영) — 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
+      <span class="dim">Infomax 원본 양식 그대로 (.xlsx · .xlsm) — BOP 시트(일자·시가·고가·저가·종가)는 1 BOP · 이격도, TIGER 시트는 2 업종 2등주에 반영 · 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
     </div>
     <div class="status" id="uploadStatus" aria-live="polite"></div>
     <div class="btns">
       <button class="btn small" type="button" id="restoreDefault">기본 데이터로 되돌리기</button>
-      <button class="btn small" type="button" id="dlSignals">신호 CSV</button>
-      <button class="btn small" type="button" id="dlNav">기준가 CSV</button>
+      <button class="btn small" type="button" id="dlSignals">1 · 신호 CSV</button>
+      <button class="btn small" type="button" id="dlNav">1 · 기준가 CSV</button>
     </div>
     <div class="tbl-wrap"><table class="tbl kv" id="reportTbl"></table></div>
     <p class="dim" style="font-size:12.5px">사이트의 기본 데이터는 비공개 데이터 저장소의 <code>data/kospi</code> 폴더에 엑셀을 올리면 자동으로 갱신됩니다.</p>
     <div class="method">
-      <h3>지표</h3>
+      <h3 class="gsec" id="m-bop"><span class="gno">1</span>BOP · 이격도</h3>
+      <h4>지표</h4>
       <p>원본 BOP 시트의 엑셀 수식(Bulls/Bears Reward 6개 항목)을 정리하면 BOP는 한 줄로 같아집니다 (원본 캐시 값과 오차 2e-16 수준으로 일치).</p>
       <div class="formula">Bulls = [ (H−O) + (C−L) + max(C−O, 0) ] / 3(H−L)
 Bears = [ (O−L) + (H−C) + max(O−C, 0) ] / 3(H−L)
 BOP   = Bulls − Bears = (C − O) / (H − L)      (H = L 이면 0)
 BOP(N)  = 최근 N거래일 BOP 단순평균 (N = 14 가 원본 'BOP(14MA)')
 이격도   = 종가 ÷ M일 단순이동평균 × 100 (%)</div>
-      <h3>신호 (종가 확정 후 판단)</h3>
+      <h4>신호 (종가 확정 후 판단)</h4>
       <ul>
         <li><b>B</b> — BOP(N)이 전일 기준선 초과 → 당일 기준선 이하로 진입한 날</li>
         <li><b>S</b> — 이격도가 전일 기준선 미만 → 당일 기준선 이상으로 진입한 날</li>
         <li><b>B⁺</b> — (BOP(N) ≤ 매수 기준선 이고 이격도 ≤ 상한) 이 전일 거짓 → 당일 참</li>
         <li>종류별로 직전 채택 신호와 <b>최소 간격</b>(기본 10거래일) 이상 떨어진 진입만 채택 → 같은 날 S가 있으면 B·B⁺ 무시</li>
       </ul>
-      <h3>전략</h3>
+      <h4>전략</h4>
       <ul id="ruleList"></ul>
-      <h3>체결 · 비용 · 현금</h3>
+      <h4>체결 · 비용 · 현금</h4>
       <ul>
         <li><b>다음 날 시가</b>(기본): 전일 종가~시가(갭)와 시가~종가 수익을 나눠 반영 · <b>다음 날 종가</b> · <b>당일 종가</b>(가장 낙관적)</li>
         <li>거래비용은 편도 bp, 포지션이 바뀐 뒤 첫 수익일에 차감 · 현금 구간은 현금수익률 ÷ 252 를 매일 적립</li>
       </ul>
-      <h3>유의사항</h3>
+      <h4>유의사항</h4>
       <ul>
         <li>KOSPI는 가격지수라 배당이 빠져 있습니다. 지수 자체는 직접 살 수 없고, ETF·선물로 따라가면 추적오차·세금·슬리피지가 더해집니다.</li>
         <li>과거 성과는 미래 수익을 보장하지 않습니다. 투자 권유가 아닌 신호 검증용 도구입니다.</li>
+      </ul>
+      <h3 class="gsec" id="m-second"><span class="gno">2</span>업종 2등주</h3>
+      <ul>
+        <li><b>데이터</b> — TIGER 시트의 TIGER 반도체(091230) · 헬스케어(143860) · 2차전지테마(305540) · TIGER 200(102110) 일별 수정 종가</li>
+        <li><b>순위 · 보유</b> — 매월 마지막 거래일 종가로 지난달(순위 기준이 N개월이면 최근 N개월) 수익률 순위를 매겨 다음 달 한 달 보유 · 1등주 · 2등주 · 3등주는 그 자리 100%, 1+2등주는 50:50</li>
+        <li><b>통계</b> — 끝난 달만 (진행 중인 달은 ‘이번 달’로만) · 엑셀 저장 시각이 마지막 날짜의 15:30(KST) 전이면 장중 값으로 표시</li>
+        <li>자세한 계산 방법은 2 업종 2등주 화면 맨 아래 ‘계산 방법 보기’에 있습니다.</li>
       </ul>
     </div>
   </div>
@@ -1209,13 +1231,28 @@ function mountViewBar(bar, getView, views, getDates, onAnalyze) {
 </script>
 <script>
 "use strict";
-/* ===== 앱 (상태 · 계산 · 탭 렌더) ===== */
+/* ===== 앱 (상태 · 계산 · 전략 묶음 · 탭 렌더) ===== */
 /* 단독으로 열렸을 때(데스크톱 창 iframe 이 아닐 때)만 바탕화면 링크 표시 */
 try { if (window.top === window.self) $("homeBtn").hidden = false; } catch (e) {}
 
 const KEY_UPLOAD = "kospiSignal.upload.v1", KEY_SET = "kospiSignal.settings.v2", KEY_THEME = "theme";
-const TABS = ["chart", "perf", "check", "tiger"];
+/* 전략 묶음 — 맨 위 번호 카드 → 묶음 안의 탭. 새 아이디어는 다음 번호로 한 항목 추가:
+   tabs = [[탭 id(랩 전체에서 고유, 패널은 <section id="p-탭 id">), 이름], …] · RENDER 에 그리기 함수
+   kospi = KOSPI 데이터(BOP 시트)로 계산한 결과가 있어야 그림 · settings = 왼쪽 설정 패널 사용 · head = 머리글 데이터 줄·바닥글 */
+const GROUPS = [
+  { id: "bop", no: 1, name: "BOP · 이격도", tag: "KOSPI 변곡점 매수 · 매도 신호",
+    desc: "BOP 평균이 낮아지면 매수(B), 이격도가 높아지면 매도(S) — 이 신호가 실제로 통했는지 KOSPI 보유와 비교합니다",
+    tabs: [["chart", "차트·신호"], ["perf", "성과·최적 조합"], ["check", "신호 검증"]], kospi: true, settings: true, head: () => HEAD.bop },
+  { id: "second", no: 2, name: "업종 2등주", tag: "TIGER 업종 ETF 월간 순위 전략",
+    desc: "TIGER 반도체 · 헬스케어 · 2차전지테마 중 지난달 수익률 2등을 이번 달 보유 — 1등 · 3등 · 1+2등주, TIGER 200과 비교합니다",
+    tabs: [["tiger", "업종 2등주"]], kospi: false, settings: false, head: () => tigerHead() },
+];
+const TABS = GROUPS.flatMap((g) => g.tabs.map((x) => x[0]));
+const GROUP_OF = {};
+GROUPS.forEach((g) => g.tabs.forEach(([t]) => { GROUP_OF[t] = g; }));
+const RENDER = { chart: renderChart, perf: renderPerf, check: renderCheck, tiger: renderTiger };
 const LEGACY_TAB = { signals: "check", backtest: "perf", threshold: "perf", best: "perf" };
+const HEAD = { bop: { html: "불러오는 중…", foot: "" } }; // 1 BOP · 이격도 머리글 데이터 줄·바닥글 (renderStatic 이 채움)
 const STRATS = KSE.STRATEGIES, SIG_IDS = KSE.SIGNAL_IDS, ALL_IDS = KSE.STRATEGY_IDS;
 const SNAME = {};
 STRATS.forEach((s) => { SNAME[s.id] = s; });
@@ -1255,6 +1292,7 @@ const DEF_UI = () => ({
   show: { B: true, S: true, D: false, MA: true, log: false, shade: true }, overlay: "none",
   nav: ["BH", "S1", "S2", "S3", "S6"], navLog: false, link: true, crit: "excessCagr", heatTarget: "S3",
   bList: "-0.15, -0.20, -0.25, -0.30", sList: "110, 115, 120, 125, 130", trade: "S3", tab: "chart", oos: ALL_IDS.slice(),
+  gtab: Object.fromEntries(GROUPS.map((g) => [g.id, g.tabs[0][0]])), // 묶음마다 마지막으로 본 탭
   tg: { preset: "all", start: null, end: null, look: 1, cost: 0, show: ["R2", "R1", "R3", "R12", "BM"], log: true },
 });
 const S = {
@@ -1297,6 +1335,8 @@ function loadSettings() {
   pick("heatTarget", (v) => SIG_IDS.includes(v) || v === "S6dual");
   pick("bList", (v) => typeof v === "string"); pick("sList", (v) => typeof v === "string");
   pick("trade", (v) => ALL_IDS.includes(v)); pick("tab", (v) => TABS.includes(v));
+  if (u.gtab && typeof u.gtab === "object") GROUPS.forEach((g) => { if (g.tabs.some(([t]) => t === u.gtab[g.id])) U.gtab[g.id] = u.gtab[g.id]; });
+  U.gtab[GROUP_OF[U.tab].id] = U.tab;
   if (u.show) for (const k in U.show) if (typeof u.show[k] === "boolean") U.show[k] = u.show[k];
   if (U.preset === "custom" && !(U.start && U.end)) U.preset = "all";
   const t = u.tg && typeof u.tg === "object" ? u.tg : {}, T = U.tg, isYm = (v) => v === null || (typeof v === "string" && /^\d{4}-\d{2}$/.test(v));
@@ -1435,39 +1475,55 @@ function compute() {
 }
 const inPeriod = (arr) => arr.filter((i) => i >= S.i0 && i <= S.i1);
 
-/* ---------- 탭 ---------- */
+/* ---------- 전략 묶음 · 탭 ---------- */
 function markDirty() { TABS.forEach((t) => { S.dirty[t] = true; }); }
+/* 주소 #탭 id (예: #chart) 또는 #묶음 id (예: #second → 그 묶음에서 마지막으로 본 탭) */
 function tabFromHash() {
-  const h = location.hash.replace("#", "");
+  const h = location.hash.replace("#", ""), g = GROUPS.find((x) => x.id === h);
+  if (g) return S.ui.gtab[g.id] || g.tabs[0][0];
   return TABS.includes(h) ? h : LEGACY_TAB[h] || null;
 }
-function setTab(t, focus) {
-  S.ui.tab = t;
+function buildNav() {
+  $("groups").innerHTML = GROUPS.map((g) => `<button type="button" role="tab" id="g-${g.id}" data-group="${g.id}" aria-controls="layout" aria-selected="false" title="${esc(g.desc)}">` +
+    `<span class="gno">${g.no}</span><span class="gtx"><b>${esc(g.name)}</b><span>${esc(g.tag)}</span></span></button>`).join("");
+  $("tabs").innerHTML = GROUPS.map((g) => g.tabs.map(([t, name]) => `<button type="button" role="tab" id="t-${t}" data-tab="${t}" data-group="${g.id}" aria-controls="p-${t}" aria-selected="false">${esc(name)}</button>`).join("")).join("");
+}
+/* 선택 표시: 묶음 카드 · 그 묶음의 탭만 보이기(탭이 하나면 탭 줄 없이) · 머리글 설명과 데이터 줄 */
+function syncNav() {
+  const g = GROUP_OF[S.ui.tab];
+  document.querySelectorAll("#groups [role=tab]").forEach((b) => { const on = b.dataset.group === g.id; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll("#tabs [role=tab]").forEach((b) => {
-    const on = b.dataset.tab === t;
-    b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
-    if (on && focus) b.focus();
+    const on = b.dataset.tab === S.ui.tab;
+    b.hidden = b.dataset.group !== g.id; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
   });
+  $("tabs").hidden = g.tabs.length < 2;
+  $("labSub").textContent = g.desc;
+  renderHead();
+}
+function renderHead() { const h = GROUP_OF[S.ui.tab].head(); $("dataInfo").innerHTML = h.html; $("foot").textContent = h.foot; }
+function setTab(t, focus) { // focus: true = 탭 버튼, "group" = 묶음 카드에 초점
+  const g = GROUP_OF[t];
+  S.ui.tab = t; S.ui.gtab[g.id] = t;
+  syncNav();
+  if (focus) { const b = $(focus === "group" ? "g-" + g.id : "t-" + t); if (b) b.focus(); }
   showPanels();
   if (location.hash !== "#" + t) { try { history.replaceState(null, "", "#" + t); } catch (e) {} }
   saveSettings();
   if (S.dirty[t]) renderTab(t);
 }
+function setGroup(id, focus) { const g = GROUPS.find((x) => x.id === id); setTab(S.ui.gtab[id] || g.tabs[0][0], focus ? "group" : false); }
 function showPanels() {
-  const ok = !!S.bt, tg = S.ui.tab === "tiger"; // 업종 2등주 탭은 KOSPI 데이터 없이도 표시
-  TABS.forEach((x) => { $("p-" + x).hidden = x !== S.ui.tab || (!tg && !ok); });
-  $("noData").hidden = tg || ok || !S.loadFailed;
+  const g = GROUP_OF[S.ui.tab], ok = !!S.bt, live = !g.kospi || ok; // KOSPI 결과가 필요 없는 묶음은 그 데이터 없이도 표시
+  TABS.forEach((x) => { $("p-" + x).hidden = x !== S.ui.tab || !live; });
+  $("noData").hidden = !g.kospi || ok || !S.loadFailed;
   const w = $("periodWarn");
-  w.hidden = tg || !ok || !S.warn.length; w.textContent = S.warn.join(" ");
-  document.querySelector(".layout").classList.toggle("solo", tg);
+  w.hidden = !g.kospi || !ok || !S.warn.length; w.textContent = S.warn.join(" ");
+  $("layout").classList.toggle("solo", !g.settings);
 }
 function renderTab(t) {
-  if (t === "tiger") { S.dirty.tiger = false; renderTiger(); return; }
-  if (!S.data || !S.bt) return;
+  if (GROUP_OF[t].kospi && (!S.data || !S.bt)) return;
   S.dirty[t] = false;
-  if (t === "chart") renderChart();
-  else if (t === "perf") renderPerf();
-  else if (t === "check") renderCheck();
+  RENDER[t]();
 }
 
 /* ---------- 머리글·기간·바닥글 ---------- */
@@ -1477,7 +1533,7 @@ function scopeLabel(meta) { // 기본 데이터 공개 범위: meta.lookback_day
 }
 function renderStatic() {
   const D = S.data.dates, n = D.length, src = S.src, P = S.p;
-  $("dataInfo").innerHTML = (src.kind === "upload" ? `<b>업로드 데이터</b> (${esc(src.name)})` : `<b>기본 데이터</b> (${scopeLabel(src.meta)})`) +
+  HEAD.bop.html = (src.kind === "upload" ? `<b>업로드 데이터</b> (${esc(src.name)})` : `<b>기본 데이터</b> (${scopeLabel(src.meta)})`) +
     ` · ${D[0]} ~ ${D[n - 1]} · ${n.toLocaleString("ko-KR")}거래일`;
   $("resetData").hidden = src.kind !== "upload";
   const dp = KSE.defaultPeriod(S.data, P);
@@ -1490,9 +1546,10 @@ function renderStatic() {
     b.setAttribute("aria-pressed", String(S.ui.preset === key));
   });
   $("maLbl").textContent = `${P.dispMa}일선`;
-  $("foot").textContent = src.kind === "upload"
+  HEAD.bop.foot = src.kind === "upload"
     ? `업로드한 '${src.name}'을(를) 이 브라우저 안에서만 분석 중입니다 (저장: ${src.savedAt || "–"}). 투자 권유가 아닌 신호 검증용 도구입니다.`
     : `${(src.meta && src.meta.note) || ""} 투자 권유가 아닌 신호 검증용 도구입니다.`;
+  renderHead();
 }
 function analyzeRange(a, b) {
   const D = S.data.dates;
@@ -2049,8 +2106,19 @@ const lookLabel = (n) => (n === 1 ? "지난달" : `최근 ${n}개월`);
 function setTigerData(data, src) {
   S.tg.data = data; S.tg.src = src; S.tg.ver++; S.tg.key = null; S.tg.res = S.tg.st = null; S.tg.err = null;
   S.dirty.tiger = true;
-  if (S.ui.tab === "tiger") renderTab("tiger");
+  if (S.ui.tab === "tiger") { renderTab("tiger"); renderHead(); }
   if ($("dataDlg").open) renderReport();
+}
+/* 2 업종 2등주 머리글 데이터 줄 · 바닥글 */
+function tigerHead() {
+  const d = S.tg.data, src = S.tg.src || {}, m = src.meta || {};
+  if (!d) return { html: S.tg.err ? "업종 ETF 데이터를 불러오지 못했습니다" : "불러오는 중…", foot: "" };
+  const D = d.dates;
+  return {
+    html: (src.kind === "upload" ? `<b>업로드 데이터</b> (${esc(src.name)} · TIGER 시트)` : "<b>기본 데이터</b> (TIGER 시트)") + ` · ${D[0]} ~ ${D[D.length - 1]} · ${D.length.toLocaleString("ko-KR")}거래일`,
+    foot: src.kind === "upload" ? `업로드한 '${src.name}'의 TIGER 시트를 이 브라우저 안에서만 분석 중입니다. 투자 권유가 아닌 전략 모니터링 도구입니다.`
+      : `${m.note || ""} 투자 권유가 아닌 전략 모니터링 도구입니다.`,
+  };
 }
 async function fetchTigerDefault() {
   const res = await fetch("../data/kospi_tiger.json", { cache: "no-store" });
@@ -2065,7 +2133,7 @@ async function loadTigerDefault(stored, force) { // force: 저장된 업로드�
   const mine = S.tg.src;
   let d;
   try { d = await fetchTigerDefault(); } catch (e) {
-    if (!S.tg.data) { S.tg.err = "기본 데이터(data/kospi_tiger.json)를 불러오지 못했습니다" + (location.protocol === "file:" ? " — 파일로 직접 열면 브라우저가 막습니다" : "") + ". TIGER 시트가 있는 엑셀을 올리면 바로 분석할 수 있습니다."; S.dirty.tiger = true; if (S.ui.tab === "tiger") renderTab("tiger"); }
+    if (!S.tg.data) { S.tg.err = "기본 데이터(data/kospi_tiger.json)를 불러오지 못했습니다" + (location.protocol === "file:" ? " — 파일로 직접 열면 브라우저가 막습니다" : "") + ". TIGER 시트가 있는 엑셀을 올리면 바로 분석할 수 있습니다."; S.dirty.tiger = true; if (S.ui.tab === "tiger") { renderTab("tiger"); renderHead(); } }
     return;
   }
   if (S.tg.src !== mine) return; // 그 사이 새 파일을 올림
@@ -2385,8 +2453,8 @@ function renderReport() {
     const TD = tg.data.dates, tm = (tg.src && tg.src.meta) || {}, trp = (tg.src && tg.src.report) || {};
     const colL = (j) => { let o = ""; for (j += 1; j; j = Math.floor((j - 1) / 26)) o = String.fromCharCode(65 + ((j - 1) % 26)) + o; return o; };
     const cols = tm.assets ? tm.assets.map((a) => `${a.name} ${a.column}열`) : trp.columns ? KST.ASSETS.map((a) => `${a.name} ${colL(trp.columns[a.key])}열`) : [];
-    row("업종 2등주 (TIGER 시트)", `${tg.src.kind === "upload" ? "업로드 " + tg.src.name : "기본 데이터 " + (tm.source || "data/kospi_tiger.json")} · ${TD.length.toLocaleString("ko-KR")}행 · ${TD[0]} ~ ${TD[TD.length - 1]}` + (cols.length ? " · " + cols.join(", ") : ""));
-  } else row("업종 2등주 (TIGER 시트)", tg.err || "불러오는 중…");
+    row("2 업종 2등주 (TIGER 시트)", `${tg.src.kind === "upload" ? "업로드 " + tg.src.name : "기본 데이터 " + (tm.source || "data/kospi_tiger.json")} · ${TD.length.toLocaleString("ko-KR")}행 · ${TD[0]} ~ ${TD[TD.length - 1]}` + (cols.length ? " · " + cols.join(", ") : ""));
+  } else row("2 업종 2등주 (TIGER 시트)", tg.err || "불러오는 중…");
   const dp = KSE.defaultPeriod(S.data, S.p);
   row("지표 계산 시작", `${dp.start} (BOP(${S.p.bopMa})·이격도(${S.p.dispMa}일) 모두 계산되는 첫날 = 전체 기간의 시작)`);
   row("현재 분석 기간", S.bt ? `${S.start} ~ ${S.end} (${(S.i1 - S.i0 + 1).toLocaleString("ko-KR")}거래일)` : "–");
@@ -2507,7 +2575,8 @@ function setData(data, src) {
 }
 function noDataState(msg) {
   S.loadFailed = true;
-  $("dataInfo").textContent = msg;
+  HEAD.bop.html = esc(msg);
+  renderHead();
   $("noDataMsg").textContent = msg;
   showPanels();
 }
@@ -2529,16 +2598,17 @@ function wire() {
     $("setToggle").setAttribute("aria-expanded", String(!closed)); $("setToggleTxt").textContent = closed ? "펼치기" : "접기";
   });
   if (matchMedia("(max-width: 960px)").matches) { aside.classList.add("closed"); $("setToggle").setAttribute("aria-expanded", "false"); $("setToggleTxt").textContent = "펼치기"; }
-  // 탭 (←/→ 키 이동)
-  const tabs = Array.from(document.querySelectorAll("#tabs [role=tab]"));
-  tabs.forEach((b) => {
+  // 전략 묶음 · 탭 (←/→ 키 이동 — 탭은 지금 묶음 안에서만)
+  const cycle = (list, b, ev) => list[(list.indexOf(b) + (ev.key === "ArrowRight" ? 1 : list.length - 1)) % list.length];
+  const arrows = (ev) => { if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return false; ev.preventDefault(); return true; };
+  const gbtn = Array.from(document.querySelectorAll("#groups [role=tab]"));
+  gbtn.forEach((b) => {
+    b.addEventListener("click", () => setGroup(b.dataset.group));
+    b.addEventListener("keydown", (ev) => { if (arrows(ev)) setGroup(cycle(gbtn, b, ev).dataset.group, true); });
+  });
+  document.querySelectorAll("#tabs [role=tab]").forEach((b) => {
     b.addEventListener("click", () => setTab(b.dataset.tab));
-    b.addEventListener("keydown", (ev) => {
-      if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
-      ev.preventDefault();
-      const k = (tabs.indexOf(b) + (ev.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
-      setTab(tabs[k].dataset.tab, true);
-    });
+    b.addEventListener("keydown", (ev) => { if (arrows(ev)) setTab(cycle(Array.from(document.querySelectorAll("#tabs [role=tab]:not([hidden])")), b, ev).dataset.tab, true); });
   });
   window.addEventListener("hashchange", () => {
     if (location.hash === "#data") { openData(); return; }
@@ -2674,13 +2744,14 @@ async function init() {
   setControls(S.p);
   $("bList").value = S.ui.bList; $("sList").value = S.ui.sList;
   const h = location.hash.replace("#", ""), t0 = tabFromHash();
-  if (t0) S.ui.tab = t0;
+  if (t0) { S.ui.tab = t0; S.ui.gtab[GROUP_OF[t0].id] = t0; }
+  buildNav();
   makeCharts();
   wire();
   wireTiger();
   $("stratSel").value = S.ui.overlay; $("crit").value = S.ui.crit; $("heatTarget").value = S.ui.heatTarget;
   document.querySelectorAll("#showChips [data-show]").forEach((b) => b.setAttribute("aria-pressed", String(!!S.ui.show[b.dataset.show])));
-  document.querySelectorAll("#tabs [role=tab]").forEach((b) => { const on = b.dataset.tab === S.ui.tab; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+  syncNav();
   showPanels();
   if (h === "data") openData();
   const stored = loadStored();
