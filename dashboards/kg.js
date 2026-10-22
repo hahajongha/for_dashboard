@@ -52,11 +52,14 @@
     challenges: { L: 280, k: 0.035 }, refutes: { L: 320, k: 0.045 },
     cites: { L: 200, k: 0.025 }, similar: { L: 240, k: 0.02 }, gap: { L: 120, k: 0.03 },
   });
+  const BASE_STYLES = Object.keys(ESTYLE), BASE_KEYS = GROUPS.map((g) => g.keys.slice()); // 기본 관계 유형 — vault가 더한 유형은 잠그기·토큰 거부 때 지운다
   const PHYS = { repulse: 7000, gravity: 0.015, damp: 0.85, maxV: 24 };
   const AREA_ORDER = ["portfolio-theory", "asset-pricing", "active-management", "fixed-income", "credit", "currency", "macro", "econometrics"];
   const SHAPES = ["circle", "square", "diamond", "triangle", "hexagon", "triangleDown", "pentagon", "octagon"];
-  const CONF = { high: "높음", medium: "중간", low: "낮음" };
-  const ACCESS = { private: "비공개 (열람 토큰 보유자만)", shareable: "교환 가능 (요약·키워드 캡슐)" };
+  // 표 조회도 'constructor'처럼 Object 기본 속성 이름이 상속 값으로 잡히지 않게: 고정 표는 프로토타입 없이, graph.json 표는 own()으로 확인한다
+  const CONF = Object.assign(Object.create(null), { high: "높음", medium: "중간", low: "낮음" });
+  const ACCESS = Object.assign(Object.create(null), { private: "비공개 (열람 토큰 보유자만)", shareable: "교환 가능 (요약·키워드 캡슐)" });
+  const own = (o, k) => o != null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k);
 
   const S = {
     token: null, repo: { ...DEFAULT_REPO }, graph: null,
@@ -68,6 +71,7 @@
     ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(),
     detailErr: new Map(), // 노드 id → 노트 전문 오류 문구. 노드마다 따로 두어 떠난 노트의 늦은 실패가 지금 노트의 오류를 지우지 않는다
     epoch: 0, // 그래프를 새로 받거나 토큰을 잊을 때마다(잠그기·토큰 거부) 늘린다 — 그 전에 보낸 노트 전문 요청의 늦은 응답은 버린다
+    ctl: new AbortController(), // 잠그기·토큰 거부 때 받는 중인 요청을 끊는다 — 응답을 기다리며 노드 내용을 쥐고 있지 않게
   };
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
   const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
@@ -152,7 +156,7 @@
     try { // 헤더는 둘뿐: Accept 값은 CORS 안전 목록이라, 사전 요청(preflight)은 Authorization 하나만 허가받으면 된다
       res = await fetch(url, {
         headers: { Authorization: `Bearer ${S.token}`, Accept: "application/vnd.github.raw+json" },
-        cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
+        cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: S.ctl.signal,
       });
     } catch (e) { throw new HttpError(0, path, "network"); }
     if (!res.ok) throw new HttpError(res.status, path, res.headers.get("x-ratelimit-remaining") === "0" ? "ratelimit" : "");
@@ -484,7 +488,11 @@
         if (Math.hypot(sx - dg.sx, sy - dg.sy) > 4) dg.moved = true;
         if (!dg.moved) return;
         if (dg.pan) { S.view.cx = dg.cx - (sx - dg.sx) / S.view.k; S.view.cy = dg.cy - (sy - dg.sy) / S.view.k; draw(); }
-        else { const n = S.byId.get(dg.id), [wx, wy] = toWorld(sx, sy); n.x = wx; n.y = wy; n.vx = n.vy = 0; kick(false); if (reduceMotion) draw(); }
+        else {
+          const n = S.byId.get(dg.id), [wx, wy] = toWorld(sx, sy);
+          if (!n) { S.drag = null; cv.classList.remove("dragging"); return; } // 끄는 사이 새로 받은 그래프에 그 노드가 없으면 끌기를 끝낸다
+          n.x = wx; n.y = wy; n.vx = n.vy = 0; kick(false); if (reduceMotion) draw();
+        }
         hideTip(); return;
       }
       hoverAt(sx, sy);
@@ -494,8 +502,8 @@
       if (S.pointers.size < 2) S.pinch = null;
       const dg = S.drag; S.drag = null; cv.classList.remove("dragging");
       if (!dg) return;
-      if (!dg.moved) select(dg.target || null);
-      else if (!dg.pan) { S.byId.get(dg.id).pinned = true; kick(false); }
+      if (!dg.moved) { const t = dg.target; select(t && (t.kind === "node" ? S.byId : S.edgeById).has(t.id) ? t : null); } // 누른 사이 그래프에서 빠진 항목은 고르지 않는다
+      else if (!dg.pan && S.byId.has(dg.id)) { S.byId.get(dg.id).pinned = true; kick(false); } // 그사이 그래프에서 빠진 노드는 고정하지 않는다
     };
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
@@ -547,7 +555,7 @@
         if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
       } else {
         const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
-        kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
+        kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence] || e.confidence}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
           h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
           h("div", { class: "t2" }, tensionText(e)));
       }
@@ -559,14 +567,14 @@
     tip.style.left = `${Math.min(W - tw - 8, sx + 14)}px`; tip.style.top = `${Math.max(8, Math.min(S.size.h - th - 8, sy + 14))}px`;
   }
   function hideTip() { S.tip = null; $("tip").hidden = true; }
-  // 열린 툴팁도 패널처럼 지금 값으로 다시 쓴다. 가리키던 항목이 필터로 숨겨졌으면 닫는다
+  const itemOn = (t) => t.kind === "node" ? S.byId.has(t.id) && nodeOn(S.byId.get(t.id)) : S.edgeById.has(t.id) && edgeOn(S.edgeById.get(t.id));
+  // 열린 툴팁도 패널처럼 지금 값으로 다시 쓴다. 가리키던 항목이 필터로 숨겨졌으면 닫는다.
+  // 툴팁이 없어도(만들지 못해 닫힌 경우 포함) 숨겨진 항목에 남은 hover는 푼다 — 그래프 전체가 흐린 채 남지 않게
   function refreshTip() {
     const tp = S.tip;
-    if (!tp || $("tip").hidden) return;
-    const t = tp.t, on = t.kind === "node" ? S.byId.has(t.id) && nodeOn(S.byId.get(t.id)) : S.edgeById.has(t.id) && edgeOn(S.edgeById.get(t.id));
-    if (on) { showTip(t, tp.sx, tp.sy); return; }
-    hideTip();
-    if (S.hover && S.hover.id === t.id) { S.hover = null; S.canvas.classList.remove("on-item"); draw(); }
+    if (tp && !$("tip").hidden && itemOn(tp.t)) { showTip(tp.t, tp.sx, tp.sy); return; }
+    if (tp) hideTip();
+    if (S.hover && !itemOn(S.hover)) { S.hover = null; S.canvas.classList.remove("on-item"); draw(); }
   }
   // 상태는 표시값의 부호로: 0.00으로 보이면 평형, 그 밖에는 + 늘어남 · 당김 / − 눌림 · 밀어냄 ('-0.00' 표기 없음)
   const fmtT = (T) => { const s = T.toFixed(2); return s === "0.00" || s === "-0.00" ? "0.00" : T > 0 ? `+${s}` : s; };
@@ -617,8 +625,7 @@
   const focusSig = (el) => el.dataset.k ? `k:${el.dataset.k}` : `${el.tagName}|${el.textContent}`;
   function focusKey(body, el) { const sig = focusSig(el); return { sig, tag: el.tagName, i: [...body.querySelectorAll(el.tagName)].filter((x) => focusSig(x) === sig).indexOf(el) }; }
   function restoreFocus(body, k) { const c = [...body.querySelectorAll(k.tag)].filter((x) => focusSig(x) === k.sig); const el = c[k.i] || c[0]; if (el) el.focus({ preventScroll: true }); }
-  const vocab = (kind, key) => (S.graph.vocab && S.graph.vocab[kind] && S.graph.vocab[kind][key]) || key;
-  const relLabel = (type) => (S.graph.vocab.relations[type] || {}).label || ESTYLE[type]?.label || type;
+  const vocab = (kind, key) => { const t = S.graph.vocab && S.graph.vocab[kind]; return (own(t, key) && t[key]) || key; };
   const nodeBtn = (id) => { const n = S.byId.get(id); return h("button", { class: "rowbtn", type: "button", "data-k": `n:${id}`, onclick: () => select({ kind: "node", id }) }, n ? n.label : id); };
   const edgeBtn = (e, text) => h("button", { class: "rowbtn", type: "button", "data-k": `e:${e.id}`, onclick: () => select({ kind: "edge", id: e.id }) }, text);
   function polTag(e) { const c = ESTYLE[e.sk].color; return h("span", { class: `tag ${c === "pos" ? "pos" : c === "neg" ? "neg" : "strong"}` }, ESTYLE[e.sk].label); }
@@ -850,12 +857,12 @@
 
   function panelEdge(e) {
     const a = S.byId.get(e.source), b = S.byId.get(e.target), out = [];
-    out.push(h("div", { class: "tags" }, polTag(e), e.confidence && h("span", { class: "tag" }, `신뢰도 ${CONF[e.confidence]}`)));
+    out.push(h("div", { class: "tags" }, polTag(e), e.confidence && h("span", { class: "tag" }, `신뢰도 ${CONF[e.confidence] || e.confidence}`)));
     out.push(h("h2", { class: "n-title" }, nodeBtn(a.id), e.sk === "similar" ? " ↔ " : " → ", nodeBtn(b.id)));
     if (!edgeOn(e)) out.push(hiddenSelf("간선은"));
     else if (S.tension) out.push(h("p", { class: "n-meta", "data-live": "tension", "data-id": e.id }, tensionText(e)));
     if (e.kind === "relation") {
-      const rv = S.graph.vocab.relations[e.type];
+      const rv = own(S.graph.vocab.relations, e.type) ? S.graph.vocab.relations[e.type] : null;
       if (rv) out.push(h("p", { class: "dim", style: "font-size:12.5px;margin:4px 0 8px" }, `${rv.label}: ${rv.desc}`));
       out.push(h("section", { class: "sec" }, h("h3", null, "관계 설명"), h("p", { style: "margin:0;font-size:13px" }, e.note)));
       out.push(h("section", { class: "sec" }, h("h3", null, `주장 (${a.label} ${e.claim.id})`), h("p", { style: "margin:0;font-size:13px" }, e.claim.text),
@@ -938,7 +945,7 @@
       h("section", { class: "sec" }, h("h3", null, `간선 ${es.length}`), hiddenNote(S.edges.length - es.length),
         h("table", { class: "list" }, h("thead", null, h("tr", null, h("th", null, "유형"), h("th", null, "원천 → 대상"), h("th", { class: "num" }, "강도"), h("th", { class: "num" }, "장력"))),
           h("tbody", null, es.map((e) => h("tr", null, h("td", null, edgeBtn(e, ESTYLE[e.sk].label)), h("td", null, `${S.byId.get(e.source).label} ${e.sk === "similar" ? "↔" : "→"} ${S.byId.get(e.target).label}`),
-            h("td", { class: "num" }, e.confidence ? CONF[e.confidence] : (e.weight || 0).toFixed(2)), h("td", { class: "num", "data-live": "T", "data-id": e.id }, e.L ? fmtT(e.T) : "-")))))),
+            h("td", { class: "num" }, e.confidence ? CONF[e.confidence] || e.confidence : (e.weight || 0).toFixed(2)), h("td", { class: "num", "data-live": "T", "data-id": e.id }, e.L ? fmtT(e.T) : "-")))))),
     ];
   }
 
@@ -995,7 +1002,7 @@
       return true;
     } catch (err) {
       if (seq !== S.loadSeq) return false;
-      if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); showGate(errorText(err)); }
+      if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); clearVault(); showGate(errorText(err)); } // 토큰이 거부되면 잠그기처럼 열람한 내용도 지운다
       else if (S.graph && !$("app").hidden) { S.loadErr = errorText(err); renderPanel(); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에) — 배치가 끝나 다시 그려도 남는다
       else showGate(errorText(err));
       return false;
@@ -1017,6 +1024,19 @@
     return ssOk && lsOk ? msg : [msg, LEFT_OVER].filter(Boolean).join(" "); // 지우지 못한 사본이 있을 수 있으면 그렇게 밝힌다
   }
   function forgetToken() { S.token = null; S.epoch++; const a = ss.del(KEY.token), b = ls.del(KEY.token); $("rememberIn").checked = false; return a && b; }
+  // 열람한 vault 내용(그래프·노드·간선·노트 전문·패널·툴팁·검색 결과·범례·통계·vault가 더한 관계 유형·그림)을 메모리와 화면에서 지운다 — 잠그기와 토큰 거부 때.
+  // 받는 중인 요청은 끊고, 끌기·두 손가락 확대 중이던 포인터는 놓은 것으로 둔다(손을 뗄 때 빈 그래프에서 노드를 찾지 않게). 다시 열면 전체 보기에서 시작한다
+  function clearVault() {
+    S.ctl.abort(); S.ctl = new AbortController();
+    S.detailErr.clear(); S.graph = null; S.nodes = []; S.edges = []; S.byId = new Map(); S.edgeById = new Map();
+    S.detail.clear(); S.detailWait.clear(); S.sel = null; S.hover = null; S.drag = null; S.pinch = null; S.tab = "sel"; S.panelView = "";
+    S.search = ""; S.hits = null; $("searchIn").value = "";
+    for (const k of Object.keys(ESTYLE)) if (!BASE_STYLES.includes(k)) { delete ESTYLE[k]; delete SPRING[k]; }
+    GROUPS.forEach((g, i) => { g.keys = BASE_KEYS[i].slice(); });
+    S.canvas.classList.remove("on-item", "dragging"); hideTip(); $("tip").replaceChildren(); renderTabs();
+    for (const id of ["panelBody", "legend", "edgeFilters"]) $(id).replaceChildren();
+    $("stat").textContent = ""; draw();
+  }
   function parseRepo(text) {
     const m = String(text || "").trim().match(/^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/);
     return m ? { owner: m[1], repo: m[2] } : null;
@@ -1060,7 +1080,7 @@
       else if (storeMsg($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
     });
     $("lockBtn").addEventListener("click", () => {
-      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; S.detailErr.clear(); S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.detailWait.clear(); S.sel = null; $("panelBody").replaceChildren();
+      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; clearVault();
       showGate(gone ? "잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다." : `잠갔습니다. ${LEFT_OVER}`); // 지우지 못했으면 지웠다고 하지 않는다
     });
     $("reloadBtn").addEventListener("click", () => load());
