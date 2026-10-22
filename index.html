@@ -314,9 +314,9 @@ const APPS = [
       <h2>구조</h2>
       <ul>
         <li><code>index.html</code> — 이 바탕화면(런처)</li>
-        <li><code>dashboards/kospi_signal.html</code> — KOSPI 시그널 랩 (BOP 매수 · 이격도 매도 신호 검증)</li>
+        <li><code>dashboards/kospi_signal.html</code> — KOSPI 시그널 랩 (번호별 전략 묶음: 1 BOP · 이격도 신호 검증, 2 업종 2등주 전략)</li>
         <li><code>dashboards/kospi_signal_engine.js</code> — 시그널 랩 계산 엔진 (지표·신호·백테스트)</li>
-        <li><code>dashboards/kospi_signal_tiger.js</code> — 시그널 랩 ‘업종 2등주’ 탭 계산 (TIGER 반도체·헬스케어·2차전지 월말 순위 전략)</li>
+        <li><code>dashboards/kospi_signal_tiger.js</code> — 시그널 랩 ‘2 업종 2등주’ 계산 (TIGER 반도체·헬스케어·2차전지 월말 순위 전략)</li>
         <li><code>data/kospi_signal.json</code> — KOSPI 일별 시가·고가·저가·종가 (2000년~ 전체 기간, 엑셀 업로드 시 자동 갱신)</li>
         <li><code>data/kospi_tiger.json</code> — TIGER ETF 4종 일별 수정 종가 (2019년~, 같은 엑셀의 TIGER 시트에서 자동 갱신)</li>
         <li><code>investment_model/</code> — TAA 인컴 포트폴리오 (Python 모델 · GitHub Actions 데이터 갱신 · 대시보드)</li>
