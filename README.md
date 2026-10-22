@@ -7,11 +7,14 @@ Windows 98 레트로 감성의 **대시보드 런처(바탕화면)** 와 그 안
   해당 대시보드가 창으로 열립니다 (시작 메뉴·작업표시줄·창 이동/크기조절 지원)
 - **KOSPI 시그널 랩**: `dashboards/kospi_signal.html` — Balance of Power(BOP) 매수 신호와
   50일 이동평균 이격도 매도 신호가 KOSPI 변곡점을 잡는지 검증하는 백테스트 대시보드
-  (계산 엔진: `dashboards/kospi_signal_engine.js`, 엑셀 읽기: `dashboards/kospi_xlsx_lite.js`)
+  (계산 엔진: `dashboards/kospi_signal_engine.js`, 엑셀 읽기: `dashboards/kospi_xlsx_lite.js`).
+  **업종 2등주** 탭은 TIGER 반도체·헬스케어·2차전지테마 중 지난달 수익률 2등을 보유하는 전략을 모니터링합니다
+  (계산: `dashboards/kospi_signal_tiger.js`)
 - **TAA 인컴 포트폴리오**: `investment_model/` — 미국 ETF 25종 월간 인컴/배당 포트폴리오 모델(Python)과 대시보드.
   데이터 갱신·모델 실행은 이 저장소의 GitHub Actions가 합니다 (아래 [TAA 인컴 포트폴리오](#taa-인컴-포트폴리오-investment_model) 참고)
 - **데이터**: `data/kospi_signal.json` — private 저장소 `for_data`에 엑셀을 올리면
-  GitHub Actions가 자동으로 생성·발행하는 KOSPI 일별 OHLC (원본 파일의 전체 기간)
+  GitHub Actions가 자동으로 생성·발행하는 KOSPI 일별 OHLC (원본 파일의 전체 기간).
+  `data/kospi_tiger.json` — 같은 엑셀의 `TIGER` 시트에서 발행하는 ETF 4종 일별 수정 종가 (업종 2등주 탭)
 
 ## 데이터 갱신 (엑셀 업로드 → 자동 반영)
 
@@ -47,6 +50,7 @@ data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal
 | 차트·신호 | 현재 상태 판정 문장, KOSPI·BOP 평균·이격도 차트 위 **B / S / B⁺ 신호(ON·OFF)**, 전략 매매 표시(보유 구간 음영·체결점), 신호 내역(행을 누르면 그 날짜로 이동) |
 | 성과·최적 조합 | 누적 성과(기준 1000)·낙폭, 전략 7종 성과표(평가 기준 선택·규칙 설명), **임계치 조합표**(칸을 누르면 그 기준선 적용), 연도별 수익률, 매매 내역, 과최적화 점검(IS → OOS) |
 | 신호 검증 | B·B⁺·S 판정 문장, 신호 후 0~60일 평균 경로, 신호 후 수익률 vs 평상시(p-value·방향 판정), 기준선별 비교 |
+| 업종 2등주 | 한화투자증권 MP전략(2024.8) p.19~22의 **2등주 전략** 모니터 — 이번 달 보유 2등주·월중 성과·다음 달 잠정 2등주, 1등·2등·3등·1+2등주와 TIGER 200 누적 성과(일별)·낙폭·보유 업종 띠, 전략별 성과표, TIGER 200 대비 상회 업종 수 분포, 전월 → 이번 달 순위 전환표, 월별 순위표(CSV). 탭 안의 조건(기간·순위 기준 1/2/3/6개월·매매 비용)만 적용되고 왼쪽 KOSPI 설정은 숨겨집니다 |
 | [데이터 · 계산 방법] 창 | 엑셀 업로드, 데이터 점검 결과, CSV 내보내기, 계산식·가정·유의사항 |
 
 - **차트 조작** (보기만 바뀌고 분석 기간은 그대로 — [이 구간으로 분석]을 누를 때만 기간이 바뀜)
@@ -57,7 +61,10 @@ data/kospi/*.xlsx ──push──▶ GitHub Actions ──▶ data/kospi_signal
 
 - **데이터 범위**: 기본 데이터(`data/kospi_signal.json`)는 원본 파일의 **전체 기간**(2000년~)을 포함합니다.
   공개 범위는 for_data 저장소 `scripts/build_kospi_signal_data.py`의 `PUBLIC_LOOKBACK_DAYS`로 조정합니다.
-- **엑셀 업로드로 바로 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함)을 올리면
+- **업종 2등주 데이터**: `data/kospi_tiger.json`은 원본 `TIGER` 시트(2019년~)의 TIGER 반도체(091230)·헬스케어(143860)·
+  2차전지테마(305540)·TIGER 200(102110) 일별 수정 종가입니다. 월말 순위와 전략 성과는 브라우저가 계산합니다.
+  매월 마지막 거래일 종가로 순위를 매겨 다음 달 한 달 보유하며(월말 종가 체결 가정), 통계는 끝난 달만 씁니다.
+- **엑셀 업로드로 바로 분석**: 대시보드의 [엑셀 업로드]로 벤더 원본(`BOP` 시트 포함, `TIGER` 시트가 있으면 업종 2등주 탭에도 반영)을 올리면
   발행을 기다리지 않고 그 파일로 바로 분석합니다. 파일은 **브라우저 안에서만** 처리되며
   어디에도 전송되지 않습니다 (그 브라우저에만 보관, "기본 데이터로 되돌리기"로 삭제).
   엑셀은 자체 해석기(`kospi_xlsx_lite.js`)로 읽어 외부 라이브러리를 받지 않습니다 (.xlsx · .xlsm, 예전 .xls는 .xlsx로 저장 후 업로드).

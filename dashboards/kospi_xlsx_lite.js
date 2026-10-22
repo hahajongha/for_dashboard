@@ -1,6 +1,6 @@
 /* KOSPI 시그널 랩 — 엑셀(xlsx) 읽기 (외부 라이브러리 없음, 브라우저 안에서만 처리)
    zip 목차 → (DecompressionStream 'deflate-raw' 또는 내장 inflate) → workbook/sharedStrings/시트 XML
-   결과: { date1904, sheetNames, sheets: [{ name, rows }] }  — rows[r][c] = 셀 값 (숫자·문자열·null)
+   결과: { date1904, sheetNames, sheets: [{ name, rows }], modified }  — rows[r][c] = 셀 값 (숫자·문자열·null), modified = docProps 저장 시각
    브라우저: window.XLSXLite / Node: module.exports */
 (function (root, factory) {
   "use strict";
@@ -257,7 +257,8 @@
       if (sst === null) sst = sharedStrings(await entryText(u8, entries, "xl/sharedStrings.xml", force));
       sheets.push({ name: s.name, rows: sheetRows(xml, sst) });
     }
-    return { date1904, sheetNames: list.map((s) => s.name), sheets };
+    const core = (await entryText(u8, entries, "docProps/core.xml", force)) || "", mm = /<dcterms:modified\b[^>]*>([^<]+)</.exec(core);
+    return { date1904, sheetNames: list.map((s) => s.name), sheets, modified: mm ? mm[1].trim() : null }; // modified = 저장 시각 (W3CDTF, UTC)
   }
 
   return { readWorkbook, inflateRaw, readZip, sheetRows, sharedStrings };

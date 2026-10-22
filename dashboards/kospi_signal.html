@@ -228,6 +228,24 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
 .busy { opacity: .55; transition: opacity .15s; }
 .foot { max-width: 1600px; margin: 0 auto; padding: 0 24px 32px; font-size: 12px; color: var(--muted); }
 
+/* 업종 2등주 탭 (왼쪽 설정은 KOSPI 신호용이라 이 탭에서는 숨김) */
+.layout.solo { grid-template-columns: minmax(0, 1fr); }
+.layout.solo aside.settings { display: none; }
+.heat-ctl input[type=month] { width: 136px; text-align: left; }
+.heat-ctl .presets { margin-top: 0; }
+.tg-src { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+.sec { display: inline-flex; align-items: center; gap: 6px; }
+.sec i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.tbl td.hold { font-weight: 700; }
+.tbl td .sub { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.bars { display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; gap: 8px 12px; align-items: center; font-size: 13px; }
+.bars .bar { position: relative; height: 16px; border-radius: 4px; background: var(--surface-2); }
+.bars .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ink-2); }
+.bars .bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--c-dual); }
+.bars .v { text-align: right; white-space: nowrap; }
+table.trans td, table.trans th { text-align: center; }
+table.trans td { min-width: 76px; }
+
 @media (max-width: 1080px) { .two { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 960px) {
   .layout { grid-template-columns: minmax(0, 1fr); padding: 14px 16px 36px; gap: 14px; }
@@ -242,6 +260,7 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
   .tabs button { flex: 1; padding: 0 6px; font-size: 13px; }
   .verdict { font-size: 15px; }
   .panel { padding: 12px; }
+  .tabs button { height: auto; min-height: 34px; padding: 4px; line-height: 1.25; font-size: 12.5px; }
   .list-in input { width: 100%; }
   .foot { padding: 0 16px 28px; }
 }
@@ -325,6 +344,7 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
       <button type="button" role="tab" id="t-chart" data-tab="chart" aria-controls="p-chart" aria-selected="true">차트·신호</button>
       <button type="button" role="tab" id="t-perf" data-tab="perf" aria-controls="p-perf" aria-selected="false">성과·최적 조합</button>
       <button type="button" role="tab" id="t-check" data-tab="check" aria-controls="p-check" aria-selected="false">신호 검증</button>
+      <button type="button" role="tab" id="t-tiger" data-tab="tiger" aria-controls="p-tiger" aria-selected="false">업종 2등주</button>
     </nav>
     <div id="periodWarn" class="warnbox" hidden></div>
     <div class="panel" id="noData" hidden>
@@ -458,6 +478,80 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
         <p>기간 종료일 이후의 데이터는 쓰지 않으므로 기간 끝 무렵 신호는 긴 기간 통계에서 빠질 수 있습니다. 매도 신호는 드물어(전체 이력에서도 한 자릿수) 결과가 우연일 수 있습니다.</p>
       </div></details>
     </section>
+
+    <!-- 4. 업종 2등주 (TIGER 반도체 · 헬스케어 · 2차전지테마) -->
+    <section role="tabpanel" id="p-tiger" aria-labelledby="t-tiger" hidden>
+      <p class="verdict" id="vTiger">업종 ETF 데이터를 불러오는 중…</p>
+      <div class="panel" id="tgNoData" hidden>
+        <div class="panel-head"><div><h3>업종 ETF 데이터가 없습니다</h3><p id="tgNoDataMsg"></p></div></div>
+        <button class="btn primary" type="button" id="tgUpload">엑셀 업로드</button>
+      </div>
+      <div id="tgBody" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>이번 달 모니터</h3><p id="tgNowSub"></p></div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="tgNowTbl"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>분석 조건</h3><p>이 탭에만 적용됩니다 (왼쪽 KOSPI 신호 설정과 무관) · 이 브라우저에 저장</p></div></div>
+          <div class="heat-ctl">
+            <div class="presets" id="tgPresets">
+              <button type="button" data-tgp="all">전체</button><button type="button" data-tgp="report" title="한화투자증권 MP전략(2024.8) 분석 구간과 같은 끝 월">보고서 구간 (~2024.07)</button><button type="button" data-tgp="5y">최근 5년</button><button type="button" data-tgp="3y">최근 3년</button><button type="button" data-tgp="1y">최근 1년</button>
+            </div>
+            <label for="tgStart">첫 보유 월</label><input type="month" id="tgStart" placeholder="YYYY-MM">
+            <label for="tgEnd">마지막 보유 월</label><input type="month" id="tgEnd" placeholder="YYYY-MM">
+            <label for="tgLook">순위 기준</label><select id="tgLook"></select>
+            <label for="tgCost">매매 비용(편도)</label><input type="number" id="tgCost" step="1" min="0" max="500" inputmode="decimal"><span class="dim">bp</span>
+          </div>
+          <div class="msg" id="tgMsg" aria-live="polite"></div>
+          <div class="tg-src" id="tgSrc"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>누적 성과 (기준가 100)</h3><p id="tgNavSub"></p></div>
+            <div class="chips" id="tgChips"></div>
+          </div>
+          <div class="viewbar" id="vbTiger"></div>
+          <div id="chTiger" class="tc-host" tabindex="0" role="img" aria-label="1등·2등·3등·1+2등주와 TIGER 200 누적 성과, 낙폭, 2등주 보유 업종 (아래 성과 표·월별 순위표와 같은 내용)"></div>
+          <div class="legend-note" id="tgChNote"></div>
+          <div class="hint-row">드래그: 구간 확대 · Shift+드래그 또는 아래 막대 끌기: 이동 · 더블클릭: 전체 보기 · 맨 아래 띠 = 그달 2등주가 보유한 업종</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>전략별 성과</h3><p id="tgPerfSub"></p></div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="tgPerfTbl"></table></div>
+          <div class="legend-note" id="tgPerfNote"></div>
+        </div>
+        <div class="two">
+          <div class="panel">
+            <div class="panel-head"><div><h3>TIGER 200보다 오른 업종 수</h3><p id="tgBeatSub"></p></div></div>
+            <div class="bars" id="tgBeat"></div>
+            <div class="legend-note" id="tgBeatNote"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>전월 순위 → 이번 달 순위</h3><p>칸 = 해당 달 수 (행 기준 비율) · 색이 진할수록 자주 · 오른쪽 = 그 자리를 보유했을 때 월평균</p></div></div>
+            <div class="tbl-wrap"><table class="tbl trans" id="tgTrans"></table></div>
+            <div class="legend-note" id="tgTransNote"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>월별 순위표</h3><p id="tgMonSub"></p></div>
+            <button class="btn small" type="button" id="tgCsv">월별 CSV</button>
+          </div>
+          <div class="tbl-wrap tall"><table class="tbl" id="tgMonTbl"></table></div>
+        </div>
+        <details class="howto"><summary>계산 방법 보기</summary><div class="howto-body">
+          <p><b>근거</b>: 한화투자증권 MP전략(2024.8, ‘원상 복귀’) p.19~22 — 신용잔고와 업종 지수의 상관이 높은 반도체(0.90)·헬스케어(0.90)·2차전지(0.87)를 TIGER 반도체(091230)·TIGER 헬스케어(143860)·TIGER 2차전지테마(305540)로 바꾸고, TIGER 200(102110)과 비교합니다. 보고서는 지난달 1등·3등보다 <b>2등을 이번 달 보유</b>하는 쪽이 누적 성과가 압도적이었다고 봅니다(급등·급락 업종은 양쪽 모두 부담스러운 심리).</p>
+          <p><b>순위</b>: 매월 마지막 거래일 종가로 세 ETF의 지난달(순위 기준이 N개월이면 최근 N개월) 수익률을 비교해 1·2·3등을 정합니다. 다음 달 한 달 동안 <b>1등주</b>·<b>2등주</b>·<b>3등주</b>는 그 자리의 ETF 100%, <b>1+2등주</b>는 1등·2등 50:50(월초 재조정)을 보유합니다. 첫 달 수익률은 데이터 첫날 종가 기준입니다.</p>
+          <p><b>체결·비용</b>: 월말 종가로 판단하고 같은 종가에 교체한다고 가정합니다(보고서와 같은 단순화 — 실제로는 다음 거래일 체결로 차이가 납니다). 매매 비용은 편도 bp × 비중 변화량(종목 전량 교체 = 매도 + 매수)으로 월초에 뺍니다. 가격은 원본의 수정 종가이며 분배금 반영 여부는 원본을 따릅니다.</p>
+          <p><b>통계</b>: 끝난 달만 씁니다(진행 중인 달은 ‘이번 달’ 열과 차트에만). 월평균·표준편차는 월 수익률의 산술평균·표본표준편차, 연 Sharpe = 월평균 ÷ 월 표준편차 × √12(무위험 0), 승률 = TIGER 200보다 수익률이 높았던 달의 비율, MDD는 일별 기준가 기준입니다. 차트는 월중에도 그달 보유 비중을 유지한 일별 기준가입니다.</p>
+          <p><b>이번 달 모니터</b>: 마지막으로 끝난 달의 순위가 지금 보유 중인 종목을 정하고, 진행 중인 달의 순위(잠정)가 다음 달 2등주 후보입니다. 엑셀 저장 시각이 마지막 날짜의 15:30(KST) 전이면 그 값은 종가가 아닌 현재가이므로 ‘장중 값’으로 표시하고 그달을 끝난 달로 보지 않습니다. 설·추석처럼 월말 평일이 휴장이면 다음 달 데이터가 올 때까지 그달을 ‘진행 중’으로 두고, 다음 달 2등주는 잠정 순위로 보여 줍니다(연말 휴장일은 반영). 과거 성과는 미래 수익을 보장하지 않으며 투자 권유가 아닙니다.</p>
+        </div></details>
+      </div>
+    </section>
   </main>
 </div>
 <p class="foot" id="foot"></p>
@@ -468,7 +562,7 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
     <h3>데이터</h3>
     <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="엑셀 파일 선택 또는 끌어다 놓기">
       <b>엑셀 파일을 여기로 끌어다 놓거나 눌러서 선택</b><br>
-      <span class="dim">Infomax 원본 양식 그대로 (.xlsx · .xlsm, BOP 시트: 일자·시가·고가·저가·종가) — 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
+      <span class="dim">Infomax 원본 양식 그대로 (.xlsx · .xlsm, BOP 시트: 일자·시가·고가·저가·종가 · TIGER 시트가 있으면 업종 2등주 탭에도 반영) — 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
     </div>
     <div class="status" id="uploadStatus" aria-live="polite"></div>
     <div class="btns">
@@ -511,6 +605,7 @@ BOP(N)  = 최근 N거래일 BOP 단순평균 (N = 14 가 원본 'BOP(14MA)')
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="kospi_signal_engine.js"></script>
+<script src="kospi_signal_tiger.js"></script>
 <script src="kospi_xlsx_lite.js"></script>
 <script>
 "use strict";
@@ -1119,7 +1214,7 @@ function mountViewBar(bar, getView, views, getDates, onAnalyze) {
 try { if (window.top === window.self) $("homeBtn").hidden = false; } catch (e) {}
 
 const KEY_UPLOAD = "kospiSignal.upload.v1", KEY_SET = "kospiSignal.settings.v2", KEY_THEME = "theme";
-const TABS = ["chart", "perf", "check"];
+const TABS = ["chart", "perf", "check", "tiger"];
 const LEGACY_TAB = { signals: "check", backtest: "perf", threshold: "perf", best: "perf" };
 const STRATS = KSE.STRATEGIES, SIG_IDS = KSE.SIGNAL_IDS, ALL_IDS = KSE.STRATEGY_IDS;
 const SNAME = {};
@@ -1160,13 +1255,15 @@ const DEF_UI = () => ({
   show: { B: true, S: true, D: false, MA: true, log: false, shade: true }, overlay: "none",
   nav: ["BH", "S1", "S2", "S3", "S6"], navLog: false, link: true, crit: "excessCagr", heatTarget: "S3",
   bList: "-0.15, -0.20, -0.25, -0.30", sList: "110, 115, 120, 125, 130", trade: "S3", tab: "chart", oos: ALL_IDS.slice(),
+  tg: { preset: "all", start: null, end: null, look: 1, cost: 0, show: ["R2", "R1", "R3", "R12", "BM"], log: true },
 });
 const S = {
   data: null, src: null, ver: 0, p: KSE.withDefaults({}), i0: 0, i1: -1, start: null, end: null,
   ind: null, sig: null, bt: null, yr: null, ev: null, evMap: null, dd: null, k: {}, ui: DEF_UI(), dirty: {}, warn: [],
   loadFailed: false, heat: new Map(), thr: { key: null }, best: { key: null, res: null, splitUser: false }, tm: 0,
+  tg: { data: null, src: null, ver: 0, key: null, res: null, st: null, err: null }, // 업종 2등주 (KOSPI 데이터와 따로 불러옴)
 };
-const VIEW = { main: new View(), nav: new View() };
+const VIEW = { main: new View(), nav: new View(), tiger: new View() };
 const CH = {};
 window.__kseDebug = {
   get state() { return S; }, charts: CH, views: VIEW, markers: { B: 0, S: 0, D: 0 },
@@ -1202,6 +1299,14 @@ function loadSettings() {
   pick("trade", (v) => ALL_IDS.includes(v)); pick("tab", (v) => TABS.includes(v));
   if (u.show) for (const k in U.show) if (typeof u.show[k] === "boolean") U.show[k] = u.show[k];
   if (U.preset === "custom" && !(U.start && U.end)) U.preset = "all";
+  const t = u.tg && typeof u.tg === "object" ? u.tg : {}, T = U.tg, isYm = (v) => v === null || (typeof v === "string" && /^\d{4}-\d{2}$/.test(v));
+  if (t.preset in TG_PRESET || t.preset === "custom") T.preset = t.preset;
+  if (isYm(t.start)) T.start = t.start;
+  if (isYm(t.end)) T.end = t.end;
+  if (KST.LOOKS.includes(t.look)) T.look = t.look;
+  if (isNum(t.cost) && t.cost >= 0 && t.cost <= 500) T.cost = t.cost;
+  if (Array.isArray(t.show) && t.show.every((x) => KST.STRAT_IDS.includes(x))) T.show = t.show;
+  if (typeof t.log === "boolean") T.log = t.log;
 }
 
 /* ---------- 테마 ---------- */
@@ -1349,13 +1454,15 @@ function setTab(t, focus) {
   if (S.dirty[t]) renderTab(t);
 }
 function showPanels() {
-  const ok = !!S.bt;
-  TABS.forEach((x) => { $("p-" + x).hidden = !ok || x !== S.ui.tab; });
-  $("noData").hidden = ok || !S.loadFailed;
+  const ok = !!S.bt, tg = S.ui.tab === "tiger"; // 업종 2등주 탭은 KOSPI 데이터 없이도 표시
+  TABS.forEach((x) => { $("p-" + x).hidden = x !== S.ui.tab || (!tg && !ok); });
+  $("noData").hidden = tg || ok || !S.loadFailed;
   const w = $("periodWarn");
-  w.hidden = !ok || !S.warn.length; w.textContent = S.warn.join(" ");
+  w.hidden = tg || !ok || !S.warn.length; w.textContent = S.warn.join(" ");
+  document.querySelector(".layout").classList.toggle("solo", tg);
 }
 function renderTab(t) {
+  if (t === "tiger") { S.dirty.tiger = false; renderTiger(); return; }
   if (!S.data || !S.bt) return;
   S.dirty[t] = false;
   if (t === "chart") renderChart();
@@ -1923,6 +2030,322 @@ function thTable(list, side, cur, id, extra) {
   return h + "</tbody>";
 }
 
+/* ---------- 4. 업종 2등주 (TIGER 반도체 · 헬스케어 · 2차전지테마 vs TIGER 200) ---------- */
+const TG_PRESET = { all: "전체", report: "보고서 구간 (~2024.07)", "5y": "최근 5년", "3y": "최근 3년", "1y": "최근 1년" };
+const TG_REPORT_END = "2024-07";
+const TG_COL = { R2: "--c-buy", R1: "--s1", R3: "--s3", R12: "--s4", BM: "--c-bh", semi: "--s2", health: "--s5", batt: "--s6" };
+const TG_ASSET = {};
+KST.ASSETS.forEach((a) => { TG_ASSET[a.key] = a; });
+const TG_STRAT = {};
+KST.STRATS.forEach((s) => { TG_STRAT[s.id] = s; });
+/* 보고서(WISEfn, 2019~2024.07) 참고값 — p.20 상회 분포 · p.21 월평균/표준편차(%) */
+const TG_REF = { beat: [14.1, 40.8, 35.2, 9.9], stat: { R1: [0.3, 9.2], R2: [2.5, 9.3], R3: [-0.3, 10.5], R12: [1.4, 7.7], BM: [0.6, 5.8] } };
+const ymLabel = (ym) => (ym ? `${+ym.slice(0, 4)}년 ${+ym.slice(5, 7)}월` : "–");
+const moLabel = (ym) => (ym ? `${+ym.slice(5, 7)}월` : "–");
+const shiftYm = (ym, n) => { const t = +ym.slice(0, 4) * 12 + (+ym.slice(5, 7) - 1) + n; return Math.floor(t / 12) + "-" + String((t % 12) + 1).padStart(2, "0"); };
+const secTag = (k) => `<span class="sec"><i style="background:var(${TG_COL[k]})"></i>${esc(TG_ASSET[k].short)}</span>`;
+const lookLabel = (n) => (n === 1 ? "지난달" : `최근 ${n}개월`);
+
+function setTigerData(data, src) {
+  S.tg.data = data; S.tg.src = src; S.tg.ver++; S.tg.key = null; S.tg.res = S.tg.st = null; S.tg.err = null;
+  S.dirty.tiger = true;
+  if (S.ui.tab === "tiger") renderTab("tiger");
+  if ($("dataDlg").open) renderReport();
+}
+async function fetchTigerDefault() {
+  const res = await fetch("../data/kospi_tiger.json", { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const j = await res.json(), norm = KST.normalize(j);
+  if (!norm.data.dates.length) throw new Error("빈 데이터");
+  return { data: norm.data, src: { kind: "default", meta: j.meta || {}, report: norm.report } };
+}
+/* 기본 데이터: 저장된 업로드(TIGER 시트)가 있으면 그것을 쓰고, 발행 데이터가 더 최신이면 바꾼다 (KOSPI와 같은 규칙) */
+async function loadTigerDefault(stored, force) { // force: 저장된 업로드와 관계없이 기본 데이터로 (되돌리기)
+  if (stored) setTigerData(stored.data, stored.src);
+  const mine = S.tg.src;
+  let d;
+  try { d = await fetchTigerDefault(); } catch (e) {
+    if (!S.tg.data) { S.tg.err = "기본 데이터(data/kospi_tiger.json)를 불러오지 못했습니다" + (location.protocol === "file:" ? " — 파일로 직접 열면 브라우저가 막습니다" : "") + ". TIGER 시트가 있는 엑셀을 올리면 바로 분석할 수 있습니다."; S.dirty.tiger = true; if (S.ui.tab === "tiger") renderTab("tiger"); }
+    return;
+  }
+  if (S.tg.src !== mine) return; // 그 사이 새 파일을 올림
+  const last = (x) => x.dates[x.dates.length - 1];
+  if (!force && stored && last(d.data) <= last(stored.data)) return;
+  setTigerData(d.data, d.src);
+}
+function tgPeriod() {
+  const T = S.ui.tg, st = S.tg.st;
+  if (T.preset === "custom") return { start: T.start, end: T.end };
+  if (T.preset === "report") return { start: null, end: TG_REPORT_END };
+  const n = { "5y": 5, "3y": 3, "1y": 1 }[T.preset];
+  if (!n || !st || !st.rankYm) return { start: null, end: null };
+  return { start: shiftYm(st.rankYm, -(12 * n - 1)), end: null }; // 끝난 달 12N개 + 진행 중인 달
+}
+/* 엑셀 저장 시각: 기본 데이터는 meta.as_of, 업로드는 워크북 docProps 저장 시각 → 장중 값·월말 판단 */
+const tgAsOf = () => { const s = S.tg.src || {}; return s.asOf || (s.meta && s.meta.as_of) || null; };
+function tgCompute() {
+  const T = S.ui.tg, d = S.tg.data, asOf = tgAsOf();
+  const kS = S.tg.ver + "|" + T.look;
+  if (!S.tg.st || S.tg.stKey !== kS) { S.tg.st = KST.status(d, T.look, asOf); S.tg.stKey = kS; }
+  const pr = tgPeriod(), key = [kS, pr.start, pr.end, T.cost].join("|");
+  if (S.tg.key !== key) { S.tg.res = KST.run(d, { look: T.look, costBp: T.cost, start: pr.start, end: pr.end, asOf }); S.tg.key = key; }
+  return pr;
+}
+function renderTiger() {
+  const ok = !!S.tg.data;
+  $("tgBody").hidden = !ok; $("tgNoData").hidden = ok || !S.tg.err;
+  if (!ok) {
+    $("vTiger").textContent = S.tg.err ? "" : "업종 ETF 데이터를 불러오는 중…";
+    $("tgNoDataMsg").textContent = S.tg.err || "";
+    return;
+  }
+  const pr = tgCompute(), R = S.tg.res;
+  renderTgCtl(pr);
+  renderTgNow();
+  if (!R.ok) {
+    $("tgMsg").textContent = R.reason;
+    ["tgPerfTbl", "tgMonTbl", "tgTrans"].forEach((id) => { $(id).innerHTML = ""; });
+    $("tgBeat").innerHTML = ""; CH.tiger.empty(R.reason);
+    return;
+  }
+  $("tgMsg").textContent = pr.start && R.M[R.h0].ym > pr.start ? `${pr.start}은(는) 데이터로 계산할 수 없어 ${R.M[R.h0].ym}부터 분석합니다.` : "";
+  renderTgChips(); renderTgNav(); renderTgPerf(); renderTgBeat(); renderTgTrans(); renderTgMonths();
+}
+function renderTgCtl(pr) {
+  const T = S.ui.tg, d = S.tg.data, src = S.tg.src, D = d.dates, R = S.tg.res;
+  document.querySelectorAll("#tgPresets [data-tgp]").forEach((b) => b.setAttribute("aria-pressed", String(T.preset === b.dataset.tgp)));
+  const first = R.ok ? R.M[R.h0].ym : null, last = R.ok ? R.M[R.h1].ym : null;
+  ["tgStart", "tgEnd"].forEach((id) => { if (document.activeElement !== $(id)) $(id).setAttribute("aria-invalid", "false"); });
+  if (document.activeElement !== $("tgStart")) $("tgStart").value = T.preset === "custom" ? T.start || "" : first || "";
+  if (document.activeElement !== $("tgEnd")) $("tgEnd").value = T.preset === "custom" ? T.end || "" : last || "";
+  $("tgStart").min = $("tgEnd").min = D[0].slice(0, 7); $("tgStart").max = $("tgEnd").max = D[D.length - 1].slice(0, 7);
+  $("tgLook").value = String(T.look);
+  if (document.activeElement !== $("tgCost")) $("tgCost").value = String(T.cost);
+  const rp = src.report || {}, m = src.meta || {};
+  $("tgSrc").innerHTML = (src.kind === "upload" ? `데이터: <b>업로드</b> '${esc(src.name)}' TIGER 시트` : `데이터: <b>기본 데이터</b> (${esc(m.source || "data/kospi_tiger.json")})`) +
+    ` · ${D[0]} ~ ${D[D.length - 1]} · ${D.length.toLocaleString("ko-KR")}거래일 · ${esc((m.price_field || rp.priceField || "수정가") + "")} 기준` +
+    (() => { const a = KST.kstOf(tgAsOf()); return a ? ` · 엑셀 저장 ${a.ymd} ${String(Math.floor(a.min / 60)).padStart(2, "0")}:${String(a.min % 60).padStart(2, "0")} KST` : ""; })() +
+    (R.ok ? ` · 분석: <b>${ymLabel(first)} ~ ${ymLabel(last)}</b> 보유 (끝난 달 ${R.nFull}개${R.lastPartial ? " + 진행 중 1개" : ""})` : "");
+}
+/* 이번 달 모니터: 지금 보유 중인 2등주와 진행 중인 달의 잠정 순위 */
+function renderTgNow() {
+  const st = S.tg.st, T = S.ui.tg, D = S.tg.data.dates;
+  if (!st || !st.rank) { $("vTiger").textContent = "순위를 계산할 월말 데이터가 부족합니다."; $("tgNowTbl").innerHTML = ""; $("tgNowSub").textContent = ""; return; }
+  const lk = lookLabel(T.look), rk = st.rank, rows = st.rows, byKey = {};
+  rows.forEach((r) => { byKey[r.key] = r; });
+  const hold = st.hold, H = TG_ASSET[hold], bm = byKey.bm, h = byKey[hold];
+  const scoreTxt = (k) => `${KST.SECTOR_KEYS.includes(k) ? rk.order.indexOf(k) + 1 + "등 " : ""}${esc(TG_ASSET[k].short)} ${fmtPct(rk.score[k], 1)}`;
+  let v = st.partial
+    ? `<strong>${ymLabel(st.holdYm)}</strong> 보유 2등주: <strong>${esc(H.name)}</strong> <span class="dim">(${moLabel(st.rankYm)}${T.look > 1 ? `까지 ${T.look}개월` : ""} 수익률 2등)</span><br>`
+    : `<strong>${ymLabel(st.holdYm)}</strong> 보유 예정 2등주: <strong>${esc(H.name)}</strong> <span class="dim">(${moLabel(st.rankYm)}${T.look > 1 ? `까지 ${T.look}개월` : ""} 수익률 2등 — ${moLabel(st.rankYm)} 거래가 끝났습니다)</span><br>`;
+  v += `${moLabel(st.rankYm)} 순위: ${rk.order.map(scoreTxt).join(" · ")}`;
+  if (st.partial) {
+    const ex = h.mtd - bm.mtd;
+    v += `<br>${moLabel(st.curYm)} ${+st.lastDate.slice(8, 10)}일까지 ${esc(H.short)} <strong class="${clsOf(h.mtd)}">${fmtPct(h.mtd, 1)}</strong> · TIGER 200 ${fmtPct(bm.mtd, 1)} ` +
+      `<span class="tag ${clsOf(ex)}">TIGER 200 대비 ${fmtPp(ex, 1)}</span>`;
+    if (st.nextHold) v += `<br><span class="dim">지금 순위가 월말까지 이어지면 ${ymLabel(st.nextYm)} 2등주는 </span><strong>${esc(TG_ASSET[st.nextHold].short)}</strong> <span class="dim">(잠정 — ${moLabel(st.curYm)} 마지막 거래일 종가로 확정)</span>`;
+  }
+  if (st.intraday) v += `<br><span class="tag" style="color:var(--warn-ink)">장중 값</span> <span class="dim">${st.lastDate.slice(5)} 값은 엑셀을 ${String(Math.floor(st.asOf.min / 60)).padStart(2, "0")}:${String(st.asOf.min % 60).padStart(2, "0")}(KST)에 저장한 시점의 현재가입니다 — 종가로 확정된 값이 아니므로 순위·수익률이 바뀔 수 있습니다</span>`;
+  $("vTiger").innerHTML = v;
+  $("tgNowSub").textContent = `순위 기준 = ${lk} 수익률 · ${moLabel(st.rankYm)} 순위로 ${moLabel(st.holdYm)} 보유 종목이 정해지고, ${st.partial ? `진행 중인 ${moLabel(st.curYm)} 순위(잠정)가 ${moLabel(st.nextYm)} 후보입니다` : "다음 달 순위는 그달이 끝나야 정해집니다"} · 최근 가격 ${st.lastDate}${st.intraday ? " (장중 현재가)" : st.asOf ? "" : " (장중에 저장한 엑셀이면 현재가)"}`;
+  const order = rk.order.concat(["bm"]);
+  let t = `<thead><tr><th>ETF</th><th>코드</th><th title="${esc(lk)} 수익률 (${moLabel(st.rankYm)} 말 기준)">${moLabel(st.rankYm)} ${T.look > 1 ? T.look + "개월 " : ""}수익률</th><th>순위</th><th class="l">${moLabel(st.holdYm)} 보유</th>` +
+    (st.partial ? `<th title="${moLabel(st.curYm)} 첫 거래일 전 월말 종가 대비">${moLabel(st.curYm)} 누적 (~${st.lastDate.slice(5)})</th><th title="${esc(lk)} 수익률 순위 — 월말 확정 전">잠정 순위</th><th>TIGER 200 대비</th>` : "") +
+    `<th>최근 가격</th></tr></thead><tbody>`;
+  for (const k of order) {
+    const r = byKey[k], a = TG_ASSET[k], isBm = k === "bm", isHold = k === hold;
+    const pos = isBm ? "" : ["1등주", "2등주", "3등주"][r.prevRank - 1];
+    t += `<tr class="${isHold ? "best" : ""}${isBm ? " base grp" : ""}"><td>${isBm ? esc(a.name) + ' <span class="dim">벤치마크</span>' : secTag(k) + ` <span class="dim">${esc(a.name)}</span>`}</td><td>${a.code}</td>` +
+      `<td class="${clsOf(r.prevScore)}">${fmtPct(r.prevScore, 1)}</td><td>${isBm ? "–" : r.prevRank + "등"}</td>` +
+      `<td class="l">${isHold ? '<span class="badge">보유</span> ' + pos : isBm ? "비교 기준" : '<span class="dim">' + pos + "</span>"}</td>` +
+      (st.partial ? `<td class="${clsOf(r.mtd)}">${fmtPct(r.mtd, 1)}</td><td>${isBm ? "–" : r.nowRank + "등" + (r.nowRank === 2 ? ' <span class="dim">→ 다음 달 2등주</span>' : "")}</td>` +
+        `<td class="${isBm ? "" : clsOf(r.mtd - bm.mtd)}">${isBm ? "기준" : fmtPp(r.mtd - bm.mtd, 1)}</td>` : "") +
+      `<td>${fmtNum(r.close, 0)}</td></tr>`;
+  }
+  $("tgNowTbl").innerHTML = t + "</tbody>";
+}
+function renderTgChips() {
+  const T = S.ui.tg;
+  $("tgChips").innerHTML = KST.STRAT_IDS.map((id) => `<button class="chip" type="button" data-tgs="${id}" aria-pressed="${T.show.includes(id)}"><i class="ln" style="background:var(${TG_COL[id]})"></i>${esc(TG_STRAT[id].name)}</button>`).join("") +
+    `<button class="chip" type="button" data-tgs="log" aria-pressed="${T.log}"><i style="background:var(--ink-2)"></i>로그</button>`;
+}
+/* 일 k → 그날 보유 중인 달 (R.hs 의 순번) */
+function tgHoldIndex(R) {
+  const n = R.dates.length, out = new Int16Array(n);
+  let j = 0;
+  for (let k = 1; k < n; k++) { while (j < R.hs.length - 1 && R.i0 + k > R.M[R.hs[j]].i) j++; out[k] = j; }
+  return out;
+}
+function renderTgNav() {
+  const R = S.tg.res, T = S.ui.tg, D = R.dates, n = D.length, ids = KST.STRAT_IDS, order = ids.filter((id) => id !== "R2").concat(["R2"]);
+  const hIdx = tgHoldIndex(R), shades = [];
+  R.hs.forEach((h, j) => {
+    const k = R.ranks[h - 1].order[1], a = R.M[h - 1].i - R.i0, b = R.M[h].i - R.i0;
+    shades.push({ a, b, color: () => rgba(css(TG_COL[k]), 0.75) });
+  });
+  CH.tiger.set({
+    d0: 0, d1: n - 1, dates: D, overview: { y: R.res.R2.nav },
+    panels: [
+      { weight: 3, log: T.log, floor0: !T.log, title: "기준가 (100 = 첫 보유 직전 월말)" + (T.log ? " · 로그" : ""), yFmt: (v) => fmtNum(v, v >= 10 ? 0 : 1),
+        hlines: [{ y: 100, color: "--rule", soft: true }],
+        series: order.map((id) => ({ y: R.res[id].nav, color: TG_COL[id], width: id === "R2" ? 2.4 : id === "BM" ? 2 : 1.4, dash: KST.SECTOR_KEYS.includes(id) ? [4, 3] : id === "BM" ? [6, 3] : null, hidden: !T.show.includes(id) })) },
+      { weight: 1.1, title: "낙폭 (고점 대비)", yFmt: (v) => fmtPct(v, 0, false), yPad: 0.05, hlines: [{ y: 0, color: "--rule", soft: true }],
+        series: order.map((id) => ({ y: R.res[id].dd, color: TG_COL[id], width: id === "R2" ? 1.8 : 1.1, hidden: !T.show.includes(id) })) },
+      { weight: 0.28, yFmt: () => "", shades, series: [] },
+    ],
+    tooltip: (k) => {
+      const j = hIdx[k], h = R.hs[j], rk = R.ranks[h - 1], rows = [{ head: `${D[k]} (${wday(D[k])})` }];
+      if (k > 0) rows.push({ k: `${moLabel(R.M[h].ym)} 2등주`, v: `${esc(TG_ASSET[rk.order[1]].short)} <span class="dim">(${moLabel(R.M[h - 1].ym)} 순위 ${rk.order.map((x) => esc(TG_ASSET[x].short)).join(" > ")})</span>`, color: TG_COL[rk.order[1]] });
+      ids.filter((id) => T.show.includes(id)).forEach((id) => {
+        const v = R.res[id].nav[k];
+        rows.push({ k: esc(TG_STRAT[id].name), v: `${fmtNum(v, 1)} <span class="dim">${fmtPct(v / 100 - 1, 1)} · 낙폭 ${fmtPct(R.res[id].dd[k], 1, false)}</span>`, color: TG_COL[id] });
+      });
+      return rows;
+    },
+  });
+  $("tgNavSub").textContent = `${D[0]} ~ ${D[n - 1]} · 월말 종가로 순위 → 다음 달 보유 · 비용 편도 ${fmtNum(R.costBp, 0)}bp · 월중에는 비중을 유지한 일별 기준가` + (R.lastPartial ? ` · ${moLabel(R.M[R.h1].ym)}은 진행 중` : "");
+  const used = {};
+  R.hs.forEach((h) => { const k = R.ranks[h - 1].order[1]; used[k] = (used[k] || 0) + 1; });
+  $("tgChNote").innerHTML = "맨 아래 띠 = 그달 2등주가 보유한 업종: " + KST.SECTOR_KEYS.map((k) => `${secTag(k)} ${used[k] || 0}개월`).join(" · ") +
+    ` · 점선 = 업종 ETF·TIGER 200을 계속 보유한 경우`;
+}
+const TG_PCOLS = [
+  ["cum", "누적", (v) => fmtPct(v, 1), 1, "끝난 달 기준 누적 수익률"],
+  ["cagr", "CAGR", (v) => fmtPct(v, 1), 1, "연평균 복리 수익률 (끝난 달 수 ÷ 12 년)"],
+  ["mean", "월평균", (v) => fmtPct(v, 2), 1, "월 수익률 산술평균"],
+  ["sd", "월 표준편차", (v) => fmtPct(v, 2, false), 0, "월 수익률 표본표준편차"],
+  ["sharpe", "Sharpe", (v) => fmtNum(v, 2), 0, "월평균 ÷ 월 표준편차 × √12 (무위험 수익률 0)"],
+  ["hitBM", "승률", (v) => fmtPct(v, 0, false), 0, "TIGER 200보다 수익률이 높았던 달의 비율"],
+  ["excess", "월 초과", (v) => fmtPp(v, 2), 1, "TIGER 200 대비 월평균 초과 수익률"],
+  ["mdd", "MDD", (v) => fmtPct(v, 1, false), 0, "일별 기준가의 고점 대비 최대 낙폭"],
+  ["last12", "최근 12개월", (v) => fmtPct(v, 1), 1, "끝난 달 중 마지막 12개월 누적"],
+  ["worst", "최악의 달", (v) => fmtPct(v, 1), 1, "가장 나빴던 월 수익률"],
+  ["mtd", "이번 달", (v) => fmtPct(v, 1), 1, "진행 중인 달의 누적 수익률 (통계에는 넣지 않음)"],
+];
+function renderTgPerf() {
+  const R = S.tg.res, sts = R.stats, ids = KST.STRAT_IDS, cols = TG_PCOLS.filter((c) => c[0] !== "mtd" || R.lastPartial);
+  let best = null;
+  ["R1", "R2", "R3", "R12"].forEach((id) => { if (isNum(sts[id].cagr) && (!best || sts[id].cagr > sts[best].cagr)) best = id; });
+  let h = "<thead><tr><th>전략</th>" + cols.map(([, t, , , ti]) => `<th title="${esc(ti)}">${esc(t)}</th>`).join("") + "</tr></thead><tbody>";
+  ids.forEach((id, j) => {
+    const s = sts[id], st = TG_STRAT[id], grp = id === "BM" || (j > 0 && KST.SECTOR_KEYS.includes(id) && !KST.SECTOR_KEYS.includes(ids[j - 1]));
+    h += `<tr class="${id === best ? "best" : ""}${grp ? " grp" : ""}${KST.SECTOR_KEYS.includes(id) ? " base" : ""}"><td><span class="sname"><i style="background:var(${TG_COL[id]})"></i>${esc(st.name)}${id === best ? ' <span class="badge">최고</span>' : ""}</span><span class="srule">${esc(st.desc)}</span></td>` +
+      cols.map(([k, , fn, colored]) => ((id === "BM" && (k === "hitBM" || k === "excess")) ? '<td class="dim">기준</td>' : `<td class="${colored ? clsOf(s[k]) : ""}">${fn(s[k])}</td>`)).join("") + "</tr>";
+  });
+  $("tgPerfTbl").innerHTML = h + "</tbody>";
+  $("tgPerfSub").textContent = `끝난 달 ${R.nFull}개 (${ymLabel(R.M[R.hs[0]].ym)} ~ ${ymLabel(R.M[R.hs[R.nFull - 1]] ? R.M[R.hs[R.nFull - 1]].ym : null)}) · 빨간 배경 = 순위 전략 중 CAGR 최고 · 승률·초과는 TIGER 200 대비 · 머리글에 마우스를 올리면 정의`;
+  const s2 = sts.R2, ref = TG_REF.stat;
+  const order = ["R1", "R2", "R3", "R12"].slice().sort((a, b) => sts[b].mean - sts[a].mean);
+  $("tgPerfNote").innerHTML = `월평균 순서: ${order.map((id) => `<b>${esc(TG_STRAT[id].name)}</b> ${fmtPct(sts[id].mean, 2)}`).join(" &gt; ")} (TIGER 200 ${fmtPct(sts.BM.mean, 2)}). ` +
+    `2등주는 TIGER 200보다 <b>${fmtPct(s2.hitBM, 0, false)}</b>의 달에 더 올랐습니다.<br>` +
+    `<span class="dim">보고서 참고값(WISEfn, 2019~2024.07, 월평균/표준편차 %): ${["R1", "R2", "R3", "R12", "BM"].map((id) => `${TG_STRAT[id].name} ${fmtNum(ref[id][0], 1)}/${fmtNum(ref[id][1], 1)}`).join(" · ")} — ‘보고서 구간’ 버튼으로 같은 끝 월을 비교할 수 있습니다(시작 월·데이터 출처가 달라 값은 조금 다름).</span>`;
+}
+function renderTgBeat() {
+  const R = S.tg.res, n = R.nFull, cnt = R.beat, ref = TG_REF.beat;
+  const lab = ["모두 하회 (0개)", "1개 상회", "2개 상회", "모두 상회 (3개)"], rows = [3, 2, 1, 0];
+  let h = "";
+  rows.forEach((k) => {
+    const p = n ? cnt[k] / n : NaN;
+    h += `<span>${lab[k]}</span><span class="bar"><i style="width:${isNum(p) ? (p * 100).toFixed(1) : 0}%;background:var(${k === 0 ? "--c-sell" : k === 3 ? "--c-buy" : "--ink-2"})"></i><b style="left:${ref[k]}%" title="보고서 ${ref[k]}%"></b></span>` +
+      `<span class="v"><b>${fmtPct(p, 1, false)}</b> <span class="dim">${cnt[k]}개월</span></span>`;
+  });
+  $("tgBeat").innerHTML = h;
+  const any = n ? (n - cnt[0]) / n : NaN;
+  $("tgBeatSub").textContent = `끝난 달 ${n}개 · 그달 수익률이 TIGER 200보다 높았던 업종 ETF 수 · 주황 눈금 = 보고서 값`;
+  $("tgBeatNote").innerHTML = `셋 중 하나 이상이 TIGER 200을 이긴 달 <b>${fmtPct(any, 1, false)}</b> (보고서 ${fmtNum(100 - ref[0], 1)}%) — 셋 중 1~2개를 고르는 전략의 근거입니다. ` +
+    `업종별 승률: ${KST.SECTOR_KEYS.map((k) => `${secTag(k)} ${fmtPct(n ? R.beatBy[k] / n : NaN, 0, false)}`).join(" · ")}`;
+}
+function renderTgTrans() {
+  const R = S.tg.res, tr = R.trans, sur = css("--surface-2"), hot = css("--c-buy"), flat = [].concat.apply([], tr);
+  const mn = Math.min.apply(null, flat), mx = Math.max.apply(null, flat);
+  const means = [R.stats.R1.mean, R.stats.R2.mean, R.stats.R3.mean];
+  let h = `<thead><tr><th>전월 ＼ 이번 달</th><th>1위</th><th>2위</th><th>3위</th><th>보유 시 월평균</th></tr></thead><tbody>`;
+  tr.forEach((row, p) => {
+    const tot = row.reduce((s, v) => s + v, 0);
+    h += `<tr${p === 1 ? ' class="cur"' : ""}><th>${p + 1}등주${p === 1 ? ' <span class="badge">전략</span>' : ""}</th>` + row.map((v) => {
+      const bg = mx > mn ? mixCol(sur, hot, 0.05 + 0.5 * ((v - mn) / (mx - mn))) : sur, fg = lum(bg) > 0.2 ? "#16202A" : "#FFFFFF";
+      return `<td style="background:${bg};color:${fg}">${v}<span class="sub" style="color:inherit;opacity:.75">${fmtPct(tot ? v / tot : NaN, 0, false)}</span></td>`;
+    }).join("") + `<td class="${clsOf(means[p])}">${fmtPct(means[p], 2)}</td></tr>`;
+  });
+  $("tgTrans").innerHTML = h + "</tbody>";
+  const f = R.first, n = R.nFull;
+  $("tgTransNote").innerHTML = `그달 셋 중 수익률 1위는 전월 1등주 ${f[0]}회 · <b>2등주 ${f[1]}회</b> · 3등주 ${f[2]}회 (${n}개월). ` +
+    `전월 순위가 그대로 이어지는 정도(대각선)가 약하면 1등주 추종(모멘텀)이 잘 통하지 않는다는 뜻입니다.`;
+}
+function tgMonthRows() { // 보유 월마다: 전월 순위 · 그달 각 전략 수익률 (최신이 앞)
+  const R = S.tg.res, out = [];
+  R.hs.forEach((h, j) => {
+    const rk = R.ranks[h - 1], r = {};
+    KST.STRAT_IDS.forEach((id) => { r[id] = R.res[id].mret[j]; });
+    out.push({ h, ym: R.M[h].ym, rankYm: R.M[h - 1].ym, base: !!R.M[h - 1].base, partial: !R.M[h].complete, rk, r, w: R.res.R2.weights[j] });
+  });
+  return out.reverse();
+}
+function renderTgMonths() {
+  const R = S.tg.res, st = S.tg.st, T = S.ui.tg, rows = tgMonthRows();
+  const showNext = st && st.partial && st.rankNow && R.M[R.h1].ym === st.curYm;
+  let h = `<thead><tr><th>보유 월</th><th class="l" title="${esc(lookLabel(T.look))} 수익률 1등">전월 1등</th><th class="l" title="이 종목을 그달 보유">전월 2등 → 보유</th><th class="l">전월 3등</th>` +
+    `<th>2등주 수익률</th><th>TIGER 200</th><th title="2등주 − TIGER 200">초과</th><th>1등주</th><th>3등주</th><th>1+2등주</th></tr></thead><tbody>`;
+  const rc = (rk, p) => { const k = rk.order[p]; return `${secTag(k)} <span class="dim">${fmtPct(rk.score[k], 1)}</span>`; };
+  if (showNext) {
+    const rk = st.rankNow;
+    h += `<tr class="grp"><td>${ymLabel(st.nextYm)} <span class="dim">(잠정)</span></td><td class="l">${rc(rk, 0)}</td><td class="l hold">${rc(rk, 1)}</td><td class="l">${rc(rk, 2)}</td>` +
+      `<td colspan="6" class="dim l">${moLabel(st.curYm)} ${+st.lastDate.slice(8, 10)}일까지의 순위 — 마지막 거래일 종가로 확정</td></tr>`;
+  }
+  for (const x of rows) {
+    const ex = x.r.R2 - x.r.BM;
+    h += `<tr${x.partial ? ' class="cur"' : ""}><td>${ymLabel(x.ym)}${x.partial ? ' <span class="dim">(진행 중)</span>' : ""}${x.base ? ' <span class="dim" title="데이터 첫날 종가 대비">(전월 = 첫날부터)</span>' : ""}</td>` +
+      `<td class="l">${rc(x.rk, 0)}</td><td class="l hold">${rc(x.rk, 1)}</td><td class="l">${rc(x.rk, 2)}</td>` +
+      `<td class="${clsOf(x.r.R2)} hold">${fmtPct(x.r.R2, 1)}</td><td class="${clsOf(x.r.BM)}">${fmtPct(x.r.BM, 1)}</td><td class="${ex > 0 ? "up" : ex < 0 ? "dn" : ""}">${fmtPp(ex, 1)}</td>` +
+      `<td class="${clsOf(x.r.R1)}">${fmtPct(x.r.R1, 1)}</td><td class="${clsOf(x.r.R3)}">${fmtPct(x.r.R3, 1)}</td><td class="${clsOf(x.r.R12)}">${fmtPct(x.r.R12, 1)}</td></tr>`;
+  }
+  $("tgMonTbl").innerHTML = h + "</tbody>";
+  const won = rows.filter((x) => !x.partial && x.r.R2 > x.r.BM).length, nf = rows.filter((x) => !x.partial).length;
+  $("tgMonSub").textContent = `최신순 · 각 행의 순위 = 직전 달${T.look > 1 ? `까지 ${T.look}개월` : ""} 수익률 (그 순위로 그달 보유 종목을 정함) · 2등주가 TIGER 200을 이긴 달 ${won}/${nf} · 보고서 p.22 표와 같은 순위를 한 달 뒤 보유 월 기준으로 보여 줍니다`;
+}
+function dlTigerMonths() {
+  const T = S.ui.tg, rows = tgMonthRows().slice().reverse(), sh = (k) => TG_ASSET[k].short;
+  const out = [["hold_month", "rank_month", "look_months", "rank1", "rank1_ret", "rank2_hold", "rank2_ret", "rank3", "rank3_ret"].concat(KST.STRAT_IDS.map((id) => "ret_" + id)).concat(["excess_R2_vs_BM", "partial"])];
+  rows.forEach((x) => out.push([x.ym, x.rankYm, T.look].concat([0, 1, 2].flatMap((p) => [sh(x.rk.order[p]), x.rk.score[x.rk.order[p]]])).concat(KST.STRAT_IDS.map((id) => x.r[id])).concat([x.r.R2 - x.r.BM, x.partial ? 1 : 0])));
+  download(`kospi_tiger_second_${rows[0].ym}_${rows[rows.length - 1].ym}.csv`, out);
+}
+function tgApply(mut) { mut(S.ui.tg); saveSettings(); S.dirty.tiger = true; if (S.ui.tab === "tiger") renderTab("tiger"); }
+function wireTiger() {
+  const sel = $("tgLook");
+  KST.LOOKS.forEach((n) => { const o = document.createElement("option"); o.value = String(n); o.textContent = n === 1 ? "지난달 수익률 (보고서)" : `최근 ${n}개월 수익률`; sel.appendChild(o); });
+  sel.addEventListener("change", () => tgApply((T) => { T.look = +sel.value; }));
+  $("tgPresets").addEventListener("click", (ev) => { const b = ev.target.closest("[data-tgp]"); if (b) tgApply((T) => { T.preset = b.dataset.tgp; T.start = T.end = null; }); });
+  let tmr = 0;
+  const ymOk = (v) => v === "" || /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+  const onRange = () => {
+    const a = $("tgStart").value.trim(), b = $("tgEnd").value.trim(), okA = ymOk(a), okB = ymOk(b), order = !a || !b || a <= b;
+    $("tgStart").setAttribute("aria-invalid", String(!okA || !order)); $("tgEnd").setAttribute("aria-invalid", String(!okB || !order));
+    if (!okA || !okB || !order) { $("tgMsg").textContent = !order ? "첫 보유 월이 마지막 보유 월보다 늦습니다." : "월은 YYYY-MM 형식으로 입력하세요 (예: 2019-02)."; return; }
+    const D = S.tg.data ? S.tg.data.dates : [], lastYm = D.length ? D[D.length - 1].slice(0, 7) : "";
+    tgApply((T) => { T.preset = "custom"; T.start = a || null; T.end = b && b < lastYm ? b : null; }); // 마지막 월이면 새 달이 와도 이어지게
+  };
+  ["tgStart", "tgEnd"].forEach((id) => {
+    $(id).addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(onRange, 500); });
+    $(id).addEventListener("change", () => { clearTimeout(tmr); onRange(); });
+  });
+  const onCost = () => {
+    const inp = $("tgCost"), v = Number(inp.value), ok = inp.value.trim() !== "" && isFinite(v) && v >= 0 && v <= 500;
+    inp.setAttribute("aria-invalid", String(!ok));
+    if (!ok) { $("tgMsg").textContent = "매매 비용은 0 ~ 500bp 사이 숫자로 입력하세요."; return; }
+    tgApply((T) => { T.cost = v; });
+  };
+  $("tgCost").addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(onCost, 400); });
+  $("tgChips").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-tgs]");
+    if (!b || !S.tg.res || !S.tg.res.ok) return;
+    const k = b.dataset.tgs, T = S.ui.tg;
+    if (k === "log") T.log = !T.log; else T.show = T.show.includes(k) ? T.show.filter((x) => x !== k) : T.show.concat([k]);
+    saveSettings(); renderTgChips(); renderTgNav();
+  });
+  $("tgCsv").addEventListener("click", () => { if (S.tg.res && S.tg.res.ok) dlTigerMonths(); });
+  $("tgUpload").addEventListener("click", () => $("fileInput").click());
+}
+
 /* ---------- 데이터 창 ---------- */
 function openData() {
   renderReport();
@@ -1957,6 +2380,13 @@ function renderReport() {
     row("공개 범위", m.lookback_days > 0 ? `최근 ${m.lookback_days.toLocaleString("ko-KR")}일 — 전체 이력은 엑셀 업로드로 분석` : "원본 파일의 전체 기간");
     row("정규화", `중복 ${rp.duplicates || 0} · 제외 ${rp.dropped || 0} · 시/고/저 보정 ${rp.filledOHL || 0}`);
   }
+  const tg = S.tg;
+  if (tg.data) {
+    const TD = tg.data.dates, tm = (tg.src && tg.src.meta) || {}, trp = (tg.src && tg.src.report) || {};
+    const colL = (j) => { let o = ""; for (j += 1; j; j = Math.floor((j - 1) / 26)) o = String.fromCharCode(65 + ((j - 1) % 26)) + o; return o; };
+    const cols = tm.assets ? tm.assets.map((a) => `${a.name} ${a.column}열`) : trp.columns ? KST.ASSETS.map((a) => `${a.name} ${colL(trp.columns[a.key])}열`) : [];
+    row("업종 2등주 (TIGER 시트)", `${tg.src.kind === "upload" ? "업로드 " + tg.src.name : "기본 데이터 " + (tm.source || "data/kospi_tiger.json")} · ${TD.length.toLocaleString("ko-KR")}행 · ${TD[0]} ~ ${TD[TD.length - 1]}` + (cols.length ? " · " + cols.join(", ") : ""));
+  } else row("업종 2등주 (TIGER 시트)", tg.err || "불러오는 중…");
   const dp = KSE.defaultPeriod(S.data, S.p);
   row("지표 계산 시작", `${dp.start} (BOP(${S.p.bopMa})·이격도(${S.p.dispMa}일) 모두 계산되는 첫날 = 전체 기간의 시작)`);
   row("현재 분석 기간", S.bt ? `${S.start} ~ ${S.end} (${(S.i1 - S.i0 + 1).toLocaleString("ko-KR")}거래일)` : "–");
@@ -2001,14 +2431,23 @@ async function handleFile(file) {
   setStatus(`'${file.name}' 읽는 중…`); toast("엑셀을 읽는 중…", false, 60000);
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
-    let wb = await XLSXLite.readWorkbook(buf, { sheets: ["BOP", "INDEX"] }), res;
+    let wb = await XLSXLite.readWorkbook(buf, { sheets: ["BOP", "INDEX", KST.SHEET_NAME] }), res;
     try { res = KSE.parseWorkbookRows(wb.sheets.filter((s) => s.rows), { date1904: wb.date1904 }); }
     catch (e) { wb = await XLSXLite.readWorkbook(buf); res = KSE.parseWorkbookRows(wb.sheets, { date1904: wb.date1904 }); } // BOP 시트가 없으면 전체 시트에서 찾기
     res.report.sheets = wb.sheetNames;
+    // 업종 2등주: TIGER 시트가 있으면 함께 반영 (없거나 형식이 틀리면 기본 데이터 유지)
+    const tsh = KST.findTigerSheet(wb.sheets);
+    let tg = null, tgNote = " · TIGER 시트 없음(업종 2등주는 기본 데이터)";
+    if (tsh) {
+      try { tg = KST.parseSheet(tsh.rows, wb.date1904); tgNote = ` · TIGER 시트 ${tg.report.rows.toLocaleString("ko-KR")}행 (${tg.report.firstDate} ~ ${tg.report.lastDate})`; }
+      catch (e) { tgNote = ` · TIGER 시트를 읽지 못함(${e.message}) — 업종 2등주는 기본 데이터`; }
+    }
     const savedAt = new Date().toLocaleString("ko-KR");
-    const persisted = store.set(KEY_UPLOAD, JSON.stringify({ v: 1, name: file.name, savedAt, report: res.report, data: res.data }));
+    const persisted = store.set(KEY_UPLOAD, JSON.stringify({ v: 1, name: file.name, savedAt, report: res.report, data: res.data, tiger: tg ? { data: tg.data, report: tg.report, asOf: wb.modified } : null }));
     setData(res.data, { kind: "upload", name: file.name, savedAt, report: res.report, persisted });
-    const msg = `'${file.name}' 반영 완료 — ${res.report.sheet} 시트 ${res.report.rows.toLocaleString("ko-KR")}행 (${res.report.first} ~ ${res.report.last})` +
+    if (tg) setTigerData(tg.data, { kind: "upload", name: file.name, savedAt, report: tg.report, asOf: wb.modified });
+    else if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
+    const msg = `'${file.name}' 반영 완료 — ${res.report.sheet} 시트 ${res.report.rows.toLocaleString("ko-KR")}행 (${res.report.first} ~ ${res.report.last})` + tgNote +
       (persisted ? " · 이 브라우저에 저장됨" : " · 브라우저 저장 공간이 부족해 이번 화면에서만 사용");
     setStatus(msg); toast(msg, false, 6000);
     if ($("dataDlg").open) renderReport();
@@ -2023,7 +2462,13 @@ function loadStored() {
   try {
     const j = JSON.parse(raw), d = j && j.data;
     if (!d || !Array.isArray(d.dates) || !d.dates.length || d.c.length !== d.dates.length) return null;
-    return { data: KSE.normalizeData(d).data, src: { kind: "upload", name: String(j.name || "업로드 파일"), savedAt: j.savedAt, report: j.report || {} } };
+    const name = String(j.name || "업로드 파일");
+    let tiger = null;
+    if (j.tiger && j.tiger.data && Array.isArray(j.tiger.data.dates)) {
+      const n = KST.normalize(j.tiger.data);
+      if (n.data.dates.length) tiger = { data: n.data, src: { kind: "upload", name, savedAt: j.savedAt, report: j.tiger.report || n.report, asOf: j.tiger.asOf || null } };
+    }
+    return { data: KSE.normalizeData(d).data, src: { kind: "upload", name, savedAt: j.savedAt, report: j.report || {} }, tiger };
   } catch (e) { return null; }
 }
 async function loadDefault() {
@@ -2042,6 +2487,7 @@ async function preferNewerDefault(stored) {
   if (last(d.data) <= last(stored.data) || S.src !== stored.src) return; // 그 사이 다른 파일을 올렸으면 건드리지 않음
   store.del(KEY_UPLOAD);
   setData(d.data, d.src);
+  if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
   const m = `새 기본 데이터(${last(d.data)}까지)를 불러왔습니다 — 저장된 업로드 '${stored.src.name}'(${last(stored.data)}까지)보다 최신입니다.`;
   setStatus(m); toast(m, false, 8000);
   if ($("dataDlg").open) renderReport();
@@ -2190,6 +2636,7 @@ function wire() {
     try { d = await loadDefault(); } catch (e) { const m = "기본 데이터를 불러오지 못했습니다 (data/kospi_signal.json). 업로드한 데이터를 그대로 유지합니다."; setStatus(m, true); toast(m, true, 6000); return; }
     store.del(KEY_UPLOAD); // 기본 데이터를 받은 뒤에만 저장된 업로드를 지움
     setData(d.data, d.src);
+    if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
     const m = `기본 데이터(${scopeLabel(d.src && d.src.meta)})로 되돌렸습니다.`;
     setStatus(m); toast(m);
     if ($("dataDlg").open) renderReport();
@@ -2216,9 +2663,11 @@ function makeCharts() {
   CH.pb = new TimeChart($("chPathB"), { height: 280, minHeight: 240, zoom: false });
   CH.ps = new TimeChart($("chPathS"), { height: 280, minHeight: 240, zoom: false });
   CH.oos = new TimeChart($("chOos"), { height: 300, minHeight: 240 });
+  CH.tiger = new TimeChart($("chTiger"), { height: 460, minHeight: 360, overview: true, view: VIEW.tiger });
   const dates = () => S.data && S.data.dates;
   mountViewBar($("vbMain"), () => VIEW.main, [VIEW.main], dates, analyzeRange);
   navBarUpd = mountViewBar($("vbNav"), () => (S.ui.link ? VIEW.main : VIEW.nav), [VIEW.main, VIEW.nav], dates, analyzeRange);
+  mountViewBar($("vbTiger"), () => VIEW.tiger, [VIEW.tiger], () => (S.tg.res && S.tg.res.ok ? S.tg.res.dates : null), null);
 }
 async function init() {
   loadSettings();
@@ -2228,12 +2677,14 @@ async function init() {
   if (t0) S.ui.tab = t0;
   makeCharts();
   wire();
+  wireTiger();
   $("stratSel").value = S.ui.overlay; $("crit").value = S.ui.crit; $("heatTarget").value = S.ui.heatTarget;
   document.querySelectorAll("#showChips [data-show]").forEach((b) => b.setAttribute("aria-pressed", String(!!S.ui.show[b.dataset.show])));
   document.querySelectorAll("#tabs [role=tab]").forEach((b) => { const on = b.dataset.tab === S.ui.tab; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   showPanels();
   if (h === "data") openData();
   const stored = loadStored();
+  loadTigerDefault(stored && stored.tiger); // 업종 2등주 데이터는 따로 (기다리지 않음)
   if (stored) { setData(stored.data, stored.src); preferNewerDefault(stored); return; }
   try {
     const d = await loadDefault();
