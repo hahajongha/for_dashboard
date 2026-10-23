@@ -260,6 +260,29 @@ dialog#dataDlg::backdrop { background: rgba(10,15,20,.45); }
 table.trans td, table.trans th { text-align: center; }
 table.trans td { min-width: 76px; }
 
+/* 3 업종 추세 · 시장 폭 */
+.smap { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.scol { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px 10px; background: var(--surface-2); min-width: 0; }
+.scol h4 { margin: 0 0 6px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.scol h4 i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
+.scol h4 b { margin-left: auto; font-size: 15px; }
+.slab { font-size: 11.5px; color: var(--muted); margin: 6px 0 4px; }
+.sitems { display: flex; flex-wrap: wrap; gap: 4px; }
+.sitems .none { font-size: 12px; color: var(--muted); }
+.sitem { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border: 1px solid var(--rule); border-left: 3px solid var(--sc); border-radius: 6px; background: var(--surface); font-size: 12px; cursor: pointer; color: var(--ink); }
+.sitem span { color: var(--muted); font-size: 11px; }
+.sitem:hover { border-color: var(--ink-2); border-left-color: var(--sc); }
+.sitem[aria-pressed=true] { outline: 2px solid var(--ink); outline-offset: 0; }
+.ttd { display: inline-flex; gap: 2px; vertical-align: -1px; }
+.ttd i { width: 9px; height: 12px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--rule); }
+.ttd i.on { background: var(--c-buy); border-color: var(--c-buy); }
+.ttd i.k8 { margin-left: 4px; }
+.stg { display: inline-block; font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 9px; line-height: 18px; border: 1px solid currentColor; white-space: nowrap; }
+.stg.s2 { color: var(--c-buy); } .stg.s3 { color: var(--c-dual); } .stg.s4 { color: var(--c-sell); } .stg.s1, .stg.s0 { color: var(--muted); } .stg.s0 { border-style: dashed; }
+.tbl th .srt { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.tbl th[aria-sort] { color: var(--ink); }
+.div-box p { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); }
+
 @media (max-width: 1080px) { .two { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 960px) {
   .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 36px; gap: 14px; }
@@ -566,6 +589,117 @@ table.trans td { min-width: 76px; }
         </div></details>
       </div>
     </section>
+
+    <!-- ===== 3 업종 추세 · 시장 폭 (SECTOR 시트: 업종별 일별 종가지수) ===== -->
+    <!-- 3-1. 업종 순위·단계 -->
+    <section role="tabpanel" id="p-sectors" aria-labelledby="t-sectors" hidden>
+      <p class="verdict" id="vSectors">업종 데이터를 불러오는 중…</p>
+      <div class="panel" id="scNoData" hidden>
+        <div class="panel-head"><div><h3>업종 데이터가 없습니다</h3><p id="scNoDataMsg"></p></div></div>
+        <button class="btn primary" type="button" id="scUpload">엑셀 업로드</button>
+      </div>
+      <div id="scBody" hidden>
+        <div class="panel">
+          <div class="panel-head"><div><h3>분석 조건</h3><p>3 업종 추세 · 시장 폭에만 적용됩니다 (다른 묶음 설정과 무관) · 이 브라우저에 저장</p></div></div>
+          <div class="heat-ctl">
+            <label for="scDate">기준일</label><input type="date" id="scDate">
+            <button class="btn small" type="button" id="scLatest" title="가장 최근 거래일 (새 데이터가 오면 따라감)">최근</button>
+            <button class="btn small" type="button" id="scKHi" title="KOSPI가 마지막으로 52주 종가 신고가를 낸 날">KOSPI 52주 신고가일</button>
+            <label for="scRs">RS 기준</label><select id="scRs"></select>
+          </div>
+          <div class="msg" id="scMsg" aria-live="polite"></div>
+          <div class="tg-src" id="scSrc"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>단계 지도</h3><p id="scMapSub"></p></div></div>
+          <div class="smap" id="scMap"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>업종 순위표</h3><p id="scTblSub"></p></div>
+            <button class="btn small" type="button" id="scCsv">순위표 CSV</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl sc" id="scTbl"></table></div>
+          <div class="legend-note">추세 템플릿 칸: 1 가격 &gt; 150·200일선 · 2 150일선 &gt; 200일선 · 3 200일선 상승(21거래일 전보다 높음) · 4 50일선 &gt; 150·200일선 · 5 가격 &gt; 50일선 · 6 52주 최저가보다 30% 이상 위 · 7 52주 최고가의 25% 이내 · 8 RS 70 이상 — 1~7을 모두 충족하면 2단계.
+            52주 고점·저점 칸이 흐리면 7번·6번 조건에 못 미친 것입니다.</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3 id="scDetTitle">업종 상세</h3><p id="scDetSub"></p></div>
+            <div class="chips">
+              <div class="presets" id="scDetPresets"><button type="button" data-dp="1y">1년</button><button type="button" data-dp="3y">3년</button><button type="button" data-dp="5y">5년</button><button type="button" data-dp="10y">10년</button><button type="button" data-dp="all">전체</button></div>
+              <div class="chips" id="scDetChips"></div>
+            </div>
+          </div>
+          <div class="viewbar" id="vbSector"></div>
+          <div id="chSector" class="tc-host" tabindex="0" role="img" aria-label="고른 업종의 종가지수·50·150·200일선, RS 백분위, 단계 띠 (위 순위표와 같은 내용)"></div>
+          <div class="legend-note" id="scDetNote"></div>
+          <div class="hint-row">드래그: 구간 확대 · Shift+드래그 또는 아래 막대 끌기: 이동 · 더블클릭: 전체 보기 · 단계 지도나 순위표에서 업종을 누르면 바뀝니다</div>
+        </div>
+        <details class="howto"><summary>계산 방법 보기</summary><div class="howto-body">
+          <p><b>데이터</b>: 엑셀 SECTOR 시트의 업종별 일별 종가지수입니다(업종명으로 표시). 모든 값은 그날 종가까지만 쓰며, 52주 최고·최저도 종가 기준입니다(장중 고가·저가 없음).</p>
+          <p><b>RS(상대강도)</b>: 기본은 3·6·9·12개월(63·126·189·252거래일) 수익률을 40/20/20/20으로 더한 점수입니다(최근 분기에 무게를 두는 널리 쓰이는 근사). 그날 업종 사이 순위를 백분위로 바꿔 가장 강한 업종이 100, 가장 약한 업종이 0입니다. 3·6·12개월 단독 기준으로 바꿔 볼 수 있습니다 — 급락 직후처럼 추세가 바뀌는 때에는 12개월이 섞인 가중 점수가 지난 상승을 오래 반영합니다.</p>
+          <p><b>추세 템플릿</b>(마크 미너비니): 위 순위표 아래 1~8 조건입니다. 개별 종목용 기준을 업종 지수에 그대로 적용했기 때문에, 변동성이 낮은 업종은 6번(52주 최저가보다 30% 이상 위)을 충족하기 어렵습니다.</p>
+          <p><b>단계</b>: <b>2단계(상승)</b> = 추세 템플릿 1~7을 모두 충족 · <b>4단계(하락)</b> = 가격이 150·200일선 아래 + 150일선 &lt; 200일선 + 200일선이 21거래일 전보다 낮음 · 그 밖의 날은 마지막으로 확정된 단계가 2단계면 <b>3단계(천장 · 2단계 이탈)</b>, 4단계면 <b>1단계(바닥 · 4단계 이탈)</b>입니다. 큰 상승 뒤에는 200일선이 늦게 꺾여, 가격이 200일선 아래로 크게 내려가도 한동안 3단계로 남습니다(단계 지도에 200일선 위·아래로 나눠 표시). 추세 템플릿·단계는 업종마다 252거래일(52주) 이력이 있어야 판정하며, 값이 빠진 날이 있으면 그날부터 252거래일 동안은 그 업종을 ‘판정 전’으로 둡니다.</p>
+          <p>과거 성과는 미래 수익을 보장하지 않습니다. 투자 권유가 아닌 시장 점검 도구입니다.</p>
+        </div></details>
+      </div>
+    </section>
+
+    <!-- 3-2. 시장 폭 -->
+    <section role="tabpanel" id="p-breadth" aria-labelledby="t-breadth" hidden>
+      <p class="verdict" id="vBreadth">업종 데이터를 불러오는 중…</p>
+      <div class="panel" id="brNoData" hidden>
+        <div class="panel-head"><div><h3>업종 데이터가 없습니다</h3><p id="brNoDataMsg"></p></div></div>
+        <button class="btn primary" type="button" id="brUpload">엑셀 업로드</button>
+      </div>
+      <div id="brBody" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>KOSPI와 시장 폭</h3><p id="brSub"></p></div>
+            <div class="chips">
+              <div class="presets" id="brPresets"><button type="button" data-bp="1y">1년</button><button type="button" data-bp="3y">3년</button><button type="button" data-bp="5y">5년</button><button type="button" data-bp="10y">10년</button><button type="button" data-bp="all">전체</button></div>
+              <div class="chips" id="brChips"></div>
+            </div>
+          </div>
+          <div class="viewbar" id="vbBreadth"></div>
+          <div id="chBreadth" class="tc-host" tabindex="0" role="img" aria-label="KOSPI와 업종 동일가중 지수, 2단계·200일선 위·50일선 위 업종 비율, 52주 신고가·신저가 업종 수 (아래 월말 표와 같은 내용)"></div>
+          <div class="legend-note" id="brChNote"></div>
+        </div>
+        <div class="two">
+          <div class="panel">
+            <div class="panel-head"><div><h3>지금 시장 폭의 위치</h3><p id="brPosSub"></p></div></div>
+            <div class="tbl-wrap"><table class="tbl" id="brPosTbl"></table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>다이버전스 점검</h3><p>KOSPI 52주 신고가 때 업종 폭이 함께 넓었나</p></div></div>
+            <div class="legend-note div-box" id="brDiv"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>과거 비슷한 국면 — 200일선 위 업종이 적었던 때</h3><p id="brEpSub"></p></div>
+            <div class="heat-ctl"><label for="brEp">200일선 위 업종</label><select id="brEp"></select></div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="brEpTbl"></table></div>
+          <div class="legend-note" id="brEpNote"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>월말 시장 폭</h3><p id="brMonSub"></p></div>
+            <button class="btn small" type="button" id="brCsv">일별 CSV</button>
+          </div>
+          <div class="tbl-wrap tall"><table class="tbl" id="brMonTbl"></table></div>
+        </div>
+        <details class="howto"><summary>계산 방법 보기</summary><div class="howto-body">
+          <p><b>시장 폭</b>: 날마다 업종 가운데 2단계(추세 템플릿 1~7 충족)·4단계인 업종 수, 종가가 50·200일선 위인 업종 비율, 그날 52주(252거래일) 종가 신고가·신저가를 낸 업종 수입니다. 모든 업종의 200일선·52주 값을 계산할 수 있는 날부터 셉니다.</p>
+          <p><b>업종 동일가중</b>: 날마다 업종 일간 수익률을 단순평균해 누적한 지수입니다. 시가총액이 큰 업종이 끄는 KOSPI와 달리 모든 업종을 똑같이 셉니다 — KOSPI만 오르고 동일가중이 따라오지 못하면 소수 업종이 지수를 끌어올린 것입니다. KOSPI는 1 BOP · 이격도의 KOSPI 종가를 날짜에 맞춰 씁니다.</p>
+          <p><b>다이버전스 점검</b>: KOSPI가 마지막으로 52주 종가 신고가를 낸 날의 2단계 업종 수를 그 전 252거래일 동안의 최대와 비교합니다.</p>
+          <p><b>과거 비슷한 국면</b>: 시장 폭을 셀 수 있는 날 가운데 200일선 위 업종이 고른 개수 이하인 날을 모아, 직전 해당일과 126거래일 넘게 떨어진 첫날을 새 국면의 시작으로 봅니다. 그날 KOSPI 종가 기준 1·3·6·12개월(21·63·126·252거래일) 뒤 수익률과 6개월 안 최저(시작일 포함)를 보여 줍니다. 아직 6개월이 지나지 않은 국면은 ‘진행 중’이며 통계에서 뺍니다. 표본이 적어 참고용입니다.</p>
+          <p>과거 성과는 미래 수익을 보장하지 않습니다. 투자 권유가 아닌 시장 점검 도구입니다.</p>
+        </div></details>
+      </div>
+    </section>
   </main>
 </div>
 <p class="foot" id="foot"></p>
@@ -576,7 +710,7 @@ table.trans td { min-width: 76px; }
     <h3>데이터 <span class="h-note">모든 전략 묶음이 같은 엑셀을 씁니다</span></h3>
     <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="엑셀 파일 선택 또는 끌어다 놓기">
       <b>엑셀 파일을 여기로 끌어다 놓거나 눌러서 선택</b><br>
-      <span class="dim">Infomax 원본 양식 그대로 (.xlsx · .xlsm) — BOP 시트(일자·시가·고가·저가·종가)는 1 BOP · 이격도, TIGER 시트는 2 업종 2등주에 반영 · 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
+      <span class="dim">원본 양식 그대로 (.xlsx · .xlsm) — BOP 시트(일자·시가·고가·저가·종가)는 1 BOP · 이격도, TIGER 시트는 2 업종 2등주, SECTOR 시트(업종별 종가지수)는 3 업종 추세 · 시장 폭에 반영 · 파일은 이 브라우저 안에서만 읽고 어디로도 보내지 않습니다</span>
     </div>
     <div class="status" id="uploadStatus" aria-live="polite"></div>
     <div class="btns">
@@ -621,6 +755,15 @@ BOP(N)  = 최근 N거래일 BOP 단순평균 (N = 14 가 원본 'BOP(14MA)')
         <li><b>통계</b> — 끝난 달만 (진행 중인 달은 ‘이번 달’로만) · 엑셀 저장 시각이 마지막 날짜의 15:30(KST) 전이면 장중 값으로 표시</li>
         <li>자세한 계산 방법은 2 업종 2등주 화면 맨 아래 ‘계산 방법 보기’에 있습니다.</li>
       </ul>
+      <h3 class="gsec" id="m-trend"><span class="gno">3</span>업종 추세 · 시장 폭</h3>
+      <ul>
+        <li><b>데이터</b> — SECTOR 시트의 업종별 일별 종가지수 (업종명으로 표시)</li>
+        <li><b>RS</b> — 3·6·9·12개월 수익률을 40/20/20/20으로 더한 점수(또는 3·6·12개월 단독)의 그날 업종 사이 백분위 (가장 강한 업종 100)</li>
+        <li><b>추세 템플릿</b> — 1 P &gt; 150·200일선 · 2 150일선 &gt; 200일선 · 3 200일선 &gt; 21거래일 전 · 4 50일선 &gt; 150·200일선 · 5 P &gt; 50일선 · 6 P ≥ 1.3 × 52주 최저 · 7 P ≥ 0.75 × 52주 최고 · 8 RS ≥ 70 (모두 종가 기준)</li>
+        <li><b>단계</b> — 2 = 1~7 모두 충족 · 4 = P &lt; 150·200일선, 150일선 &lt; 200일선, 200일선 하락 · 그 밖의 날은 직전 확정 단계가 2면 3, 4면 1</li>
+        <li><b>시장 폭</b> — 2단계·4단계 업종 수, 50·200일선 위 업종 비율, 52주 신고가·신저가 업종 수, 업종 동일가중 지수 · 다이버전스 = KOSPI 52주 신고가일의 2단계 업종 수와 그 전 1년 최대 비교</li>
+        <li>자세한 계산 방법은 3 업종 추세 · 시장 폭 화면 맨 아래 ‘계산 방법 보기’에 있습니다.</li>
+      </ul>
     </div>
   </div>
 </dialog>
@@ -628,6 +771,7 @@ BOP(N)  = 최근 N거래일 BOP 단순평균 (N = 14 가 원본 'BOP(14MA)')
 
 <script src="kospi_signal_engine.js"></script>
 <script src="kospi_signal_tiger.js"></script>
+<script src="kospi_signal_sector.js"></script>
 <script src="kospi_xlsx_lite.js"></script>
 <script>
 "use strict";
@@ -1246,11 +1390,14 @@ const GROUPS = [
   { id: "second", no: 2, name: "업종 2등주", tag: "TIGER 업종 ETF 월간 순위 전략",
     desc: "TIGER 반도체 · 헬스케어 · 2차전지테마 중 지난달 수익률 2등을 이번 달 보유 — 1등 · 3등 · 1+2등주, TIGER 200과 비교합니다",
     tabs: [["tiger", "업종 2등주"]], kospi: false, settings: false, head: () => tigerHead() },
+  { id: "trend", no: 3, name: "업종 추세 · 시장 폭", tag: "업종별 추세 템플릿 · 단계 · 다이버전스",
+    desc: "업종마다 추세 템플릿(미너비니 1~8) · 단계(1~4) · 상대강도를 매기고, 2단계 업종 수와 이동평균선 위 업종 비율로 시장 폭과 KOSPI 다이버전스를 봅니다",
+    tabs: [["sectors", "업종 순위·단계"], ["breadth", "시장 폭"]], kospi: false, settings: false, head: () => sectorHead() },
 ];
 const TABS = GROUPS.flatMap((g) => g.tabs.map((x) => x[0]));
 const GROUP_OF = {};
 GROUPS.forEach((g) => g.tabs.forEach(([t]) => { GROUP_OF[t] = g; }));
-const RENDER = { chart: renderChart, perf: renderPerf, check: renderCheck, tiger: renderTiger };
+const RENDER = { chart: renderChart, perf: renderPerf, check: renderCheck, tiger: renderTiger, sectors: renderSectors, breadth: renderBreadth };
 const LEGACY_TAB = { signals: "check", backtest: "perf", threshold: "perf", best: "perf" };
 const HEAD = { bop: { html: "불러오는 중…", foot: "" } }; // 1 BOP · 이격도 머리글 데이터 줄·바닥글 (renderStatic 이 채움)
 const STRATS = KSE.STRATEGIES, SIG_IDS = KSE.SIGNAL_IDS, ALL_IDS = KSE.STRATEGY_IDS;
@@ -1294,14 +1441,16 @@ const DEF_UI = () => ({
   bList: "-0.15, -0.20, -0.25, -0.30", sList: "110, 115, 120, 125, 130", trade: "S3", tab: "chart", oos: ALL_IDS.slice(),
   gtab: Object.fromEntries(GROUPS.map((g) => [g.id, g.tabs[0][0]])), // 묶음마다 마지막으로 본 탭
   tg: { preset: "all", start: null, end: null, look: 1, cost: 0, show: ["R2", "R1", "R3", "R12", "BM"], log: true },
+  sc: { rs: "w", date: null, sort: "rank", dir: 1, sel: null, log: false, blog: false, dp: "3y", bp: "5y", ep: 1, show: ["n2", "a200"] },
 });
 const S = {
   data: null, src: null, ver: 0, p: KSE.withDefaults({}), i0: 0, i1: -1, start: null, end: null,
   ind: null, sig: null, bt: null, yr: null, ev: null, evMap: null, dd: null, k: {}, ui: DEF_UI(), dirty: {}, warn: [],
   loadFailed: false, heat: new Map(), thr: { key: null }, best: { key: null, res: null, splitUser: false }, tm: 0,
   tg: { data: null, src: null, ver: 0, key: null, res: null, st: null, err: null }, // 업종 2등주 (KOSPI 데이터와 따로 불러옴)
+  sc: { data: null, src: null, ver: 0, st: null, stVer: -1, err: null, kc: null, kcKey: null, div: null, mon: null, eps: {}, rows: null, i: -1 }, // 업종 추세 · 시장 폭
 };
-const VIEW = { main: new View(), nav: new View(), tiger: new View() };
+const VIEW = { main: new View(), nav: new View(), tiger: new View(), sector: new View(), breadth: new View() };
 const CH = {};
 window.__kseDebug = {
   get state() { return S; }, charts: CH, views: VIEW, markers: { B: 0, S: 0, D: 0 },
@@ -1347,6 +1496,18 @@ function loadSettings() {
   if (isNum(t.cost) && t.cost >= 0 && t.cost <= 500) T.cost = t.cost;
   if (Array.isArray(t.show) && t.show.every((x) => KST.STRAT_IDS.includes(x))) T.show = t.show;
   if (typeof t.log === "boolean") T.log = t.log;
+  const c = u.sc && typeof u.sc === "object" ? u.sc : {}, C = U.sc;
+  if (KSC.RS_IDS.includes(c.rs)) C.rs = c.rs;
+  if (c.date === null || (typeof c.date === "string" && KSC.toISODate(c.date) === c.date)) C.date = c.date;
+  if (SC_SORT.includes(c.sort)) C.sort = c.sort;
+  if (c.dir === 1 || c.dir === -1) C.dir = c.dir;
+  if (c.sel === null || typeof c.sel === "string") C.sel = c.sel;
+  if (typeof c.log === "boolean") C.log = c.log;
+  if (typeof c.blog === "boolean") C.blog = c.blog;
+  if (Object.prototype.hasOwnProperty.call(SC_PERIODS, c.dp)) C.dp = c.dp;
+  if (Object.prototype.hasOwnProperty.call(SC_PERIODS, c.bp)) C.bp = c.bp;
+  if (EP_OPTS.includes(c.ep)) C.ep = c.ep;
+  if (Array.isArray(c.show) && c.show.every((x) => BR_SERIES.some((b) => b[0] === x))) C.show = c.show;
 }
 
 /* ---------- 테마 ---------- */
@@ -2095,7 +2256,7 @@ const TG_ASSET = {};
 KST.ASSETS.forEach((a) => { TG_ASSET[a.key] = a; });
 const TG_STRAT = {};
 KST.STRATS.forEach((s) => { TG_STRAT[s.id] = s; });
-/* 보고서(WISEfn, 2019~2024.07) 참고값 — p.20 상회 분포 · p.21 월평균/표준편차(%) */
+/* 보고서(2019~2024.07) 참고값 — p.20 상회 분포 · p.21 월평균/표준편차(%) */
 const TG_REF = { beat: [14.1, 40.8, 35.2, 9.9], stat: { R1: [0.3, 9.2], R2: [2.5, 9.3], R3: [-0.3, 10.5], R12: [1.4, 7.7], BM: [0.6, 5.8] } };
 const ymLabel = (ym) => (ym ? `${+ym.slice(0, 4)}년 ${+ym.slice(5, 7)}월` : "–");
 const moLabel = (ym) => (ym ? `${+ym.slice(5, 7)}월` : "–");
@@ -2306,7 +2467,7 @@ function renderTgPerf() {
   const order = ["R1", "R2", "R3", "R12"].slice().sort((a, b) => sts[b].mean - sts[a].mean);
   $("tgPerfNote").innerHTML = `월평균 순서: ${order.map((id) => `<b>${esc(TG_STRAT[id].name)}</b> ${fmtPct(sts[id].mean, 2)}`).join(" &gt; ")} (TIGER 200 ${fmtPct(sts.BM.mean, 2)}). ` +
     `2등주는 TIGER 200보다 <b>${fmtPct(s2.hitBM, 0, false)}</b>의 달에 더 올랐습니다.<br>` +
-    `<span class="dim">보고서 참고값(WISEfn, 2019~2024.07, 월평균/표준편차 %): ${["R1", "R2", "R3", "R12", "BM"].map((id) => `${TG_STRAT[id].name} ${fmtNum(ref[id][0], 1)}/${fmtNum(ref[id][1], 1)}`).join(" · ")} — ‘보고서 구간’ 버튼으로 같은 끝 월을 비교할 수 있습니다(시작 월·데이터 출처가 달라 값은 조금 다름).</span>`;
+    `<span class="dim">보고서 참고값(2019~2024.07, 월평균/표준편차 %): ${["R1", "R2", "R3", "R12", "BM"].map((id) => `${TG_STRAT[id].name} ${fmtNum(ref[id][0], 1)}/${fmtNum(ref[id][1], 1)}`).join(" · ")} — ‘보고서 구간’ 버튼으로 같은 끝 월을 비교할 수 있습니다(시작 월·데이터 출처가 달라 값은 조금 다름).</span>`;
 }
 function renderTgBeat() {
   const R = S.tg.res, n = R.nFull, cnt = R.beat, ref = TG_REF.beat;
@@ -2414,6 +2575,418 @@ function wireTiger() {
   $("tgUpload").addEventListener("click", () => $("fileInput").click());
 }
 
+/* ---------- 3 업종 추세 · 시장 폭 ---------- */
+const KEY_UP_SECTOR = "kospiSignal.upload.sector.v1"; // SECTOR 시트 업로드 (KOSPI 업로드와 따로 — 저장 공간이 모자라도 서로 영향 없게)
+const SC_PERIODS = { "1y": ["1년", 1], "3y": ["3년", 3], "5y": ["5년", 5], "10y": ["10년", 10], all: ["전체", 0] };
+const STG_COL = { 0: "--rule", 1: "--muted", 2: "--c-buy", 3: "--c-dual", 4: "--c-sell" };
+const STG_SHORT = { 0: "판정 전", 1: "1단계", 2: "2단계", 3: "3단계", 4: "4단계" };
+const BR_SERIES = [["n2", "2단계 업종", "--c-buy"], ["a200", "200일선 위", "--s1"], ["a50", "50일선 위", "--s4"]];
+const EP_OPTS = [0, 1, 2, 3, 5];
+const SC_COLS = [
+  ["rank", "순위", "RS 원점수 순위 (1 = 가장 강함)", 1],
+  ["name", "업종", "", 1],
+  ["rs", "RS", "상대강도 백분위 — 그날 업종 사이 순위 (가장 강한 업종 100, 가장 약한 업종 0)", -1],
+  ["r21", "1개월", "21거래일 수익률", -1], ["r63", "3개월", "63거래일 수익률", -1], ["r126", "6개월", "126거래일 수익률", -1], ["r252", "12개월", "252거래일 수익률", -1],
+  ["tt8", "추세 템플릿", "조건 1~8 충족 여부 (칸에 마우스를 올리면 조건) — 8번은 RS 70 이상", -1],
+  ["tt", "1~7", "추세 템플릿 1~7 중 충족한 수 (7 = 2단계)", -1],
+  ["stage", "단계", "2 상승 · 3 천장(2단계 이탈) · 4 하락 · 1 바닥(4단계 이탈) — 아래는 그 단계가 시작된 날", -1],
+  ["ext50", "50일선", "종가 ÷ 50일 이동평균 − 1", -1], ["ext200", "200일선", "종가 ÷ 200일 이동평균 − 1", -1],
+  ["fromHi", "52주 고점", "52주(252거래일) 최고 종가 대비", -1], ["fromLo", "52주 저점", "52주 최저 종가 대비", -1],
+];
+const SC_SORT = SC_COLS.map((c) => c[0]);
+const shiftYears = (d, n) => String(+d.slice(0, 4) + n).padStart(4, "0") + d.slice(4);
+const median = (a) => { const s = a.filter(isNum).sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
+const stgTag = (g) => `<span class="stg s${g}">${STG_SHORT[g]}</span>`;
+
+function setSectorData(data, src) {
+  S.sc.data = data; S.sc.src = src; S.sc.ver++; S.sc.st = null; S.sc.err = null; S.sc.kcKey = null;
+  S.dirty.sectors = S.dirty.breadth = true;
+  if (GROUP_OF[S.ui.tab].id === "trend") { renderTab(S.ui.tab); renderHead(); }
+  if ($("dataDlg").open) renderReport();
+}
+/* 3 업종 추세 · 시장 폭 머리글 데이터 줄 · 바닥글 */
+function sectorHead() {
+  const d = S.sc.data, src = S.sc.src || {}, m = src.meta || {};
+  if (!d) return { html: S.sc.err ? "업종 데이터를 불러오지 못했습니다" : "불러오는 중…", foot: "" };
+  const D = d.dates;
+  return {
+    html: (src.kind === "upload" ? `<b>업로드 데이터</b> (${esc(src.name)} · SECTOR 시트)` : "<b>기본 데이터</b> (SECTOR 시트)") +
+      ` · ${D[0]} ~ ${D[D.length - 1]} · ${D.length.toLocaleString("ko-KR")}거래일 · 업종 ${d.names.length}개`,
+    foot: src.kind === "upload" ? `업로드한 '${src.name}'의 SECTOR 시트를 이 브라우저 안에서만 분석 중입니다. 투자 권유가 아닌 시장 점검 도구입니다.`
+      : `${m.note || ""} 투자 권유가 아닌 시장 점검 도구입니다.`,
+  };
+}
+async function fetchSectorDefault() {
+  const res = await fetch("../data/kospi_sector.json", { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const j = await res.json(), norm = KSC.normalize(j);
+  if (!norm.data.dates.length || norm.data.names.length < 2) throw new Error("빈 데이터");
+  return { data: norm.data, src: { kind: "default", meta: j.meta || {}, report: norm.report } };
+}
+function loadStoredSector() {
+  const raw = store.get(KEY_UP_SECTOR);
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw), n = KSC.normalize(j && j.data);
+    if (!n.data.dates.length || n.data.names.length < 2) return null;
+    return { data: n.data, src: { kind: "upload", name: String(j.name || "업로드 파일"), savedAt: j.savedAt, report: j.report || n.report, asOf: j.asOf || null } };
+  } catch (e) { return null; }
+}
+/* 기본 데이터: 저장된 업로드(SECTOR 시트)가 있으면 그것을 쓰고, 발행 데이터가 더 최신이면 바꾼다 (KOSPI·업종 2등주와 같은 규칙) */
+async function loadSectorDefault(stored, force) { // force: 저장된 업로드와 관계없이 기본 데이터로 (되돌리기)
+  if (stored) setSectorData(stored.data, stored.src);
+  const mine = S.sc.src;
+  let d;
+  try { d = await fetchSectorDefault(); } catch (e) {
+    if (!S.sc.data) {
+      S.sc.err = "기본 데이터(data/kospi_sector.json)를 불러오지 못했습니다" + (location.protocol === "file:" ? " — 파일로 직접 열면 브라우저가 막습니다" : "") + ". SECTOR 시트가 있는 엑셀을 올리면 바로 분석할 수 있습니다.";
+      S.dirty.sectors = S.dirty.breadth = true;
+      if (GROUP_OF[S.ui.tab].id === "trend") { renderTab(S.ui.tab); renderHead(); }
+    }
+    return;
+  }
+  if (S.sc.src !== mine) return; // 그 사이 새 파일을 올림
+  const last = (x) => x.dates[x.dates.length - 1];
+  if (!force && stored && last(d.data) <= last(stored.data)) return;
+  if (stored) store.del(KEY_UP_SECTOR);
+  setSectorData(d.data, d.src);
+}
+/* 계산 결과 (데이터가 바뀔 때만) · KOSPI 종가는 1 BOP · 이격도 데이터에서 날짜를 맞춰 가져옴 */
+function scState() {
+  if (!S.sc.st || S.sc.stVer !== S.sc.ver) { S.sc.st = KSC.compute(S.sc.data); S.sc.stVer = S.sc.ver; }
+  const st = S.sc.st, kKey = S.sc.ver + "|" + S.ver + "|" + !!S.data;
+  if (S.sc.kcKey !== kKey) {
+    S.sc.kc = S.data ? KSC.alignClose(st.dates, S.data.dates, S.data.c) : null;
+    S.sc.div = S.sc.kc ? KSC.divergence(st, S.sc.kc) : null;
+    S.sc.mon = KSC.monthly(st, S.sc.kc); S.sc.eps = {}; S.sc.kcKey = kKey;
+  }
+  return st;
+}
+function scIndex(st) { // 기준일 → 인덱스 (비우면 최근 거래일 · 첫 거래일보다 이르면 첫 거래일)
+  const D = st.dates, d = S.ui.sc.date;
+  if (!d) return D.length - 1;
+  return Math.max(0, lastOnOrBefore(D, d));
+}
+function scSel(st, rows) { // 상세 차트 업종: 고른 업종, 없으면 RS 1위
+  const k = st.names.indexOf(S.ui.sc.sel);
+  return k >= 0 ? k : rows && rows.length ? rows[0].s : 0;
+}
+function scApply(mut) { mut(S.ui.sc); saveSettings(); S.dirty.sectors = S.dirty.breadth = true; if (GROUP_OF[S.ui.tab].id === "trend") renderTab(S.ui.tab); }
+
+function renderSectors() {
+  const ok = !!S.sc.data;
+  $("scBody").hidden = !ok; $("scNoData").hidden = ok || !S.sc.err;
+  if (!ok) { $("vSectors").textContent = S.sc.err ? "" : "업종 데이터를 불러오는 중…"; $("scNoDataMsg").textContent = S.sc.err || ""; return; }
+  const st = scState(), i = scIndex(st), rows = KSC.snapshot(st, i, S.ui.sc.rs);
+  S.sc.rows = rows; S.sc.i = i;
+  renderScCtl(st, i);
+  renderScVerdict(st, i, rows);
+  renderScMap(st, i, rows);
+  renderScTable(st, i, rows);
+  renderScDetail(st, i, rows);
+}
+function renderScCtl(st, i) {
+  const U = S.ui.sc, D = st.dates, src = S.sc.src || {}, m = src.meta || {}, rp = src.report || {}, b0 = KSC.breadthStart(st);
+  if (document.activeElement !== $("scDate")) { $("scDate").value = D[i]; $("scDate").setAttribute("aria-invalid", "false"); }
+  $("scDate").min = D[0]; $("scDate").max = D[D.length - 1];
+  $("scLatest").setAttribute("aria-pressed", String(!U.date));
+  $("scRs").value = U.rs;
+  $("scKHi").disabled = !S.sc.div;
+  const a = KST.kstOf(src.asOf || m.as_of);
+  $("scSrc").innerHTML = (src.kind === "upload" ? `데이터: <b>업로드</b> '${esc(src.name)}' SECTOR 시트` : `데이터: <b>기본 데이터</b> (${esc(m.source || "data/kospi_sector.json")})`) +
+    ` · ${D[0]} ~ ${D[D.length - 1]} · ${D.length.toLocaleString("ko-KR")}거래일 · 업종 ${st.N}개 · ${esc(m.field || rp.field || "종가")} 기준` +
+    (a ? ` · 엑셀 저장 ${a.ymd} ${String(Math.floor(a.min / 60)).padStart(2, "0")}:${String(a.min % 60).padStart(2, "0")} KST` : "") +
+    (b0 >= 0 ? ` · 추세 템플릿은 ${D[b0]}부터 모든 업종 계산 가능` : " · 이력이 짧아 추세 템플릿을 계산할 수 없습니다 (252거래일 필요)");
+}
+function renderScVerdict(st, i, rows) {
+  const B = st.breadth, N = st.N, D = st.dates, U = S.ui.sc, M = KSC.RS_MODES.find((x) => x.id === U.rs);
+  if (!B.nValid[i]) {
+    const b0 = KSC.breadthStart(st);
+    $("vSectors").innerHTML = `<strong>${D[i]}</strong>에는 추세 템플릿을 계산할 이력이 부족합니다 — 200일선 · 52주 값에 252거래일이 필요합니다${b0 >= 0 ? ` (모든 업종 계산 가능: ${D[b0]}부터)` : ""}.`;
+    return;
+  }
+  let v = `<strong>${D[i]}</strong> 종가 기준 · 2단계(상승 추세) <strong>${B.n2[i]}/${N}</strong> · 4단계(하락) <strong>${B.n4[i]}/${N}</strong> · 200일선 위 ${B.a200[i]}/${B.n200[i]} · 50일선 위 ${B.a50[i]}/${B.n50[i]}`;
+  const s2 = rows.filter((r) => r.stage === 2);
+  if (s2.length) v += `<br>2단계 업종 (RS 순): ${s2.map((r) => `<b>${esc(r.name)}</b>`).join(" · ")}`;
+  else {
+    const best = rows.filter((r) => r.valid).sort((a, b) => b.tt - a.tt || b.rsRaw - a.rsRaw)[0];
+    if (best) v += `<br>추세 템플릿 1~7을 모두 충족한 업종이 없습니다 — 가장 가까운 업종 <b>${esc(best.name)}</b> ${best.tt}/7 <span class="dim">(못 미친 조건: ${best.flags.slice(0, 7).map((f, k) => (f ? null : k + 1)).filter((k) => k).join(", ")})</span>`;
+  }
+  const into = [], out = [];
+  st.sec.forEach((x) => {
+    for (let j = Math.max(1, i - 4); j <= i; j++) {
+      if (x.stage[j] === 2 && x.stage[j - 1] !== 2) into.push(`${esc(x.name)}(${D[j].slice(5)})`);
+      if (x.stage[j - 1] === 2 && x.stage[j] !== 2) out.push(`${esc(x.name)}(${D[j].slice(5)})`);
+    }
+  });
+  if (into.length || out.length) v += `<br><span class="dim">최근 5거래일</span> ${into.length ? `2단계 진입 <b>${into.join(" · ")}</b>` : ""}${into.length && out.length ? " · " : ""}${out.length ? `2단계 이탈 ${out.join(" · ")}` : ""}`;
+  const top = rows.filter((r) => isNum(r.rs)).slice(0, 3), near = rows.filter((r) => isNum(r.fromHi)).sort((a, b) => b.fromHi - a.fromHi).slice(0, 3);
+  if (top.length) v += `<br><span class="dim">RS 상위 (${esc(M.short)})</span> ${top.map((r) => `${esc(r.name)} ${fmtNum(r.rs, 0)}`).join(" · ")}` +
+    ` <span class="dim">· 52주 고점에 가장 가까운 업종</span> ${near.map((r) => `${esc(r.name)} ${fmtPct(r.fromHi, 1)}`).join(" · ")}`;
+  $("vSectors").innerHTML = v;
+}
+function renderScMap(st, i, rows) {
+  const sel = scSel(st, rows), item = (r) => `<button type="button" class="sitem" data-sec="${r.s}" aria-pressed="${r.s === sel}" style="--sc:var(${STG_COL[r.stage]})" title="${esc(r.name)} · 추세 템플릿 ${r.tt}/7 · RS ${fmtNum(r.rs, 0)} · 200일선 대비 ${fmtPct(r.ext200, 1)}">${esc(r.name)}<span>${r.valid ? r.tt + "/7" : "–"}</span></button>`;
+  const list = (rs) => (rs.length ? rs.map(item).join("") : '<span class="none">없음</span>');
+  const by = (g) => rows.filter((r) => r.stage === g);
+  const s3 = by(3), col = (g, title, body, n) => `<div class="scol"><h4><i style="background:var(${STG_COL[g]})"></i>${title}<b>${n}</b></h4>${body}</div>`;
+  let h = col(2, "2단계 상승", `<div class="sitems">${list(by(2))}</div>`, by(2).length) +
+    col(3, "3단계 천장 · 2단계 이탈", `<div class="slab">200일선 위</div><div class="sitems">${list(s3.filter((r) => r.ext200 > 0))}</div><div class="slab">200일선 아래 (하락 전환 진행)</div><div class="sitems">${list(s3.filter((r) => !(r.ext200 > 0)))}</div>`, s3.length) +
+    col(4, "4단계 하락", `<div class="sitems">${list(by(4))}</div>`, by(4).length) +
+    col(1, "1단계 바닥 · 4단계 이탈", `<div class="sitems">${list(by(1))}</div>`, by(1).length);
+  if (by(0).length) h += col(0, "판정 전 (이력 부족)", `<div class="sitems">${list(by(0))}</div>`, by(0).length);
+  $("scMap").innerHTML = h;
+  $("scMapSub").textContent = `${st.dates[i]} · 칸 안 숫자 = 추세 템플릿 1~7 충족 수 · 단계 안은 RS 순 · 누르면 아래 상세 차트`;
+}
+function scSortRows(rows) {
+  const U = S.ui.sc, key = U.sort, dir = U.dir, val = (r) => (key === "name" ? r.name : key === "rank" ? r.rank : key === "tt8" ? r.tt8 : r[key]);
+  return rows.slice().sort((a, b) => {
+    const x = val(a), y = val(b), bad = (q) => q == null || (typeof q === "number" && !isFinite(q));
+    if (bad(x) || bad(y)) return bad(x) - bad(y);
+    const c = typeof x === "string" ? x.localeCompare(y, "ko") : x - y;
+    return c * dir || a.s - b.s;
+  });
+}
+function renderScTable(st, i, rows) {
+  const U = S.ui.sc, sel = scSel(st, rows), D = st.dates, names = KSC.TT_NAMES;
+  let h = "<thead><tr>" + SC_COLS.map(([k, t, ti]) => {
+    const on = U.sort === k;
+    return `<th class="${k === "name" || k === "tt8" || k === "stage" ? "l" : ""}"${on ? ` aria-sort="${U.dir > 0 ? "ascending" : "descending"}"` : ""}${ti ? ` title="${esc(ti)}"` : ""}><button type="button" class="srt" data-sort="${k}">${esc(t)}${on ? (U.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`;
+  }).join("") + "</tr></thead><tbody>";
+  for (const r of scSortRows(rows)) {
+    const dots = r.flags.map((f, k) => `<i class="${f ? "on" : ""}${k === 7 ? " k8" : ""}" title="${k + 1}. ${esc(names[k])} ${f ? "✓" : "✗"}"></i>`).join("");
+    h += `<tr class="jump${r.s === sel ? " cur" : ""}" data-sec="${r.s}" tabindex="0"><td>${r.rank || "–"}</td><td class="l"><b>${esc(r.name)}</b></td>` +
+      `<td>${fmtNum(r.rs, 0)}</td>` + ["r21", "r63", "r126", "r252"].map((k) => `<td class="${clsOf(r[k])}">${fmtPct(r[k], 1)}</td>`).join("") +
+      `<td class="l"><span class="ttd" aria-label="추세 템플릿 충족 ${r.flags.filter(Boolean).length}/8">${dots}</span></td><td>${r.valid ? r.tt + "/7" : "–"}</td>` +
+      `<td class="l">${stgTag(r.stage)}<span class="sub">${r.valid ? D[r.since] + "~" : ""}</span></td>` +
+      ["ext50", "ext200"].map((k) => `<td class="${clsOf(r[k])}">${fmtPct(r[k], 1)}</td>`).join("") +
+      `<td class="${r.fromHi >= -0.25 ? "" : "dim"}">${fmtPct(r.fromHi, 1)}</td><td class="${r.fromLo >= 0.3 ? "" : "dim"}">${fmtPct(r.fromLo, 1)}</td></tr>`;
+  }
+  $("scTbl").innerHTML = h + "</tbody>";
+  const M = KSC.RS_MODES.find((x) => x.id === U.rs);
+  $("scTblSub").textContent = `${D[i]} 종가 기준 · RS = ${M.name} 백분위 · 머리글을 누르면 정렬 · 행을 누르면 아래 상세 차트`;
+}
+function renderScDetail(st, i, rows) {
+  const U = S.ui.sc, s = scSel(st, rows), x = st.sec[s], D = st.dates, T = st.T, R = KSC.rsOf(st, U.rs), M = KSC.RS_MODES.find((q) => q.id === U.rs);
+  const yrs = SC_PERIODS[U.dp][1], i0 = yrs ? Math.max(0, lastOnOrBefore(D, shiftYears(D[T - 1], -yrs))) : 0, n = T - i0;
+  const sub = (a) => a.subarray(i0);
+  const mark = i >= i0 ? [{ a: i - i0 - 0.5, b: i - i0 + 0.5, color: () => rgba(css("--focus"), 0.45) }] : [];
+  const runs = KSC.stageRuns(st, s, i0, T - 1).map((q) => ({ a: q.a - i0 - 0.5, b: q.b - i0 + 0.5, color: () => rgba(css(STG_COL[q.stage]), q.stage === 0 ? 0.3 : 0.62) }));
+  CH.sector.set({
+    d0: 0, d1: n - 1, dates: D.slice(i0), overview: { y: sub(x.p) },
+    panels: [
+      { weight: 3, log: U.log, title: `${x.name} · 종가지수와 50·150·200일선` + (U.log ? " · 로그" : ""), yFmt: (v) => fmtNum(v, v >= 100 ? 0 : 1), shades: mark,
+        series: [{ y: sub(x.s200), color: "--s2", width: 1.4 }, { y: sub(x.s150), color: "--s4", width: 1.2 }, { y: sub(x.s50), color: "--s1", width: 1.2 }, { y: sub(x.p), color: "--c-line", width: 1.8 }] },
+      { weight: 1.05, title: `RS 백분위 (${M.short})`, yFmt: (v) => fmtNum(v, 0), includeY: [0, 100], yPad: 0.05, shades: mark,
+        hlines: [{ y: KSC.DEFAULTS.rsMin, color: "--c-buy", dash: [4, 3], width: 1, label: "70" }], series: [{ y: sub(R.pct[s]), color: "--s3", width: 1.5 }] },
+      { weight: 0.3, yFmt: () => "", shades: runs.concat(mark), series: [] },
+    ],
+    tooltip: (k) => {
+      const j = k + i0, P = x.p[j], out = [{ head: `${D[j]} (${wday(D[j])}) · ${esc(x.name)}` }];
+      out.push({ k: "종가지수", v: fmtNum(P, 2), color: "--c-line" });
+      [[x.s50, "50일선", "--s1"], [x.s150, "150일선", "--s4"], [x.s200, "200일선", "--s2"]].forEach(([a, t, c]) => out.push({ k: t, v: `${fmtNum(a[j], 1)} <span class="dim">${fmtPct(P / a[j] - 1, 1)}</span>`, color: c }));
+      out.push({ k: "52주 고점 대비", v: fmtPct(P / x.hi[j] - 1, 1) });
+      out.push({ k: "추세 템플릿", v: x.valid[j] ? `${x.ttn[j]}/7` : "계산 전" });
+      out.push({ k: "단계", v: STG_SHORT[x.stage[j]], color: STG_COL[x.stage[j]] });
+      out.push({ k: `RS (${esc(M.short)})`, v: fmtNum(R.pct[s][j], 0), color: "--s3" });
+      return out;
+    },
+  });
+  const r = rows.find((q) => q.s === s);
+  $("scDetTitle").textContent = `업종 상세 — ${x.name}`;
+  $("scDetSub").innerHTML = r && r.valid ? `${D[i]}: ${stgTag(r.stage)} (${D[r.since]}부터) · 추세 템플릿 ${r.tt}/7 · RS ${fmtNum(r.rs, 0)} · 200일선 대비 ${fmtPct(r.ext200, 1)} · 52주 고점 대비 ${fmtPct(r.fromHi, 1)}` : `${D[i]}: 이력이 부족해 판정 전`;
+  document.querySelectorAll("#scDetPresets [data-dp]").forEach((b) => b.setAttribute("aria-pressed", String(U.dp === b.dataset.dp)));
+  $("scDetChips").innerHTML = `<button class="chip" type="button" data-scd="log" aria-pressed="${U.log}"><i style="background:var(--ink-2)"></i>로그</button>`;
+  $("scDetNote").innerHTML = `선: <span class="sec"><i style="background:var(--c-line)"></i>종가지수</span> · <span class="sec"><i style="background:var(--s1)"></i>50일선</span> · <span class="sec"><i style="background:var(--s4)"></i>150일선</span> · <span class="sec"><i style="background:var(--s2)"></i>200일선</span> · <span class="sec"><i style="background:var(--s3)"></i>RS 백분위</span>` +
+    ` · 맨 아래 띠 = 단계 ${[2, 3, 4, 1].map((g) => `<span class="sec"><i style="background:var(${STG_COL[g]})"></i>${STG_SHORT[g]}</span>`).join(" ")} · 파란 세로선 = 기준일`;
+}
+function dlSectors() {
+  const st = S.sc.st, i = S.sc.i, D = st.dates, rows = S.sc.rows, U = S.ui.sc;
+  const out = [["date", "rank", "sector", "rs_pct", "rs_mode", "ret_1m", "ret_3m", "ret_6m", "ret_12m"].concat([1, 2, 3, 4, 5, 6, 7, 8].map((k) => "tt" + k)).concat(["tt_1to7", "stage", "stage_since", "close", "sma50", "sma150", "sma200", "ext50", "ext200", "from_52w_high", "from_52w_low"])];
+  rows.forEach((r) => out.push([D[i], r.rank, r.name, r.rs, U.rs, r.r21, r.r63, r.r126, r.r252].concat(r.flags.map((f) => (f ? 1 : 0))).concat([r.valid ? r.tt : null, r.stage, r.valid ? D[r.since] : null, r.close, r.s50, r.s150, r.s200, r.ext50, r.ext200, r.fromHi, r.fromLo])));
+  download(`kospi_sectors_${D[i]}.csv`, out);
+}
+
+/* --- 시장 폭 --- */
+function renderBreadth() {
+  const ok = !!S.sc.data;
+  $("brBody").hidden = !ok; $("brNoData").hidden = ok || !S.sc.err;
+  if (!ok) { $("vBreadth").textContent = S.sc.err ? "" : "업종 데이터를 불러오는 중…"; $("brNoDataMsg").textContent = S.sc.err || ""; return; }
+  const st = scState(), b0 = KSC.breadthStart(st);
+  if (b0 < 0) { $("vBreadth").textContent = "시장 폭을 계산하려면 모든 업종에 252거래일 이상의 이력이 필요합니다."; $("brBody").hidden = true; return; }
+  renderBrVerdict(st, b0);
+  renderBrChart(st, b0);
+  renderBrPos(st, b0);
+  renderBrDiv(st);
+  renderBrEp(st);
+  renderBrMonths(st, b0);
+}
+function brShare(st, key, i, dir) { // 모든 업종을 판정할 수 있는 날(시장 폭 기간) 중 지금 값 이하(dir = −1 이면 이상)였던 날의 비율
+  const B = st.breadth, N = st.N, arr = B[key], v = arr[i];
+  let n = 0, k = 0;
+  for (let j = 0; j < st.T; j++) { if (B.nValid[j] !== N) continue; n++; if (dir > 0 ? arr[j] <= v : arr[j] >= v) k++; }
+  return n ? k / n : NaN;
+}
+function renderBrVerdict(st, b0) {
+  const B = st.breadth, N = st.N, D = st.dates, i = st.T - 1, dv = S.sc.div;
+  let v = `<strong>${D[i]}</strong> 시장 폭: 2단계 업종 <strong>${B.n2[i]}/${N}</strong> · 200일선 위 <strong>${B.a200[i]}/${B.n200[i]}</strong> (${fmtNum((B.a200[i] / B.n200[i]) * 100, 0)}%) · 50일선 위 ${B.a50[i]}/${B.n50[i]} (${fmtNum((B.a50[i] / B.n50[i]) * 100, 0)}%)` +
+    ` — 200일선 위 업종이 이만큼 적었던 날은 계산 가능한 기간의 <strong>${fmtPct(brShare(st, "a200", i, 1), 1, false)}</strong>입니다.`;
+  if (dv && dv.prevMax > 0) {
+    v += `<br>KOSPI 최근 52주 신고가(${dv.date}, ${fmtNum(dv.kospi, 0)}) 때 2단계 업종은 <strong>${dv.n2}개</strong>로 그 전 1년 최대 ${dv.prevMax}개(${dv.prevMaxDate})의 ${fmtPct(dv.n2 / dv.prevMax, 0, false)}` +
+      ` — 그 사이 KOSPI ${fmtPct(dv.kospiChg, 1)}, 업종 동일가중 ${fmtPct(dv.ewChg, 1)}.`;
+  } else if (!S.sc.kc) v += `<br><span class="dim">KOSPI 데이터(1 BOP · 이격도)가 없어 KOSPI 비교·다이버전스는 표시하지 않습니다.</span>`;
+  $("vBreadth").innerHTML = v;
+}
+function renderBrChart(st, b0) {
+  const U = S.ui.sc, D = st.dates, T = st.T, B = st.breadth, kc = S.sc.kc, N = st.N;
+  const yrs = SC_PERIODS[U.bp][1], i0 = Math.max(b0, yrs ? Math.max(0, lastOnOrBefore(D, shiftYears(D[T - 1], -yrs))) : 0), n = T - i0;
+  let kb = NaN;
+  if (kc) for (let j = i0; j < T; j++) if (kc[j] === kc[j]) { kb = kc[j]; break; }
+  const kr = Float64Array.from({ length: n }, (_, k) => (kc ? (kc[i0 + k] / kb) * 100 : NaN)), er = Float64Array.from({ length: n }, (_, k) => (B.ew[i0 + k] / B.ew[i0]) * 100);
+  const pc = (a, ok) => Float64Array.from({ length: n }, (_, k) => (ok[i0 + k] === N ? (a[i0 + k] / N) * 100 : NaN));
+  const ser = { n2: pc(B.n2, B.nValid), a200: pc(B.a200, B.n200), a50: pc(B.a50, B.n50) };
+  const cnt = (a) => Float64Array.from({ length: n }, (_, k) => (B.nValid[i0 + k] === N ? a[i0 + k] : NaN));
+  const dv = S.sc.div, marks = [];
+  if (dv && dv.k >= i0) marks.push({ a: dv.k - i0 - 0.5, b: dv.k - i0 + 0.5, color: () => rgba(css("--c-buy"), 0.5) });
+  if (dv && dv.prevMaxI >= i0) marks.push({ a: dv.prevMaxI - i0 - 0.5, b: dv.prevMaxI - i0 + 0.5, color: () => rgba(css("--c-dual"), 0.6) });
+  CH.breadth.set({
+    d0: 0, d1: n - 1, dates: D.slice(i0), overview: { y: er },
+    panels: [
+      { weight: 2.1, log: U.blog, title: `${kc ? "KOSPI와 " : ""}업종 동일가중 (${D[i0]} = 100)` + (U.blog ? " · 로그" : ""), yFmt: (v) => fmtNum(v, 0), hlines: [{ y: 100, color: "--rule", soft: true }], shades: marks,
+        series: [{ y: er, color: "--s2", width: 1.8 }].concat(kc ? [{ y: kr, color: "--c-bh", width: 1.8 }] : []) },
+      { weight: 1.6, title: "시장 폭 — 업종 중 비율", yFmt: (v) => fmtNum(v, 0) + "%", includeY: [0, 100], yPad: 0.04, hlines: [{ y: 50, color: "--rule", soft: true }], shades: marks,
+        series: BR_SERIES.map(([k, , c]) => ({ y: ser[k], color: c, width: k === "n2" ? 2 : 1.3, hidden: !U.show.includes(k) })) },
+      { weight: 0.85, title: "52주 신고가 · 신저가 업종 수", yFmt: (v) => fmtNum(v, 0), includeY: [0], yPad: 0.08, shades: marks,
+        series: [{ y: cnt(B.nh), color: "--c-buy", width: 1.2 }, { y: cnt(B.nl), color: "--c-sell", width: 1.2 }] },
+    ],
+    tooltip: (k) => {
+      const j = i0 + k, out = [{ head: `${D[j]} (${wday(D[j])})` }];
+      if (kc) out.push({ k: "KOSPI", v: `${fmtNum(kc[j], 2)} <span class="dim">${fmtNum(kr[k], 1)}</span>`, color: "--c-bh" });
+      out.push({ k: "업종 동일가중", v: fmtNum(er[k], 1), color: "--s2" });
+      out.push({ k: "2단계 업종", v: `${B.n2[j]}/${N}`, color: "--c-buy" });
+      out.push({ k: "4단계 업종", v: `${B.n4[j]}/${N}`, color: "--c-sell" });
+      out.push({ k: "200일선 위", v: `${B.a200[j]}/${N}`, color: "--s1" });
+      out.push({ k: "50일선 위", v: `${B.a50[j]}/${N}`, color: "--s4" });
+      out.push({ k: "52주 신고가 · 신저가", v: `${B.nh[j]} · ${B.nl[j]}` });
+      return out;
+    },
+  });
+  document.querySelectorAll("#brPresets [data-bp]").forEach((b) => b.setAttribute("aria-pressed", String(U.bp === b.dataset.bp)));
+  $("brChips").innerHTML = BR_SERIES.map(([k, t, c]) => `<button class="chip" type="button" data-brs="${k}" aria-pressed="${U.show.includes(k)}"><i class="ln" style="background:var(${c})"></i>${t}</button>`).join("") +
+    `<button class="chip" type="button" data-brs="log" aria-pressed="${U.blog}"><i style="background:var(--ink-2)"></i>로그</button>`;
+  $("brSub").textContent = `${D[i0]} ~ ${D[T - 1]} · 업종 ${N}개 · 동일가중 = 업종 일간 수익률 평균의 누적` + (kc ? "" : " · KOSPI 데이터 없음");
+  $("brChNote").innerHTML = `위: <span class="sec"><i style="background:var(--c-bh)"></i>KOSPI</span> · <span class="sec"><i style="background:var(--s2)"></i>업종 동일가중</span> — 둘의 차이가 벌어지면 소수 업종이 지수를 움직이는 것 · ` +
+    `아래: <span class="sec"><i style="background:var(--c-buy)"></i>신고가</span> · <span class="sec"><i style="background:var(--c-sell)"></i>신저가</span> 업종 수` +
+    (dv ? ` · 세로선: <span class="sec"><i style="background:var(--c-buy)"></i>KOSPI 최근 52주 신고가일</span> · <span class="sec"><i style="background:var(--c-dual)"></i>그 전 1년 2단계 업종 최대일</span>` : "");
+}
+function renderBrPos(st, b0) {
+  const B = st.breadth, N = st.N, D = st.dates, i = st.T - 1;
+  const at = (a, j) => (j >= b0 ? a[j] : "–");
+  const rows = [["n2", "2단계 업종", 1], ["a200", "200일선 위", 1], ["a50", "50일선 위", 1], ["nh", "52주 신고가", 1], ["n4", "4단계 업종", -1], ["nl", "52주 신저가", -1]];
+  let h = `<thead><tr><th>지표 (업종 ${N}개 중)</th><th>지금</th><th>1개월 전</th><th>3개월 전</th><th title="최근 252거래일 중 최댓값과 그 날">1년 최대</th><th title="계산 가능한 날 중 지금 값 이하(4단계·신저가는 이상)였던 날의 비율">역사적 위치</th></tr></thead><tbody>`;
+  for (const [k, t, dir] of rows) {
+    const a = B[k];
+    let mx = -1, mi = -1;
+    for (let j = Math.max(b0, i - 251); j <= i; j++) if (a[j] > mx) { mx = a[j]; mi = j; }
+    const sh = brShare(st, k, i, dir);
+    h += `<tr${dir < 0 ? ' class="grp"' : ""}><td>${t}</td><td><b>${a[i]}</b></td><td>${at(a, i - 21)}</td><td>${at(a, i - 63)}</td><td>${mx} <span class="dim">${mi >= 0 ? D[mi] : ""}</span></td>` +
+      `<td>${fmtPct(sh, 1, false)} <span class="dim">${dir > 0 ? "이하" : "이상"}</span></td></tr>`;
+  }
+  $("brPosTbl").innerHTML = h + "</tbody>";
+  $("brPosSub").textContent = `${D[i]} 기준 · 역사적 위치 = 계산 가능한 날(${D[b0]}~) 중 지금 값 이하였던 날 (4단계·신저가는 이상)`;
+}
+function renderBrDiv(st) {
+  const dv = S.sc.div, N = st.N;
+  if (!dv) { $("brDiv").innerHTML = S.sc.kc ? "KOSPI 52주 신고가 이력을 찾지 못했습니다." : "KOSPI 데이터(1 BOP · 이격도)가 없어 다이버전스를 계산할 수 없습니다."; return; }
+  const ratio = dv.prevMax > 0 ? dv.n2 / dv.prevMax : NaN;
+  $("brDiv").innerHTML = `<p>KOSPI 최근 52주 종가 신고가: <b>${dv.date}</b> ${fmtNum(dv.kospi, 2)} <span class="dim">(${dv.ago}거래일 전)</span></p>` +
+    `<p>그날 2단계 업종 <b>${dv.n2}/${N}</b> · 200일선 위 ${dv.a200}/${N} · 50일선 위 ${dv.a50}/${N}</p>` +
+    (dv.prevMax >= 0 ? `<p>그 전 1년(252거래일) 2단계 업종 최대: <b>${dv.prevMax}/${N}</b> (${dv.prevMaxDate}, KOSPI ${fmtNum(dv.prevMaxKospi, 0)})</p>` +
+      `<p>그 사이 KOSPI <b class="${clsOf(dv.kospiChg)}">${fmtPct(dv.kospiChg, 1)}</b> · 업종 동일가중 <b class="${clsOf(dv.ewChg)}">${fmtPct(dv.ewChg, 1)}</b> · 신고가 때 2단계 업종 = 그 전 최대의 <b>${fmtPct(ratio, 0, false)}</b></p>` : "") +
+    `<p class="dim">지수가 신고가를 내는데 2단계 업종 수가 이전 정점보다 적으면, 적은 업종이 지수를 끌어올렸다는 뜻입니다(다이버전스). 업종 폭이 함께 넓어진 신고가가 더 건강합니다.</p>`;
+}
+function renderBrEp(st) {
+  const U = S.ui.sc, kc = S.sc.kc, N = st.N;
+  $("brEp").value = String(U.ep);
+  if (!kc) { $("brEpTbl").innerHTML = ""; $("brEpNote").textContent = "KOSPI 데이터(1 BOP · 이격도)가 없어 계산할 수 없습니다."; $("brEpSub").textContent = ""; return; }
+  const eps = S.sc.eps[U.ep] || (S.sc.eps[U.ep] = KSC.episodes(st, kc, { maxAbove: U.ep, gap: 126 }));
+  let h = `<thead><tr><th>시작일</th><th>200일선 위</th><th>KOSPI</th><th title="그날 KOSPI ÷ 최근 252거래일 최고 − 1">KOSPI 고점 대비</th><th>1개월 후</th><th>3개월 후</th><th>6개월 후</th><th>12개월 후</th><th title="시작일부터 126거래일 안 KOSPI 최저 (시작일 포함 — 더 내려가지 않았으면 0)">6개월 안 최저</th><th title="시작일부터 126거래일 안에 같은 조건이었던 날 수">해당일 수</th></tr></thead><tbody>`;
+  for (const e of eps.slice().reverse()) {
+    const live = !e.full126;
+    h += `<tr${live ? ' class="cur"' : ""}><td>${e.date}${live ? ' <span class="dim">(진행 중)</span>' : ""}</td><td>${e.above}/${N}</td><td>${fmtNum(e.kospi, 0)}</td><td class="${clsOf(e.fromHi)}">${fmtPct(e.fromHi, 1)}</td>` +
+      ["f21", "f63", "f126", "f252"].map((k) => `<td class="${clsOf(e[k])}">${fmtPct(e[k], 1)}</td>`).join("") + `<td class="${clsOf(e.minNext)}">${fmtPct(e.minNext, 1)}</td><td>${e.days}</td></tr>`;
+  }
+  $("brEpTbl").innerHTML = h + (eps.length ? "" : `<tr><td colspan="10" class="empty">조건에 맞는 날이 없습니다</td></tr>`) + "</tbody>";
+  const done = eps.filter((e) => e.full126), neg = done.filter((e) => e.f126 < 0).length;
+  $("brEpSub").textContent = `200일선 위 업종이 ${U.ep}개 ${U.ep ? "이하" : ""}인 날 · 직전 해당일과 126거래일 넘게 떨어진 첫날을 새 국면으로 · 최신순`;
+  $("brEpNote").innerHTML = done.length ? `끝난 국면 ${done.length}개: 6개월 뒤 KOSPI 중앙값 <b>${fmtPct(median(done.map((e) => e.f126)), 1)}</b> (하락 ${neg}번) · 3개월 뒤 중앙값 ${fmtPct(median(done.map((e) => e.f63)), 1)} · ` +
+    `6개월 안 최저 중앙값 <b>${fmtPct(median(done.map((e) => e.minNext)), 1)}</b>. 표본이 적어 통계적 결론이 아니며, 시장 폭이 무너졌다는 사실만으로는 매수 근거가 되지 않습니다 — 2단계로 돌아오는 업종이 나타나는지 함께 보세요.`
+    : "끝난 국면이 없어 통계를 낼 수 없습니다.";
+}
+function renderBrMonths(st, b0) {
+  const N = st.N, mon = S.sc.mon.filter((m) => m.i >= b0).reverse(), last = st.dates[st.T - 1];
+  let h = `<thead><tr><th>월</th><th>KOSPI</th><th>KOSPI 월간</th><th title="${N}개 업종 일간 수익률 평균의 누적">동일가중 월간</th><th title="동일가중 − KOSPI">차이</th><th>2단계</th><th>4단계</th><th>50일선 위</th><th>200일선 위</th><th title="그달 한 번이라도 52주 신고가를 낸 업종 수">신고가 업종</th><th title="그달 한 번이라도 52주 신저가를 낸 업종 수">신저가 업종</th></tr></thead><tbody>`;
+  for (const m of mon) {
+    const dlt = m.ewRet - m.kRet, cur = st.dates[m.i] === last;
+    h += `<tr${cur ? ' class="cur"' : ""}><td>${m.ym}${cur ? ` <span class="dim">(~${+last.slice(8, 10)}일)</span>` : ""}</td><td>${fmtNum(m.kospi, 0)}</td><td class="${clsOf(m.kRet)}">${fmtPct(m.kRet, 1)}</td><td class="${clsOf(m.ewRet)}">${fmtPct(m.ewRet, 1)}</td>` +
+      `<td class="${clsOf(dlt)}">${fmtPp(dlt, 1)}</td><td>${m.n2}</td><td>${m.n4}</td><td>${m.a50}</td><td>${m.a200}</td><td>${m.hiAny}</td><td>${m.loAny}</td></tr>`;
+  }
+  $("brMonTbl").innerHTML = h + "</tbody>";
+  $("brMonSub").textContent = `업종 ${N}개 중 · 월말 값 (신고가·신저가 업종은 그달 한 번이라도) · 최신순 · 차이가 크게 음수면 KOSPI만 오른 달`;
+}
+function dlBreadth() {
+  const st = S.sc.st, B = st.breadth, D = st.dates, kc = S.sc.kc, b0 = KSC.breadthStart(st);
+  const out = [["date", "kospi", "equal_weight", "sectors", "stage2", "stage4", "above_sma50", "above_sma200", "new_52w_high", "new_52w_low"]];
+  for (let j = b0; j < st.T; j++) out.push([D[j], kc ? kc[j] : null, B.ew[j], st.N, B.n2[j], B.n4[j], B.a50[j], B.a200[j], B.nh[j], B.nl[j]]);
+  download(`kospi_breadth_${D[b0]}_${D[st.T - 1]}.csv`, out);
+}
+function wireSector() {
+  const rs = $("scRs");
+  KSC.RS_MODES.forEach((m) => { const o = document.createElement("option"); o.value = m.id; o.textContent = m.name; rs.appendChild(o); });
+  rs.addEventListener("change", () => scApply((U) => { U.rs = rs.value; }));
+  const onDate = () => {
+    const v = $("scDate").value, ok = /^\d{4}-\d{2}-\d{2}$/.test(v);
+    $("scDate").setAttribute("aria-invalid", String(!ok && v !== ""));
+    if (!ok) { $("scMsg").textContent = v === "" ? "" : "기준일은 YYYY-MM-DD 형식으로 입력하세요."; return; }
+    $("scMsg").textContent = "";
+    const D = S.sc.data ? S.sc.data.dates : [];
+    scApply((U) => { U.date = D.length && v >= D[D.length - 1] ? null : v; }); // 마지막 날이면 새 데이터가 와도 최근을 따라가게
+  };
+  $("scDate").addEventListener("change", onDate);
+  $("scLatest").addEventListener("click", () => scApply((U) => { U.date = null; }));
+  $("scKHi").addEventListener("click", () => { if (S.sc.div) scApply((U) => { U.date = S.sc.div.date; }); });
+  const pick = (ev) => {
+    const b = ev.target.closest("[data-sec]");
+    if (!b || !S.sc.st) return;
+    S.ui.sc.sel = S.sc.st.names[+b.dataset.sec]; saveSettings();
+    const st = S.sc.st, rows = S.sc.rows, i = S.sc.i;
+    renderScMap(st, i, rows); renderScTable(st, i, rows); renderScDetail(st, i, rows);
+    if (b.closest("#scMap")) { const t = $("scDetTitle"); if (t && t.scrollIntoView) t.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+  };
+  $("scMap").addEventListener("click", pick);
+  $("scTbl").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-sort]");
+    if (b) { const k = b.dataset.sort, c = SC_COLS.find((x) => x[0] === k); scApply((U) => { if (U.sort === k) U.dir = -U.dir; else { U.sort = k; U.dir = c[3]; } }); return; }
+    pick(ev);
+  });
+  $("scTbl").addEventListener("keydown", (ev) => { if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches("tr[data-sec]")) { ev.preventDefault(); pick(ev); } });
+  $("scDetPresets").addEventListener("click", (ev) => { const b = ev.target.closest("[data-dp]"); if (b) scApply((U) => { U.dp = b.dataset.dp; }); });
+  $("scDetChips").addEventListener("click", (ev) => { const b = ev.target.closest("[data-scd]"); if (b) scApply((U) => { U.log = !U.log; }); });
+  $("brPresets").addEventListener("click", (ev) => { const b = ev.target.closest("[data-bp]"); if (b) scApply((U) => { U.bp = b.dataset.bp; }); });
+  $("brChips").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-brs]");
+    if (!b) return;
+    const k = b.dataset.brs;
+    scApply((U) => { if (k === "log") U.blog = !U.blog; else U.show = U.show.includes(k) ? U.show.filter((x) => x !== k) : U.show.concat([k]); });
+  });
+  const ep = $("brEp");
+  EP_OPTS.forEach((n) => { const o = document.createElement("option"); o.value = String(n); o.textContent = n === 0 ? "0개 (모두 200일선 아래)" : `${n}개 이하`; ep.appendChild(o); });
+  ep.addEventListener("change", () => scApply((U) => { U.ep = +ep.value; }));
+  $("scCsv").addEventListener("click", () => { if (S.sc.rows) dlSectors(); });
+  $("brCsv").addEventListener("click", () => { if (S.sc.st && KSC.breadthStart(S.sc.st) >= 0) dlBreadth(); });
+  ["scUpload", "brUpload"].forEach((id) => $(id).addEventListener("click", () => $("fileInput").click()));
+}
+
 /* ---------- 데이터 창 ---------- */
 function openData() {
   renderReport();
@@ -2422,7 +2995,7 @@ function openData() {
 }
 function closeData() { const dlg = $("dataDlg"); if (typeof dlg.close === "function") dlg.close(); else dlg.removeAttribute("open"); }
 function renderReport() {
-  $("restoreDefault").disabled = !S.src || S.src.kind !== "upload";
+  $("restoreDefault").disabled = !((S.src && S.src.kind === "upload") || (S.sc.src && S.sc.src.kind === "upload"));
   $("dlSignals").disabled = $("dlNav").disabled = !S.bt;
   $("ruleList").innerHTML = ALL_IDS.map((id) => `<li><b>${esc(sName(id))}</b> — ${esc(ruleText(id))}</li>`).join("");
   let h = "<tbody>";
@@ -2455,6 +3028,12 @@ function renderReport() {
     const cols = tm.assets ? tm.assets.map((a) => `${a.name} ${a.column}열`) : trp.columns ? KST.ASSETS.map((a) => `${a.name} ${colL(trp.columns[a.key])}열`) : [];
     row("2 업종 2등주 (TIGER 시트)", `${tg.src.kind === "upload" ? "업로드 " + tg.src.name : "기본 데이터 " + (tm.source || "data/kospi_tiger.json")} · ${TD.length.toLocaleString("ko-KR")}행 · ${TD[0]} ~ ${TD[TD.length - 1]}` + (cols.length ? " · " + cols.join(", ") : ""));
   } else row("2 업종 2등주 (TIGER 시트)", tg.err || "불러오는 중…");
+  const sc = S.sc;
+  if (sc.data) {
+    const SD = sc.data.dates, sm = (sc.src && sc.src.meta) || {}, srp = (sc.src && sc.src.report) || {};
+    row("3 업종 추세 (SECTOR 시트)", `${sc.src.kind === "upload" ? "업로드 " + sc.src.name + (sc.src.persisted === false ? " (브라우저 저장 공간 부족 — 새로고침하면 기본 데이터)" : "") : "기본 데이터 " + (sm.source || "data/kospi_sector.json")} · ${SD.length.toLocaleString("ko-KR")}행 · ${SD[0]} ~ ${SD[SD.length - 1]} · 업종 ${sc.data.names.length}개` +
+      (srp.headerRow ? ` (머리글 ${srp.headerRow}행${srp.nameRow ? " · 업종명 " + srp.nameRow + "행" : " · 업종명 = 머리글"})` : ""));
+  } else row("3 업종 추세 (SECTOR 시트)", sc.err || "불러오는 중…");
   const dp = KSE.defaultPeriod(S.data, S.p);
   row("지표 계산 시작", `${dp.start} (BOP(${S.p.bopMa})·이격도(${S.p.dispMa}일) 모두 계산되는 첫날 = 전체 기간의 시작)`);
   row("현재 분석 기간", S.bt ? `${S.start} ~ ${S.end} (${(S.i1 - S.i0 + 1).toLocaleString("ko-KR")}거래일)` : "–");
@@ -2499,7 +3078,7 @@ async function handleFile(file) {
   setStatus(`'${file.name}' 읽는 중…`); toast("엑셀을 읽는 중…", false, 60000);
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
-    let wb = await XLSXLite.readWorkbook(buf, { sheets: ["BOP", "INDEX", KST.SHEET_NAME] }), res;
+    let wb = await XLSXLite.readWorkbook(buf, { sheets: ["BOP", "INDEX", KST.SHEET_NAME, KSC.SHEET_NAME] }), res;
     try { res = KSE.parseWorkbookRows(wb.sheets.filter((s) => s.rows), { date1904: wb.date1904 }); }
     catch (e) { wb = await XLSXLite.readWorkbook(buf); res = KSE.parseWorkbookRows(wb.sheets, { date1904: wb.date1904 }); } // BOP 시트가 없으면 전체 시트에서 찾기
     res.report.sheets = wb.sheetNames;
@@ -2510,12 +3089,24 @@ async function handleFile(file) {
       try { tg = KST.parseSheet(tsh.rows, wb.date1904); tgNote = ` · TIGER 시트 ${tg.report.rows.toLocaleString("ko-KR")}행 (${tg.report.firstDate} ~ ${tg.report.lastDate})`; }
       catch (e) { tgNote = ` · TIGER 시트를 읽지 못함(${e.message}) — 업종 2등주는 기본 데이터`; }
     }
+    // 업종 추세 · 시장 폭: SECTOR 시트가 있으면 함께 반영 (따로 저장 — 크기가 커서 저장 공간이 모자라도 KOSPI 업로드는 유지)
+    const ssh = KSC.findSectorSheet(wb.sheets);
+    let sc = null, scNote = " · SECTOR 시트 없음(업종 추세는 기본 데이터)";
+    if (ssh) {
+      try { sc = KSC.parseSheet(ssh.rows, wb.date1904); scNote = ` · SECTOR 시트 ${sc.report.rows.toLocaleString("ko-KR")}행 (${sc.report.firstDate} ~ ${sc.report.lastDate}, 업종 ${sc.report.sectors}개)`; }
+      catch (e) { scNote = ` · SECTOR 시트를 읽지 못함(${e.message}) — 업종 추세는 기본 데이터`; }
+    }
     const savedAt = new Date().toLocaleString("ko-KR");
     const persisted = store.set(KEY_UPLOAD, JSON.stringify({ v: 1, name: file.name, savedAt, report: res.report, data: res.data, tiger: tg ? { data: tg.data, report: tg.report, asOf: wb.modified } : null }));
     setData(res.data, { kind: "upload", name: file.name, savedAt, report: res.report, persisted });
     if (tg) setTigerData(tg.data, { kind: "upload", name: file.name, savedAt, report: tg.report, asOf: wb.modified });
     else if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
-    const msg = `'${file.name}' 반영 완료 — ${res.report.sheet} 시트 ${res.report.rows.toLocaleString("ko-KR")}행 (${res.report.first} ~ ${res.report.last})` + tgNote +
+    if (sc) {
+      const scSaved = store.set(KEY_UP_SECTOR, JSON.stringify({ v: 1, name: file.name, savedAt, report: sc.report, asOf: wb.modified, data: KSC.toPlain(sc.data) }));
+      if (!scSaved) { store.del(KEY_UP_SECTOR); scNote += " (브라우저 저장 공간이 부족해 업종 추세는 이번 화면에서만)"; }
+      setSectorData(sc.data, { kind: "upload", name: file.name, savedAt, report: sc.report, asOf: wb.modified, persisted: scSaved });
+    } else if (S.sc.src && S.sc.src.kind === "upload") { store.del(KEY_UP_SECTOR); loadSectorDefault(null, true); }
+    const msg = `'${file.name}' 반영 완료 — ${res.report.sheet} 시트 ${res.report.rows.toLocaleString("ko-KR")}행 (${res.report.first} ~ ${res.report.last})` + tgNote + scNote +
       (persisted ? " · 이 브라우저에 저장됨" : " · 브라우저 저장 공간이 부족해 이번 화면에서만 사용");
     setStatus(msg); toast(msg, false, 6000);
     if ($("dataDlg").open) renderReport();
@@ -2556,6 +3147,7 @@ async function preferNewerDefault(stored) {
   store.del(KEY_UPLOAD);
   setData(d.data, d.src);
   if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
+  if (S.sc.src && S.sc.src.kind === "upload") { store.del(KEY_UP_SECTOR); loadSectorDefault(null, true); }
   const m = `새 기본 데이터(${last(d.data)}까지)를 불러왔습니다 — 저장된 업로드 '${stored.src.name}'(${last(stored.data)}까지)보다 최신입니다.`;
   setStatus(m); toast(m, false, 8000);
   if ($("dataDlg").open) renderReport();
@@ -2707,6 +3299,7 @@ function wire() {
     store.del(KEY_UPLOAD); // 기본 데이터를 받은 뒤에만 저장된 업로드를 지움
     setData(d.data, d.src);
     if (S.tg.src && S.tg.src.kind === "upload") loadTigerDefault(null, true);
+    if (S.sc.src && S.sc.src.kind === "upload") { store.del(KEY_UP_SECTOR); loadSectorDefault(null, true); }
     const m = `기본 데이터(${scopeLabel(d.src && d.src.meta)})로 되돌렸습니다.`;
     setStatus(m); toast(m);
     if ($("dataDlg").open) renderReport();
@@ -2734,10 +3327,14 @@ function makeCharts() {
   CH.ps = new TimeChart($("chPathS"), { height: 280, minHeight: 240, zoom: false });
   CH.oos = new TimeChart($("chOos"), { height: 300, minHeight: 240 });
   CH.tiger = new TimeChart($("chTiger"), { height: 460, minHeight: 360, overview: true, view: VIEW.tiger });
+  CH.sector = new TimeChart($("chSector"), { height: 440, minHeight: 340, overview: true, view: VIEW.sector });
+  CH.breadth = new TimeChart($("chBreadth"), { height: 540, minHeight: 420, overview: true, view: VIEW.breadth });
   const dates = () => S.data && S.data.dates;
   mountViewBar($("vbMain"), () => VIEW.main, [VIEW.main], dates, analyzeRange);
   navBarUpd = mountViewBar($("vbNav"), () => (S.ui.link ? VIEW.main : VIEW.nav), [VIEW.main, VIEW.nav], dates, analyzeRange);
   mountViewBar($("vbTiger"), () => VIEW.tiger, [VIEW.tiger], () => (S.tg.res && S.tg.res.ok ? S.tg.res.dates : null), null);
+  mountViewBar($("vbSector"), () => VIEW.sector, [VIEW.sector], () => (CH.sector.spec ? CH.sector.spec.dates : null), null);
+  mountViewBar($("vbBreadth"), () => VIEW.breadth, [VIEW.breadth], () => (CH.breadth.spec ? CH.breadth.spec.dates : null), null);
 }
 async function init() {
   loadSettings();
@@ -2749,6 +3346,7 @@ async function init() {
   makeCharts();
   wire();
   wireTiger();
+  wireSector();
   $("stratSel").value = S.ui.overlay; $("crit").value = S.ui.crit; $("heatTarget").value = S.ui.heatTarget;
   document.querySelectorAll("#showChips [data-show]").forEach((b) => b.setAttribute("aria-pressed", String(!!S.ui.show[b.dataset.show])));
   syncNav();
@@ -2756,6 +3354,7 @@ async function init() {
   if (h === "data") openData();
   const stored = loadStored();
   loadTigerDefault(stored && stored.tiger); // 업종 2등주 데이터는 따로 (기다리지 않음)
+  loadSectorDefault(loadStoredSector()); // 업종 추세 · 시장 폭도 따로
   if (stored) { setData(stored.data, stored.src); preferNewerDefault(stored); return; }
   try {
     const d = await loadDefault();
