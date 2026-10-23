@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- 이 창의 연결은 api.github.com 으로만: 그 밖의 연결·인라인 스크립트는 막는다 (KaTeX·글꼴만 고정 버전으로 허용).
+<!-- 이 창의 연결은 api.github.com 으로만: 그 밖의 연결·인라인 스크립트는 막는다 (KaTeX·글꼴만 고정 버전으로 허용,
+     은하 보기의 3D 엔진은 이 저장소의 vendor/kg3d.min.js — 'self').
      저장된 토큰(kg.token)은 같은 출처의 다른 페이지도 읽을 수 있다 — for_kg README '한계' 참고 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/ https://fonts.googleapis.com; font-src https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/ https://fonts.gstatic.com; img-src 'self' data:; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
@@ -23,6 +24,8 @@
   --pos: #2a78d6; --neg: #e34948; --neu: #52514e; --edge-muted: #898781;
   --pos-soft: rgba(42,120,214,.10); --neg-soft: rgba(227,73,72,.10);
   --focus: #2a78d6; --warn-bg: #fff4e0; --warn-ink: #8a5300; --err-ink: #b42525;
+  /* 은하 색: dataviz 범주 팔레트에서 관계 극성(파랑·빨강)을 뺀 6색, 고리 순서 (validate_palette: 고리 3~6개의 이웃·첫 3색 모든 쌍 통과) */
+  --gal-1: #6250d6; --gal-2: #eb6834; --gal-3: #1baf7a; --gal-4: #eda100; --gal-5: #e87ba4; --gal-6: #008300;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -33,6 +36,7 @@
     --pos: #3987e5; --neg: #e66767; --neu: #c3c2b7; --edge-muted: #898781;
     --pos-soft: rgba(57,135,229,.16); --neg-soft: rgba(230,103,103,.16);
     --focus: #3987e5; --warn-bg: #3a2a10; --warn-ink: #f2c27a; --err-ink: #ff8f8f;
+    --gal-1: #9085e9; --gal-2: #d95926; --gal-3: #199e70; --gal-4: #c98500; --gal-5: #d55181; --gal-6: #008300;
     color-scheme: dark;
   }
 }
@@ -43,6 +47,7 @@
   --pos: #3987e5; --neg: #e66767; --neu: #c3c2b7; --edge-muted: #898781;
   --pos-soft: rgba(57,135,229,.16); --neg-soft: rgba(230,103,103,.16);
   --focus: #3987e5; --warn-bg: #3a2a10; --warn-ink: #f2c27a; --err-ink: #ff8f8f;
+  --gal-1: #9085e9; --gal-2: #d95926; --gal-3: #199e70; --gal-4: #c98500; --gal-5: #d55181; --gal-6: #008300;
   color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -85,16 +90,35 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 /* 앱 */
 .app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--rule); }
-.toolbar input[type=search] { height: 30px; width: 210px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface-2); }
+.toolbar input[type=search] { height: 30px; width: auto; flex: 10 1 96px; min-width: 0; max-width: 210px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface-2); }
+/* 검색 칸은 210px까지 늘고, 도구 줄이 모자라면 96px까지 줄어 보기 전환이 더해져도 이전보다 일찍 두 줄이 되지 않는다 */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; border: 0; margin: 0; padding: 0; }
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--surface); cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
 .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink-2); background: var(--surface-2); }
 .chip svg { flex: none; }
 .switch { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--rule); } /* 높이 30px = 검색 칸 — 도구 줄 높이가 이전과 같게 */
+.seg button { border: 0; background: none; height: 24px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); font-weight: 600; }
+.seg .seg-label { font-size: 12px; color: var(--ink-2); padding: 0 4px 0 6px; }
 .spacer { flex: 1; }
 .stage { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
 .graph-wrap { position: relative; min-height: 0; background: var(--surface); border-right: 1px solid var(--rule); overflow: hidden; }
 .canvas-box { position: absolute; inset: 0; }
+.graph-wrap.galaxy-on .canvas-box { top: var(--gnav-h, 0px); }
+/* 은하 보기: 위쪽 이동 줄(전체 › 은하 › 항성계), 3D 그림, 그 위에 이름·고리를 그리는 투명 캔버스 */
+.gnav { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: grid; gap: 5px; padding: 7px 12px; background: var(--surface); border-bottom: 1px solid var(--rule); }
+.gnav-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+#gkids { max-height: 84px; overflow-y: auto; margin: -4px; padding: 4px; } /* 은하·항성계가 많아도 두 줄 반까지 — 나머지는 이 줄 안에서 스크롤해 3D 지도를 가리지 않는다 (여백 4px: 칩의 초점 테두리가 잘리지 않게) */
+.gnav .chip b { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.gnav .chip[aria-current="true"] { color: var(--ink); border-color: var(--ink-2); background: var(--surface-2); font-weight: 600; }
+.gnav .sep { color: var(--muted); font-size: 12px; }
+.gdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.lg-swatch { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+.galaxy { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.galaxy canvas { display: block; }
+canvas.glabels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.gmsg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 2; margin: 0; width: max-content; max-width: min(440px, calc(100% - 32px)); text-align: center; font-size: 13px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; }
 canvas#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 canvas#graph.dragging { cursor: grabbing; }
 canvas#graph.on-item { cursor: pointer; }
@@ -107,6 +131,7 @@ canvas#graph.on-item { cursor: pointer; }
 .legend .lg-title { font-weight: 600; color: var(--ink); margin-right: 2px; }
 .stat { position: absolute; right: 12px; top: 10px; z-index: 2; margin: 0; font-size: 12px; color: var(--ink-2); background: color-mix(in srgb, var(--surface) 92%, transparent); padding: 2px 8px; border-radius: 6px; }
 .disclaim { position: absolute; right: 12px; bottom: 12px; z-index: 2; margin: 0; font-size: 11.5px; color: var(--ink-2); max-width: 260px; text-align: right; }
+.graph-wrap.galaxy-on .legend { max-width: calc(100% - 300px); } /* 은하 이름이 늘어도 오른쪽 아래 안내 문구와 겹치지 않게 */
 
 /* 오른쪽 패널 */
 .panel { min-height: 0; display: flex; flex-direction: column; background: var(--page); }
@@ -166,9 +191,12 @@ table.list td.num { text-align: right; font-variant-numeric: tabular-nums; white
   .stage { display: block; overflow: visible; }
   .graph-wrap { display: flex; flex-direction: column; min-height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
   .canvas-box { position: relative; inset: auto; height: 58vh; min-height: 340px; }
+  .gnav { position: static; }
+  .graph-wrap.galaxy-on .canvas-box { top: auto; }
+  .graph-wrap.galaxy-on .legend { max-width: none; }
   .panel { min-height: 0; }
   .panel-body { overflow: visible; }
-  .toolbar input[type=search] { width: 100%; }
+  .toolbar input[type=search] { flex: 1 1 100%; max-width: none; }
   .legend { position: static; margin: 0; border: 0; border-top: 1px solid var(--rule); border-radius: 0; max-width: none; background: var(--surface); }
   .disclaim { position: static; max-width: none; text-align: left; padding: 0 10px 10px; background: var(--surface); }
 }
@@ -179,7 +207,7 @@ table.list td.num { text-align: right; font-variant-numeric: tabular-nums; white
 <header class="top">
   <div>
     <h1>Knowledge Graph</h1>
-    <p class="sub">연구 지식 Vault — 노트 사이의 연결·보완·충돌·공백을 물리엔진의 장력으로 탐색합니다.</p>
+    <p class="sub">연구 지식 Vault — 노트 사이의 연결·보완·충돌·공백을 장력과 3D 은하로 탐색합니다.</p>
   </div>
   <div class="top-actions">
     <span class="repo-info" id="repoInfo"></span>
@@ -217,22 +245,36 @@ table.list td.num { text-align: right; font-variant-numeric: tabular-nums; white
 
 <main class="app" id="app" hidden>
   <div class="toolbar" role="toolbar" aria-label="그래프 보기 설정">
+    <div class="seg" id="viewSeg" role="group" aria-label="보기">
+      <button type="button" data-view="tension" aria-pressed="true" title="평면 — 관계를 스프링 장력으로">장력</button>
+      <button type="button" data-view="galaxy" aria-pressed="false" title="3D — 비슷한 논문끼리 은하로">은하</button>
+    </div>
     <input type="search" id="searchIn" placeholder="제목·키워드·토픽 검색" aria-label="노드 검색">
     <fieldset class="chips" id="edgeFilters" aria-label="간선 종류 표시"></fieldset>
-    <label class="switch"><input type="checkbox" id="tensionIn" checked> 장력 강조</label>
+    <label class="switch" id="tensionSwitch"><input type="checkbox" id="tensionIn" checked> 장력 강조</label>
+    <div class="seg" id="gapSeg" role="group" aria-label="은하 사이 간격" hidden>
+      <span class="seg-label" aria-hidden="true">간격</span>
+      <button type="button" data-gap="narrow" aria-pressed="false">좁게</button>
+      <button type="button" data-gap="normal" aria-pressed="true">보통</button>
+      <button type="button" data-gap="wide" aria-pressed="false">넓게</button>
+    </div>
     <span class="spacer"></span>
     <button class="btn small" id="reheatBtn" type="button" title="노드를 다시 흔들어 배치">다시 배치</button>
     <button class="btn small" id="fitBtn" type="button" title="모든 노드가 보이게">화면 맞춤</button>
   </div>
   <div class="stage">
-    <div class="graph-wrap">
+    <div class="graph-wrap" id="graphPane">
+      <nav class="gnav" id="gnav" aria-label="은하 이동" hidden><div class="gnav-row" id="gcrumbs"></div><div class="gnav-row" id="gkids"></div></nav>
       <div class="canvas-box" id="graphWrap">
         <canvas id="graph" tabindex="0" role="img" aria-label="노트 관계 그래프 — 목록 탭에서 같은 내용을 표로 볼 수 있습니다"></canvas>
+        <div class="galaxy" id="galaxy" tabindex="0" role="img" aria-label="은하 지도 — 선택 탭의 은하 목록과 목록 탭에서 같은 내용을 글로 볼 수 있습니다" hidden></div>
+        <canvas class="glabels" id="glabels" aria-hidden="true" hidden></canvas>
+        <p class="gmsg" id="gmsg" role="status" hidden></p>
         <div class="tip" id="tip" role="tooltip" hidden></div>
         <p class="stat" id="stat"></p>
       </div>
       <div class="legend" id="legend" aria-label="범례"></div>
-      <p class="disclaim">장력은 지식의 진위가 아니라 연결 구조의 긴장을 보여 주는 탐색용 표시입니다.</p>
+      <p class="disclaim" id="disclaim">장력은 지식의 진위가 아니라 연결 구조의 긴장을 보여 주는 탐색용 표시입니다.</p>
     </div>
     <aside class="panel" aria-label="상세">
       <div class="tabs" role="tablist" aria-label="상세 보기">

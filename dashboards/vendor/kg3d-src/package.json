@@ -1,0 +1,12 @@
+{
+  "name": "kg3d-build",
+  "private": true,
+  "description": "Knowledge Graph 은하 보기용 3D 번들(../kg3d.min.js)을 다시 만들 때 쓰는 고정 의존성 — npm ci 로 설치 (../README.md)",
+  "dependencies": {
+    "3d-force-graph": "1.80.1",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}
