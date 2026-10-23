@@ -10,6 +10,8 @@
  *     T < 0  눌림  : 자연 길이보다 가까이 붙들린 연결 (예: 충돌 관계인데 인용·같은 방법론이 끌어당김)
  *     표시값(소수 둘째 자리)이 0.00 이면 '평형'
  *   노드 응력 = 보이는(필터로 숨기지 않은) 간선 |T| 의 합. 장력은 진위가 아니라 연결·보완·충돌·공백을 찾기 위한 표시다.
+ *
+ * 은하 보기(3D): 비슷한 논문끼리 묶은 은하·항성계를 graph.json 의 galaxy 블록 위치 그대로 그린다 (아래 '은하 보기' 구역).
  */
 "use strict";
 (() => {
@@ -21,7 +23,8 @@
   const storage = (kind) => ({
     get(k) { try { return window[kind].getItem(k); } catch (e) { return null; } },
     set(k, v) { try { window[kind].setItem(k, v); return true; } catch (e) { return false; } },
-    del(k) { try { window[kind].removeItem(k); } catch (e) { /* 저장소 차단 */ } },
+    del(k) { try { window[kind].removeItem(k); return true; } catch (e) { return false; } }, // false: 저장소 차단으로 지우지 못함
+    ok() { try { return !!window[kind]; } catch (e) { return false; } }, // 사이트 데이터를 막으면 저장소에 접근하는 것만으로 예외가 난다
   });
   const ss = storage("sessionStorage"), ls = storage("localStorage");
 
@@ -35,7 +38,8 @@
     { id: "gap", label: "공백", keys: ["gap"] },
   ];
   // color: pos(보완·파랑) / neg(충돌·빨강) / neu(가운데 회색) / muted(보조 회색). 극성 안의 유형은 선 모양으로 구분.
-  const ESTYLE = {
+  // ESTYLE·SPRING은 프로토타입 없는 객체: vocab의 관계 유형이 'constructor'처럼 Object 기본 속성 이름이어도 기존 스타일로 잘못 찾지 않고 새 유형으로 등록한다
+  const ESTYLE = Object.assign(Object.create(null), {
     extends:     { color: "pos", dash: [],     w: 2.2, arrow: true,  label: "확장" },
     supports:    { color: "pos", dash: [7, 5], w: 2.2, arrow: true,  label: "지지" },
     same_method: { color: "neu", dash: [2, 4], w: 2.0, arrow: false, label: "같은 방법론" },
@@ -44,27 +48,37 @@
     cites:       { color: "muted", dash: [],   w: 1.2, arrow: true,  label: "인용" },
     similar:     { color: "muted", dash: [],   w: 1.0, arrow: false, label: "유사도" },
     gap:         { color: "muted", dash: [3, 4], w: 1.2, arrow: true, label: "공백 문헌 인용" },
-  };
-  const SPRING = { // 자연 길이(px)·강성. 충돌은 자연 길이가 길어 다른 연결과 겨루며 장력이 생긴다
+  });
+  const SPRING = Object.assign(Object.create(null), { // 자연 길이(px)·강성. 충돌은 자연 길이가 길어 다른 연결과 겨루며 장력이 생긴다
     extends: { L: 150, k: 0.05 }, supports: { L: 150, k: 0.05 }, same_method: { L: 175, k: 0.035 },
     challenges: { L: 280, k: 0.035 }, refutes: { L: 320, k: 0.045 },
     cites: { L: 200, k: 0.025 }, similar: { L: 240, k: 0.02 }, gap: { L: 120, k: 0.03 },
-  };
+  });
+  const BASE_STYLES = Object.keys(ESTYLE), BASE_KEYS = GROUPS.map((g) => g.keys.slice()); // 기본 관계 유형 — vault가 더한 유형은 잠그기·토큰 거부 때 지운다
   const PHYS = { repulse: 7000, gravity: 0.015, damp: 0.85, maxV: 24 };
   const AREA_ORDER = ["portfolio-theory", "asset-pricing", "active-management", "fixed-income", "credit", "currency", "macro", "econometrics"];
   const SHAPES = ["circle", "square", "diamond", "triangle", "hexagon", "triangleDown", "pentagon", "octagon"];
-  const CONF = { high: "높음", medium: "중간", low: "낮음" };
-  const ACCESS = { private: "비공개 (열람 토큰 보유자만)", shareable: "교환 가능 (요약·키워드 캡슐)" };
+  // 표 조회도 'constructor'처럼 Object 기본 속성 이름이 상속 값으로 잡히지 않게: 고정 표는 프로토타입 없이, graph.json 표는 own()으로 확인한다
+  const CONF = Object.assign(Object.create(null), { high: "높음", medium: "중간", low: "낮음" });
+  const ACCESS = Object.assign(Object.create(null), { private: "비공개 (열람 토큰 보유자만)", shareable: "교환 가능 (요약·키워드 캡슐)" });
+  const own = (o, k) => o != null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k);
 
   const S = {
     token: null, repo: { ...DEFAULT_REPO }, graph: null,
     nodes: [], edges: [], byId: new Map(), edgeById: new Map(), detail: new Map(),
     sel: null, hover: null, tab: "sel",
-    filters: Object.fromEntries(GROUPS.map((g) => [g.id, true])), tension: true, search: "", hits: null,
+    // 간선 필터는 보기마다 따로: 장력(평면)은 모두 켠 채로, 은하(3D)는 유사도·공백 선을 끈 채로 시작한다 — filters는 지금 보기의 것
+    filtersT: Object.fromEntries(GROUPS.map((g) => [g.id, true])), filtersG: { complement: true, method: true, conflict: true, cites: true, similar: false, gap: false },
+    filters: null, tension: true, search: "", hits: null,
+    mode: "tension", gap: "normal", gx: null, gm: undefined, kickLater: false, // 보기·은하 간격, 은하 보기 상태·모델(undefined = 아직 안 만듦), 은하 보기 중 미룬 장력 배치
     view: { cx: 0, cy: 0, k: 1 }, size: { w: 0, h: 0, dpr: 1 }, ctx: null, colors: null, font: "sans-serif",
     running: false, calm: 0, steps: 0, fitted: false, drag: null, pointers: new Map(), loadSeq: 0, tip: null,
-    ptr: null, panelView: "", notice: "",
+    ptr: null, panelView: "", notice: "", loadErr: "", detailWait: new Map(),
+    detailErr: new Map(), // 노드 id → 노트 전문 오류 문구. 노드마다 따로 두어 떠난 노트의 늦은 실패가 지금 노트의 오류를 지우지 않는다
+    epoch: 0, // 그래프를 새로 받거나 토큰을 잊을 때마다(잠그기·토큰 거부) 늘린다 — 그 전에 보낸 노트 전문 요청의 늦은 응답은 버린다
+    ctl: new AbortController(), // 잠그기·토큰 거부 때 받는 중인 요청을 끊는다 — 응답을 기다리며 노드 내용을 쥐고 있지 않게
   };
+  S.filters = S.filtersT;
   const TOKEN_RE = /^github_pat_[A-Za-z0-9_]{20,}$/; // 읽기 전용 fine-grained PAT 만
   const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
 
@@ -148,7 +162,7 @@
     try { // 헤더는 둘뿐: Accept 값은 CORS 안전 목록이라, 사전 요청(preflight)은 Authorization 하나만 허가받으면 된다
       res = await fetch(url, {
         headers: { Authorization: `Bearer ${S.token}`, Accept: "application/vnd.github.raw+json" },
-        cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
+        cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: S.ctl.signal,
       });
     } catch (e) { throw new HttpError(0, path, "network"); }
     if (!res.ok) throw new HttpError(res.status, path, res.headers.get("x-ratelimit-remaining") === "0" ? "ratelimit" : "");
@@ -293,6 +307,7 @@
   function kick(shake) {
     if (shake) for (const n of S.nodes) if (!n.pinned) { n.vx += (hash01(n.id + S.steps) - 0.5) * 30; n.vy += (hash01(S.steps + n.id) - 0.5) * 30; }
     S.calm = 0; S.steps = 0;
+    if (S.mode === "galaxy") { S.kickLater = true; return; } // 은하 보기 중에는 장력 배치를 멈춰 둔다 — 장력 보기로 돌아오면 이어서
     if (reduceMotion) { settle(); return; }
     if (!S.running) { S.running = true; requestAnimationFrame(tick); }
   }
@@ -321,7 +336,10 @@
   /* ---------- 그리기 ---------- */
   function readColors() {
     const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
-    S.colors = { surface: v("--surface"), surface2: v("--surface-2"), ink: v("--ink"), ink2: v("--ink-2"), pos: v("--pos"), neg: v("--neg"), neu: v("--neu"), muted: v("--edge-muted"), focus: v("--focus") };
+    S.colors = { surface: v("--surface"), surface2: v("--surface-2"), ink: v("--ink"), ink2: v("--ink-2"), pos: v("--pos"), neg: v("--neg"), neu: v("--neu"), muted: v("--edge-muted"), focus: v("--focus"),
+      gal: [1, 2, 3, 4, 5, 6].map((i) => v(`--gal-${i}`)) };
+    const m = /^#([0-9a-f]{6})$/i.exec(S.colors.surface), sv = m ? parseInt(m[1], 16) : 0xffffff;
+    S.colors.dark = ((sv >> 16) * 299 + ((sv >> 8) & 255) * 587 + (sv & 255) * 114) / 1000 < 128; // 배경이 어두우면 은하 무리를 조금 더 진하게
     S.font = v("--font") || "sans-serif";
   }
   function edgeColor(sk) { const c = ESTYLE[sk].color; return S.colors[c === "muted" ? "muted" : c]; }
@@ -446,14 +464,19 @@
 
   /* ---------- 상호작용 ---------- */
   function canvasPoint(ev) { const r = S.canvas.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; }
+  function syncSize() { // 캔버스 상자의 지금 크기를 2D 캔버스에 — ResizeObserver와, 은하 보기에서 장력 보기로 돌아올 때(상자 크기가 달랐다)
+    const cv = S.canvas, r = $("graphWrap").getBoundingClientRect(), dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    S.size = { w: r.width, h: r.height, dpr };
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  }
   function setupCanvas() {
     const cv = $("graph"); S.canvas = cv; S.ctx = cv.getContext("2d");
     const ro = new ResizeObserver(() => {
-      const r = $("graphWrap").getBoundingClientRect(), dpr = Math.min(2.5, window.devicePixelRatio || 1);
-      S.size = { w: r.width, h: r.height, dpr };
-      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
-      if (!S.fitted && S.graph && !S.running) S.fitted = fitView(); // 움직임 줄이기: 첫 배치를 크기가 정해진 뒤 화면에 맞춘다
+      syncSize();
+      // 움직임 줄이기: 첫 배치를 크기가 정해진 뒤 화면에 맞춘다. 은하 보기 중에는 맞추지 않는다 — 장력 배치를 미뤄 둔 채라 맞출 위치가 아직 없다
+      if (!S.fitted && S.graph && !S.running && S.mode !== "galaxy") S.fitted = fitView();
       draw(); rehover(); // 크기가 바뀌면 화면↔그래프 좌표가 달라지므로 멈춰 있는 포인터 아래를 다시 찾는다
+      gxResize();
     });
     ro.observe($("graphWrap"));
 
@@ -480,7 +503,11 @@
         if (Math.hypot(sx - dg.sx, sy - dg.sy) > 4) dg.moved = true;
         if (!dg.moved) return;
         if (dg.pan) { S.view.cx = dg.cx - (sx - dg.sx) / S.view.k; S.view.cy = dg.cy - (sy - dg.sy) / S.view.k; draw(); }
-        else { const n = S.byId.get(dg.id), [wx, wy] = toWorld(sx, sy); n.x = wx; n.y = wy; n.vx = n.vy = 0; kick(false); if (reduceMotion) draw(); }
+        else {
+          const n = S.byId.get(dg.id), [wx, wy] = toWorld(sx, sy);
+          if (!n) { S.drag = null; cv.classList.remove("dragging"); return; } // 끄는 사이 새로 받은 그래프에 그 노드가 없으면 끌기를 끝낸다
+          n.x = wx; n.y = wy; n.vx = n.vy = 0; kick(false); if (reduceMotion) draw();
+        }
         hideTip(); return;
       }
       hoverAt(sx, sy);
@@ -490,12 +517,23 @@
       if (S.pointers.size < 2) S.pinch = null;
       const dg = S.drag; S.drag = null; cv.classList.remove("dragging");
       if (!dg) return;
-      if (!dg.moved) select(dg.target || null);
-      else if (!dg.pan) { S.byId.get(dg.id).pinned = true; kick(false); }
+      if (!dg.moved) { const t = dg.target; select(t && (t.kind === "node" ? S.byId : S.edgeById).has(t.id) ? t : null); } // 누른 사이 그래프에서 빠진 항목은 고르지 않는다
+      else if (!dg.pan && S.byId.has(dg.id)) { S.byId.get(dg.id).pinned = true; kick(false); } // 그사이 그래프에서 빠진 노드는 고정하지 않는다
     };
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
-    cv.addEventListener("pointerleave", () => { S.ptr = null; if (S.hover) { S.hover = null; draw(); } hideTip(); });
+    const leave = () => { S.ptr = null; if (S.hover) { S.hover = null; draw(); } hideTip(); };
+    cv.addEventListener("pointerleave", leave);
+    // 좁은 화면에서는 문서가 스크롤되어 멈춰 있는 포인터 아래가 바뀐다. 캔버스 밖에서 스크롤해 캔버스가 포인터 아래로 들어오기도 하므로
+    // 마지막 마우스 위치는 문서 전체에서 기억하고, 스크롤 뒤 그 자리가 캔버스인지 다시 본다
+    let last = null;
+    document.addEventListener("pointermove", (ev) => { last = ev.pointerType === "touch" ? null : { x: ev.clientX, y: ev.clientY }; }, { passive: true });
+    document.addEventListener("pointerout", (ev) => { if (!ev.relatedTarget) last = null; }); // 창 밖으로 나가면 잊는다
+    window.addEventListener("scroll", () => {
+      if (!last || S.drag || S.pinch) return;
+      if (document.elementFromPoint(last.x, last.y) === cv) { S.ptr = last; rehover(); }
+      else if (S.ptr) leave();
+    }, { passive: true });
     cv.addEventListener("dblclick", (ev) => {
       const [sx, sy] = canvasPoint(ev), t = hit(sx, sy);
       if (t && t.kind === "node") { const n = S.byId.get(t.id); n.pinned = !n.pinned; kick(false); }
@@ -520,36 +558,39 @@
   }
   // 확대·화면 맞춤·배치로 그림이 움직인 뒤, 멈춰 있는 마우스 아래 항목을 다시 찾는다 (끄는 중·두 손가락 확대 중에는 안 함)
   const rehover = (noDraw) => {
-    if (!S.ptr || S.drag || S.pinch || !S.graph) return;
+    if (!S.ptr || S.drag || S.pinch || !S.graph || S.mode === "galaxy") return;
     const r = S.canvas.getBoundingClientRect(); hoverAt(S.ptr.x - r.left, S.ptr.y - r.top, noDraw);
   };
   function showTip(t, sx, sy) {
-    S.tip = { t, sx, sy };
     const tip = $("tip"), kids = [];
-    if (t.kind === "node") {
-      const n = S.byId.get(t.id);
-      kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
-      if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
-    } else {
-      const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
-      kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence]}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
-        h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
-        h("div", { class: "t2" }, tensionText(e)));
-    }
+    try {
+      if (t.kind === "node") {
+        const n = S.byId.get(t.id);
+        kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.kind === "gap" ? `vault 밖 문헌 · ${n.cited_by.length}편이 인용` : n.title));
+        if (n.kind === "note" && S.tension) kids.push(h("div", { class: "t2" }, `응력(보이는 간선 장력 절댓값 합) ${n.stress.toFixed(2)} · 연결 ${degOn(n)}`));
+      } else {
+        const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target);
+        kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence] || e.confidence}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
+          h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
+          h("div", { class: "t2" }, tensionText(e)));
+      }
+    } catch (err) { hideTip(); return; } // graph.json에 필요한 값이 빠져 툴팁을 만들지 못하면 닫는다 — 패널·새로고침·배치가 이 예외로 멈추지 않게
+    S.tip = { t, sx, sy };
     if (tip.hidden || tip.textContent !== kids.map((k) => k.textContent).join("")) tip.replaceChildren(...kids); // 같은 내용이면 그대로 둔다
     tip.hidden = false;
     const W = S.size.w, tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = `${Math.min(W - tw - 8, sx + 14)}px`; tip.style.top = `${Math.max(8, Math.min(S.size.h - th - 8, sy + 14))}px`;
   }
   function hideTip() { S.tip = null; $("tip").hidden = true; }
-  // 열린 툴팁도 패널처럼 지금 값으로 다시 쓴다. 가리키던 항목이 필터로 숨겨졌으면 닫는다
+  const itemOn = (t) => t.kind === "node" ? S.byId.has(t.id) && nodeOn(S.byId.get(t.id)) : S.edgeById.has(t.id) && edgeOn(S.edgeById.get(t.id));
+  // 열린 툴팁도 패널처럼 지금 값으로 다시 쓴다. 가리키던 항목이 필터로 숨겨졌으면 닫는다.
+  // 툴팁이 없어도(만들지 못해 닫힌 경우 포함) 숨겨진 항목에 남은 hover는 푼다 — 그래프 전체가 흐린 채 남지 않게
   function refreshTip() {
     const tp = S.tip;
-    if (!tp || $("tip").hidden) return;
-    const t = tp.t, on = t.kind === "node" ? S.byId.has(t.id) && nodeOn(S.byId.get(t.id)) : S.edgeById.has(t.id) && edgeOn(S.edgeById.get(t.id));
-    if (on) { showTip(t, tp.sx, tp.sy); return; }
-    hideTip();
-    if (S.hover && S.hover.id === t.id) { S.hover = null; S.canvas.classList.remove("on-item"); draw(); }
+    if (S.mode === "galaxy") { if (tp && tp.gx && !$("tip").hidden && gxItemOn(tp.t)) gxTip(tp.t); else if (tp) hideTip(); return; }
+    if (tp && !$("tip").hidden && itemOn(tp.t)) { showTip(tp.t, tp.sx, tp.sy); return; }
+    if (tp) hideTip();
+    if (S.hover && !itemOn(S.hover)) { S.hover = null; S.canvas.classList.remove("on-item"); draw(); }
   }
   // 상태는 표시값의 부호로: 0.00으로 보이면 평형, 그 밖에는 + 늘어남 · 당김 / − 눌림 · 밀어냄 ('-0.00' 표기 없음)
   const fmtT = (T) => { const s = T.toFixed(2); return s === "0.00" || s === "-0.00" ? "0.00" : T > 0 ? `+${s}` : s; };
@@ -570,7 +611,7 @@
     refreshTip();
   }
   function select(t) {
-    S.sel = t; S.tab = "sel"; S.notice = ""; renderTabs(); renderPanel(); draw();
+    S.sel = t; S.tab = "sel"; S.notice = ""; S.loadErr = ""; S.detailErr.clear(); renderTabs(); renderPanel(); draw(); gxSelChanged();
   }
 
   /* ---------- 패널 ---------- */
@@ -580,13 +621,19 @@
     const same = view === S.panelView, act = document.activeElement, fk = same && act && act !== body && body.contains(act) ? focusKey(body, act) : null, top = body.scrollTop;
     S.panelView = view; body.replaceChildren();
     if (!S.graph) return;
-    if (S.tab === "tension") body.append(...panelTension());
-    else if (S.tab === "gaps") body.append(...panelGaps());
-    else if (S.tab === "list") body.append(...panelList());
-    else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
-    else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
-    else body.append(...panelOverview());
-    if (S.notice) body.prepend(h("p", { class: "notice" }, S.notice)); // 토큰 보관 안내: 다른 화면으로 옮길 때까지 남긴다
+    try {
+      if (!S.nodes.length) body.append(h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다."));
+      else if (S.tab === "tension") body.append(...panelTension());
+      else if (S.tab === "gaps") body.append(...panelGaps());
+      else if (S.tab === "list") body.append(...panelList());
+      else if (S.sel && S.sel.kind === "node" && S.byId.has(S.sel.id)) body.append(...panelNode(S.byId.get(S.sel.id)));
+      else if (S.sel && S.sel.kind === "edge" && S.edgeById.has(S.sel.id)) body.append(...panelEdge(S.edgeById.get(S.sel.id)));
+      else body.append(...panelOverview());
+    } catch (err) { // graph.json에 필요한 값이 빠져 그리지 못하면 빈 패널 대신 이유를 보인다 (아래 알림도 그대로 붙는다)
+      body.replaceChildren(h("p", { class: "notice" }, `이 화면을 그리지 못했습니다: ${err && err.message ? err.message : err}`));
+    }
+    // 새로고침 실패·토큰 보관 안내: 다시 그려도 남기고, 다른 화면으로 옮기거나 다시 불러오면 지운다
+    body.prepend(...[S.loadErr, S.notice].filter(Boolean).map((t) => h("p", { class: "notice" }, t)));
     if (same) { body.scrollTop = top; if (fk) restoreFocus(body, fk); } // 같은 패널을 다시 그리면 스크롤·키보드 포커스를 지킨다
     refreshTip();
   }
@@ -594,11 +641,11 @@
   const focusSig = (el) => el.dataset.k ? `k:${el.dataset.k}` : `${el.tagName}|${el.textContent}`;
   function focusKey(body, el) { const sig = focusSig(el); return { sig, tag: el.tagName, i: [...body.querySelectorAll(el.tagName)].filter((x) => focusSig(x) === sig).indexOf(el) }; }
   function restoreFocus(body, k) { const c = [...body.querySelectorAll(k.tag)].filter((x) => focusSig(x) === k.sig); const el = c[k.i] || c[0]; if (el) el.focus({ preventScroll: true }); }
-  const vocab = (kind, key) => (S.graph.vocab && S.graph.vocab[kind] && S.graph.vocab[kind][key]) || key;
-  const relLabel = (type) => (S.graph.vocab.relations[type] || {}).label || ESTYLE[type]?.label || type;
+  const vocab = (kind, key) => { const t = S.graph.vocab && S.graph.vocab[kind]; return (own(t, key) && t[key]) || key; };
   const nodeBtn = (id) => { const n = S.byId.get(id); return h("button", { class: "rowbtn", type: "button", "data-k": `n:${id}`, onclick: () => select({ kind: "node", id }) }, n ? n.label : id); };
   const edgeBtn = (e, text) => h("button", { class: "rowbtn", type: "button", "data-k": `e:${e.id}`, onclick: () => select({ kind: "edge", id: e.id }) }, text);
   function polTag(e) { const c = ESTYLE[e.sk].color; return h("span", { class: `tag ${c === "pos" ? "pos" : c === "neg" ? "neg" : "strong"}` }, ESTYLE[e.sk].label); }
+  const tensionShown = () => S.tension && S.mode !== "galaxy"; // 장력·응력 값은 장력 보기의 물리 배치에서 잰 것이라 은하 보기에서는 감춘다
   const hiddenNote = (n) => n > 0 ? h("p", { class: "dim", style: "font-size:12px;margin:4px 0 0" }, `필터로 숨긴 간선 ${n}개는 목록에서 뺐습니다.`) : null;
   const hiddenSelf = (what) => h("p", { class: "notice" }, `이 ${what} 지금 필터로 숨겨져 있습니다. 위쪽 간선 종류 버튼으로 다시 켜면 장력이 다시 계산됩니다.`);
   function quote(ev) { return h("blockquote", { class: "q" }, `“${ev.quote}”`, h("span", { class: "src" }, `PDF p.${ev.page}${ev.printed_page != null ? ` · 인쇄 p.${ev.printed_page}` : ""}${ev.section ? ` · ${ev.section}` : ""}`)); }
@@ -610,9 +657,12 @@
 
   function panelOverview() {
     const notes = S.nodes.filter((n) => n.kind === "note").sort((a, b) => a.year - b.year), c = relationCounts(edgeOn);
-    const hidden = S.edges.filter((e) => !edgeOn(e)).length, g = S.graph.gaps;
+    const hidden = S.edges.filter((e) => !edgeOn(e)).length, g = S.graph.gaps, gal = S.mode === "galaxy";
     return [
-      h("div", { class: "explain" }, "노드(논문)를 누르면 출처·권한·키워드가 담긴 캡슐이, 간선을 누르면 관계의 원문 근거가 보입니다. 노드를 끌어 옮기면 그 자리에 고정되고, 두 번 누르면 풀립니다."),
+      h("div", { class: "explain" }, gal
+        ? `은하는 토픽·키워드·방법론·참고문헌이 비슷한 논문끼리 자동으로 묶은 무리이고, 큰 은하는 그 안에서 항성계로 나뉩니다. 행성(논문)을 누르면 캡슐이 열리고 그 논문과 이어진 논문·선만 진하게 보입니다 — 유사도 선을 꺼 두어도 고른 논문과 가장 비슷한 논문(최대 ${SIM_TOP}편)으로 가는 유사도 선은 보입니다. 선을 누르면 관계의 원문 근거가 보입니다. 은하·항성계로 다가가려면 위쪽 이동 줄이나 은하 이름을 누르고, 끌어서 돌리고 휠로 확대합니다. 은하 사이를 잇는 선은 묶음을 넘는 연결입니다.`
+        : "노드(논문)를 누르면 출처·권한·키워드가 담긴 캡슐이, 간선을 누르면 관계의 원문 근거가 보입니다. 노드를 끌어 옮기면 그 자리에 고정되고, 두 번 누르면 풀립니다."),
+      gal ? galaxyList() : null,
       h("section", { class: "sec" }, h("h3", null, "Vault"),
         h("dl", { class: "kv" },
           h("dt", null, "노트"), h("dd", null, `${notes.length}편`),
@@ -621,7 +671,30 @@
           h("dt", null, "갱신"), h("dd", null, S.graph.meta.updated || "-"))),
       h("section", { class: "sec" }, h("h3", null, "노트 (연도순)"),
         h("ul", { style: "padding-left:18px;margin:0" }, notes.map((n) => h("li", null, nodeBtn(n.id), h("span", { class: "dim" }, ` — ${n.title}`))))),
-    ];
+    ].filter(Boolean);
+  }
+  // 은하 보기의 글 버전: 은하마다 이름·편수·항성계 수와 그 안의 논문 (이름을 누르면 3D에서 그 은하로)
+  function galaxyList() {
+    const M = gm();
+    if (!M) return h("p", { class: "notice" }, "이 그래프에는 은하 정보가 없습니다. for_kg에서 scripts/build_graph.py로 그래프를 다시 만들면 생깁니다.");
+    const year = (id) => S.byId.get(id).year;
+    return h("section", { class: "sec" }, h("h3", null, `은하 ${M.gals.length}`),
+      M.missing ? h("p", { class: "notice" }, `은하 정보가 없는 노트 ${M.missing}편은 은하 보기에 나오지 않습니다 — for_kg에서 그래프를 다시 만드세요.`) : null,
+      M.gals.map((g) => h("div", { class: "rel" },
+        h("div", { class: "rel-head" }, h("b", { class: "gdot", style: `background:${galVar(g.i)}`, "aria-hidden": "true" }),
+          h("button", { class: "rowbtn", type: "button", "data-k": `g:${g.id}`, onclick: () => gxGo(g) }, g.name),
+          h("span", { class: "dim" }, `${g.notes.length}편${g.systems.length > 1 ? ` · 항성계 ${g.systems.length}` : ""}`)),
+        g.systems.length > 1
+          ? h("ul", { style: "padding-left:18px;margin:4px 0 0;font-size:12.5px" }, g.systems.map((s) => h("li", null,
+            h("button", { class: "rowbtn", type: "button", "data-k": `s:${s.id}`, onclick: () => gxGo(g, s) }, s.name), ": ",
+            s.notes.slice().sort((a, b) => year(a) - year(b)).map((id, i) => [i ? ", " : "", nodeBtn(id)]))))
+          : h("p", null, g.notes.slice().sort((a, b) => year(a) - year(b)).map((id, i) => [i ? ", " : "", nodeBtn(id)])))));
+  }
+  function galaxyRow(n) { // 노드 캡슐의 '은하' 줄 (은하 보기에서만)
+    const M = S.mode === "galaxy" ? gm() : null, g = M && M.galOf.get(n.id), s = g && M.sysOf.get(n.id);
+    if (!g) return null;
+    return [h("dt", null, "은하"), h("dd", null, h("button", { class: "rowbtn", type: "button", "data-k": `g:${g.id}`, onclick: () => gxGo(g) }, g.name),
+      g.systems.length > 1 && s ? [" › ", h("button", { class: "rowbtn", type: "button", "data-k": `s:${s.id}`, onclick: () => gxGo(g, s) }, s.name)] : null)];
   }
 
   function panelNode(n) {
@@ -649,9 +722,10 @@
       h("dt", null, "방법론"), h("dd", null, n.methods.map((m) => vocab("methods", m)).join(", ")),
       h("dt", null, "키워드"), h("dd", null, n.keywords.join(", ")),
       h("dt", null, "구성"), h("dd", null, `주장 ${n.counts.claims} · 근거 ${n.counts.evidence} · 수식 ${n.counts.equations} · 참고문헌 ${n.counts.references}`),
-      S.tension && h("dt", null, "응력"), S.tension && h("dd", null, h("span", { "data-live": "stress", "data-id": n.id }, n.stress.toFixed(2)), " (보이는 간선 장력 절댓값의 합)")));
+      galaxyRow(n),
+      tensionShown() && h("dt", null, "응력"), tensionShown() && h("dd", null, h("span", { "data-live": "stress", "data-id": n.id }, n.stress.toFixed(2)), " (보이는 간선 장력 절댓값의 합)")));
 
-    const mine = S.edges.filter((e) => touches(e, n.id)), shown = mine.filter(edgeOn);
+    const add = gxSimAdd(), mine = S.edges.filter((e) => touches(e, n.id)), shown = mine.filter((e) => edgeOn(e) || add.has(e.id)); // 은하 보기에서 덧붙여 그린 유사도 선도 목록에
     const rel = shown.filter((e) => e.kind === "relation"), relHidden = mine.filter((e) => e.kind === "relation").length - rel.length;
     const sec = h("section", { class: "sec" }, h("h3", null, `근거 있는 관계 ${rel.length}`));
     if (!rel.length) sec.append(h("p", { class: "empty" }, relHidden ? "근거 있는 관계가 모두 필터로 숨겨져 있습니다." : "아직 근거가 붙은 관계가 없습니다."));
@@ -675,20 +749,49 @@
     const holder = h("div");
     const btn = h("button", { class: "btn", type: "button", onclick: () => openDetail(n, holder, btn) }, "노트 전문 열기");
     out.push(h("section", { class: "sec" }, btn), holder);
-    if (S.detail.has(n.id)) { btn.remove(); holder.replaceChildren(...renderDetail(S.detail.get(n.id))); } // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
+    if (S.detail.has(n.id)) showDetail(n, holder, btn, S.detail.get(n.id)); // 받아 둔 전문은 바로 다시 그린다 (스크롤·포커스 복원 전에)
+    else if (S.detailWait.has(n.id)) { btn.disabled = true; btn.textContent = "불러오는 중…"; } // 받는 중에 패널을 다시 그렸다 — 받으면 이 패널에 붙인다
+    else if (S.detailErr.has(n.id)) holder.replaceChildren(h("p", { class: "notice" }, S.detailErr.get(n.id)));
     return out;
   }
 
+  const showing = (id) => S.tab === "sel" && S.sel && S.sel.kind === "node" && S.sel.id === id;
   async function openDetail(n, holder, btn) {
     let d = S.detail.get(n.id);
     if (!d) {
       btn.disabled = true; btn.textContent = "불러오는 중…";
-      const seq = S.loadSeq;
-      try { d = await gh(n.detail); if (seq !== S.loadSeq) return; S.detail.set(n.id, d); } // 그사이 잠갔거나 다시 불러왔으면 버린다
-      catch (err) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, errorText(err))); return; }
+      const epoch = S.epoch, mark = {};
+      S.detailWait.set(n.id, mark); S.detailErr.delete(n.id);
+      let err = null;
+      try { d = await gh(n.detail); } catch (e) { err = e; }
+      if (S.detailWait.get(n.id) === mark) S.detailWait.delete(n.id);
+      // 그사이 잠갔거나 토큰이 거부됐거나(그 뒤 토큰을 다시 넣었어도) 그래프를 새로 받았으면 버린다. 새로고침이 실패해 그래프가 그대로면 이어서 붙인다
+      if (S.epoch !== epoch) return;
+      if (err) {
+        const msg = errorText(err);
+        S.detailErr.set(n.id, msg); // 이 노드의 오류만 바꾼다 — 다른 노드에 보이는 오류는 그대로
+        if (holder.isConnected) { btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, msg)); }
+        else if (showing(n.id)) renderPanel(); // 받는 동안 패널을 다시 그렸으면 새 패널에 오류를 보인다
+        return;
+      }
+      S.detail.set(n.id, d);
+    }
+    if (!holder.isConnected) { if (showing(n.id)) renderPanel(); return; } // 받는 동안 패널을 다시 그렸으면 받은 전문을 새 패널에 붙인다
+    showDetail(n, holder, btn, d);
+  }
+  // 받은 전문을 holder에 그린다. 노트 JSON이나 graph.json에 필요한 값이 빠져 그리지 못하면 빈 칸 대신 이유를 보이고,
+  // 받아 둔 것을 버려 버튼을 다시 누르면 새로 받게 한다
+  function showDetail(n, holder, btn, d) {
+    let kids;
+    try { kids = renderDetail(d); }
+    catch (err) {
+      const msg = `노트 전문을 그리지 못했습니다: ${err && err.message ? err.message : err}`;
+      S.detail.delete(n.id); S.detailErr.set(n.id, msg);
+      btn.disabled = false; btn.textContent = "노트 전문 열기"; holder.replaceChildren(h("p", { class: "notice" }, msg));
+      return;
     }
     btn.remove();
-    holder.replaceChildren(...renderDetail(d));
+    holder.replaceChildren(...kids);
   }
 
   function renderDetail(d) {
@@ -798,12 +901,12 @@
 
   function panelEdge(e) {
     const a = S.byId.get(e.source), b = S.byId.get(e.target), out = [];
-    out.push(h("div", { class: "tags" }, polTag(e), e.confidence && h("span", { class: "tag" }, `신뢰도 ${CONF[e.confidence]}`)));
+    out.push(h("div", { class: "tags" }, polTag(e), e.confidence && h("span", { class: "tag" }, `신뢰도 ${CONF[e.confidence] || e.confidence}`)));
     out.push(h("h2", { class: "n-title" }, nodeBtn(a.id), e.sk === "similar" ? " ↔ " : " → ", nodeBtn(b.id)));
-    if (!edgeOn(e)) out.push(hiddenSelf("간선은"));
-    else if (S.tension) out.push(h("p", { class: "n-meta", "data-live": "tension", "data-id": e.id }, tensionText(e)));
+    if (!edgeOn(e) && !gxSimAdd().has(e.id)) out.push(hiddenSelf("간선은")); // 은하 보기에서 덧붙여 그린 유사도 선은 숨겨진 것이 아니다
+    else if (tensionShown()) out.push(h("p", { class: "n-meta", "data-live": "tension", "data-id": e.id }, tensionText(e)));
     if (e.kind === "relation") {
-      const rv = S.graph.vocab.relations[e.type];
+      const rv = own(S.graph.vocab.relations, e.type) ? S.graph.vocab.relations[e.type] : null;
       if (rv) out.push(h("p", { class: "dim", style: "font-size:12.5px;margin:4px 0 8px" }, `${rv.label}: ${rv.desc}`));
       out.push(h("section", { class: "sec" }, h("h3", null, "관계 설명"), h("p", { style: "margin:0;font-size:13px" }, e.note)));
       out.push(h("section", { class: "sec" }, h("h3", null, `주장 (${a.label} ${e.claim.id})`), h("p", { style: "margin:0;font-size:13px" }, e.claim.text),
@@ -821,11 +924,12 @@
         h("ul", { style: "padding-left:18px;margin:0;font-size:12.5px" }, row("토픽", "topics", "topics"), row("키워드", "keywords"), row("방법론", "methods", "methods"), row("참고문헌", "references"))));
     }
     const same = (e.pair || []).filter((x) => x !== e && edgeOn(x));
-    if (same.length) out.push(h("section", { class: "sec" }, h("h3", null, "같은 두 노트 사이의 다른 간선"), h("ul", { style: "padding-left:18px;margin:0;font-size:12.5px" }, same.map((x) => h("li", null, edgeBtn(x, ESTYLE[x.sk].label), S.tension ? [" · ", h("span", { "data-live": "tension", "data-id": x.id }, tensionText(x))] : "")))));
+    if (same.length) out.push(h("section", { class: "sec" }, h("h3", null, "같은 두 노트 사이의 다른 간선"), h("ul", { style: "padding-left:18px;margin:0;font-size:12.5px" }, same.map((x) => h("li", null, edgeBtn(x, ESTYLE[x.sk].label), tensionShown() ? [" · ", h("span", { "data-live": "tension", "data-id": x.id }, tensionText(x))] : "")))));
     return out;
   }
 
   function panelTension() {
+    if (S.mode === "galaxy") return [h("div", { class: "explain" }, "장력은 장력 보기(평면)의 물리 배치에서 재는 값입니다. 위쪽 '보기'를 장력으로 바꾸면 긴장 쌍·장력 큰 간선·응력 큰 노드가 보입니다.")];
     const es = S.edges.filter(edgeOn).filter((e) => e.L), out = [];
     out.push(h("div", { class: "explain" },
       "간선은 스프링입니다. 관계 유형마다 자연 길이와 강성이 다르고(보완은 짧고 단단, 충돌은 길게), 모든 노드는 서로 밀어냅니다. ",
@@ -876,9 +980,19 @@
     return out;
   }
 
-  function panelList() { // 그래프의 표 보기 (색·도형 없이 같은 정보)
+  function panelList() { // 그래프의 표 보기 (색·도형 없이 같은 정보). 은하 보기에서는 장력·응력 대신 은하
     const ns = S.nodes.filter((n) => n.kind === "note").sort((a, b) => a.year - b.year);
     const es = S.edges.filter(edgeOn).sort((a, b) => GROUPS.findIndex((g) => g.id === groupOf(a)) - GROUPS.findIndex((g) => g.id === groupOf(b)) || a.id.localeCompare(b.id));
+    const M = S.mode === "galaxy" ? gm() : null, galName = (id) => { const g = M && M.galOf.get(id); return g ? g.name : "-"; };
+    if (S.mode === "galaxy") return [
+      h("section", { class: "sec" }, h("h3", null, `노트 ${ns.length}`),
+        h("table", { class: "list" }, h("thead", null, h("tr", null, h("th", null, "노트"), h("th", null, "분야"), h("th", null, "은하"), h("th", { class: "num" }, "연결"))),
+          h("tbody", null, ns.map((n) => h("tr", null, h("td", null, nodeBtn(n.id)), h("td", null, vocab("areas", n.area)), h("td", null, galName(n.id)), h("td", { class: "num" }, degOn(n))))))),
+      h("section", { class: "sec" }, h("h3", null, `간선 ${es.length}`), hiddenNote(S.edges.length - es.length),
+        h("table", { class: "list" }, h("thead", null, h("tr", null, h("th", null, "유형"), h("th", null, "원천 → 대상"), h("th", { class: "num" }, "강도"))),
+          h("tbody", null, es.map((e) => h("tr", null, h("td", null, edgeBtn(e, ESTYLE[e.sk].label)), h("td", null, `${S.byId.get(e.source).label} ${e.sk === "similar" ? "↔" : "→"} ${S.byId.get(e.target).label}`),
+            h("td", { class: "num" }, e.confidence ? CONF[e.confidence] || e.confidence : (e.weight || 0).toFixed(2))))))),
+    ];
     return [
       h("section", { class: "sec" }, h("h3", null, `노트 ${ns.length}`),
         h("table", { class: "list" }, h("thead", null, h("tr", null, h("th", null, "노트"), h("th", null, "분야"), h("th", { class: "num" }, "연결"), h("th", { class: "num" }, "응력"))),
@@ -886,8 +1000,567 @@
       h("section", { class: "sec" }, h("h3", null, `간선 ${es.length}`), hiddenNote(S.edges.length - es.length),
         h("table", { class: "list" }, h("thead", null, h("tr", null, h("th", null, "유형"), h("th", null, "원천 → 대상"), h("th", { class: "num" }, "강도"), h("th", { class: "num" }, "장력"))),
           h("tbody", null, es.map((e) => h("tr", null, h("td", null, edgeBtn(e, ESTYLE[e.sk].label)), h("td", null, `${S.byId.get(e.source).label} ${e.sk === "similar" ? "↔" : "→"} ${S.byId.get(e.target).label}`),
-            h("td", { class: "num" }, e.confidence ? CONF[e.confidence] : (e.weight || 0).toFixed(2)), h("td", { class: "num", "data-live": "T", "data-id": e.id }, e.L ? fmtT(e.T) : "-")))))),
+            h("td", { class: "num" }, e.confidence ? CONF[e.confidence] || e.confidence : (e.weight || 0).toFixed(2)), h("td", { class: "num", "data-live": "T", "data-id": e.id }, e.L ? fmtT(e.T) : "-")))))),
     ];
+  }
+
+  /* ---------- 은하 보기 (3D) ----------
+   * graph.json 의 galaxy 블록(for_kg scripts/kg_galaxy.py)이 정한 묶음·이름·위치를 그대로 그린다 — 화면에서 다시 배치하지 않는다.
+   * 3D 엔진(vendor/kg3d.min.js: 3d-force-graph·three.js)은 은하 보기를 처음 열 때만 받고 SRI로 확인한다 (같은 출처라 CSP 그대로).
+   * 이름·고리는 3D 위에 겹친 2D 캔버스에 화면 고정 크기로 그린다. 단계(전체 → 은하 → 항성계)마다 그 단계에서 읽을 이름만 보이고,
+   * 논문 이름이 겹치면 연결이 많은 것부터 남긴다(나머지는 올리면 툴팁). vault 문자열은 fillText·textContent로만 쓴다 (3D 엔진의 HTML 툴팁은 끈다). */
+  const KG3D_SRC = "vendor/kg3d.min.js", KG3D_SRI = "sha384-2JH1e5ibRYgwAVL9HE214+vN5lmg0yLv13VyJxNRhQcyIfvmZtUBYVeD5iuhYFRl";
+  const GAP_ADJ = Object.assign(Object.create(null), { narrow: 25, normal: null, wide: 150 }); // 은하 사이 최소 간격 (보통 = graph.json 그대로)
+  const GAL_N = 6; // 은하 색 수 (--gal-1…6). 그 뒤 은하는 회색 — 이름·무리로 구분한다
+  let kg3dLoading = null;
+  function loadKg3d() {
+    if (window.KG3D) return Promise.resolve(window.KG3D);
+    if (!kg3dLoading) kg3dLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = KG3D_SRC; s.integrity = KG3D_SRI; s.crossOrigin = "anonymous"; s.async = true;
+      s.onload = () => (window.KG3D ? resolve(window.KG3D) : reject(new Error("3D 엔진 파일이 비어 있습니다")));
+      s.onerror = () => { kg3dLoading = null; s.remove(); reject(new Error("3D 엔진 파일을 받지 못했습니다(네트워크 또는 무결성 확인 실패)")); };
+      document.head.append(s);
+    });
+    return kg3dLoading;
+  }
+  const galColor = (i) => (i < GAL_N && S.colors.gal[i]) || S.colors.muted;
+  const galVar = (i) => (i < GAL_N ? `var(--gal-${i + 1})` : "var(--edge-muted)");
+  function rgba(hex, a) { const m = /^#([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const v = parseInt(m[1], 16); return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`; }
+  function mixHex(a, b, t) { // a를 b 쪽으로 t만큼 섞은 색 (둘 다 #rrggbb일 때만, 아니면 a 그대로)
+    const p = /^#([0-9a-f]{6})$/i.exec(a || ""), q = /^#([0-9a-f]{6})$/i.exec(b || "");
+    if (!p || !q) return a;
+    const x = parseInt(p[1], 16), y = parseInt(q[1], 16), ch = (s) => Math.round(((x >> s) & 255) * (1 - t) + ((y >> s) & 255) * t);
+    return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0")}`;
+  }
+  const gm = () => { if (S.gm === undefined) S.gm = S.graph ? galaxyModel() : null; return S.gm; };
+
+  // graph.json galaxy 블록 → 화면 모델. 값이 빠지거나 틀린 은하·항성계·노트는 건너뛴다 (은하에 놓지 못한 노트 수는 missing)
+  function galaxyModel() {
+    const b = own(S.graph, "galaxy") ? S.graph.galaxy : null;
+    if (!b || typeof b !== "object" || !Array.isArray(b.galaxies) || !b.positions || typeof b.positions !== "object") return null;
+    const v3 = (v) => (Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === "number" && Number.isFinite(x)) ? [v[0], v[1], v[2]] : null);
+    const rad = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+    const txt = (v, alt) => (typeof v === "string" && v.trim() ? v : alt);
+    const pos = new Map(), galOf = new Map(), sysOf = new Map(), gals = [];
+    for (const n of S.nodes) { const p = own(b.positions, n.id) ? v3(b.positions[n.id]) : null; if (p) pos.set(n.id, p); }
+    for (const G of b.galaxies) {
+      const c = G && typeof G === "object" ? v3(G.center) : null, r = c ? rad(G.r) : null;
+      if (!r) continue;
+      const gal = { i: gals.length, id: txt(G.id, `g${gals.length + 1}`), name: txt(G.name, `은하 ${gals.length + 1}`), c, r, notes: [], systems: [] };
+      const take = (ids, sys) => {
+        for (const id of Array.isArray(ids) ? ids : []) {
+          const n = typeof id === "string" ? S.byId.get(id) : null;
+          if (!n || n.kind !== "note" || !pos.has(id) || galOf.has(id)) continue;
+          galOf.set(id, gal); sysOf.set(id, sys); gal.notes.push(id); sys.notes.push(id);
+        }
+      };
+      for (const s0 of Array.isArray(G.systems) ? G.systems : []) {
+        const sc = s0 && typeof s0 === "object" ? v3(s0.center) : null, sr = sc ? rad(s0.r) : null;
+        if (!sr) continue;
+        const sys = { i: gal.systems.length, id: txt(s0.id, `${gal.id}.${gal.systems.length + 1}`), name: txt(s0.name, gal.name), c: sc, r: sr, notes: [], gal };
+        take(s0.notes, sys);
+        if (sys.notes.length) gal.systems.push(sys);
+      }
+      if (!gal.systems.length) { const sys = { i: 0, id: `${gal.id}.1`, name: gal.name, c, r, notes: [], gal }; take(G.notes, sys); if (sys.notes.length) gal.systems.push(sys); }
+      if (gal.notes.length) gals.push(gal);
+    }
+    const cen = [0, 1, 2].map((k) => (gals.length ? gals.reduce((a, g) => a + g.c[k], 0) / gals.length : 0));
+    // 좁게·넓게: 은하 중심을 무게중심 쪽으로 같은 비율로 당기거나 밀어, 정면(xy)에서 가장 가까운 두 은하의 틈이 그 값이 되게 한다
+    // (모양은 그대로. for_kg가 은하를 xy 거리로 떼어 놓으므로 같은 기준 — 앞뒤로만 떨어진 쌍이 정면에서 겹치지 않게)
+    const scale = (gap) => {
+      if (gap == null || gals.length < 2) return 1;
+      let f = 0;
+      for (let i = 0; i < gals.length; i++) for (let j = i + 1; j < gals.length; j++) {
+        const d = Math.hypot(gals[i].c[0] - gals[j].c[0], gals[i].c[1] - gals[j].c[1]);
+        if (d > 1e-6) f = Math.max(f, (gals[i].r + gals[j].r + gap) / d);
+      }
+      return f || 1;
+    };
+    return { gals, pos, galOf, sysOf, cen, scale, missing: S.nodes.filter((n) => n.kind === "note" && !galOf.has(n.id)).length };
+  }
+  // 간격을 반영한 위치: 은하 하나는 통째로 옮기고, 소행성(vault 밖 문헌)은 인용한 노트들의 은하가 옮긴 만큼의 평균으로 옮긴다
+  function gxShift(g) { const X = S.gx, M = gm(), f = X ? X.f : 1; return [0, 1, 2].map((k) => (g.c[k] - M.cen[k]) * (f - 1)); }
+  function gxAt(id) {
+    const M = gm(), p = M.pos.get(id), g = M.galOf.get(id);
+    if (g) { const d = gxShift(g); return [p[0] + d[0], p[1] + d[1], p[2] + d[2]]; }
+    const n = S.byId.get(id), by = n && Array.isArray(n.cited_by) ? n.cited_by.filter((x) => M.galOf.has(x)) : [];
+    const d = [0, 0, 0];
+    for (const x of by) { const s = gxShift(M.galOf.get(x)); for (let k = 0; k < 3; k++) d[k] += s[k] / by.length; }
+    return [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
+  }
+  function gxCenter(t) { const d = gxShift(t.gal || t); return [t.c[0] + d[0], t.c[1] + d[1], t.c[2] + d[2]]; }
+
+  function gxMessage(text) { const m = $("gmsg"); m.textContent = text; m.hidden = !text || S.mode !== "galaxy"; }
+  async function openGalaxy() {
+    if (!S.graph || S.mode !== "galaxy") return;
+    const M = gm();
+    if (!M) { gxMessage("이 그래프에는 은하 정보가 없습니다. for_kg에서 scripts/build_graph.py로 그래프를 다시 만들면 생깁니다."); return; }
+    if (!M.gals.length) { gxMessage("은하에 놓을 노트가 없습니다."); return; }
+    if (!S.gx) {
+      gxMessage("3D 엔진을 불러오는 중…");
+      let K;
+      try { K = await loadKg3d(); } catch (err) { if (S.mode === "galaxy" && S.graph && !S.gx) gxMessage(`은하 보기를 열지 못했습니다: ${err.message}`); return; }
+      if (S.mode !== "galaxy" || !S.graph || S.gx) return; // 받는 사이 장력 보기로 돌아갔거나 잠갔거나 이미 열었다
+      try { gxCreate(K); } catch (err) { gxDestroy(); gxMessage(`이 브라우저에서 3D(WebGL)를 쓸 수 없어 은하 보기를 열지 못했습니다: ${err && err.message ? err.message : err}`); return; }
+    }
+    gxMessage("");
+    gxRebuild(true);
+    gxStart();
+  }
+  function gxCreate(K) {
+    const host = $("galaxy");
+    host.replaceChildren();
+    const G = new K.ForceGraph3D(host, { controlType: "orbit" });
+    // 3D 엔진의 HTML 툴팁·안내 글은 쓰지 않는다 (vault 문자열을 innerHTML로 넣지 않게) — 툴팁은 이 화면의 #tip, 이름은 겹친 캔버스로
+    G.showNavInfo(false).enableNodeDrag(false).nodeLabel(() => "").linkLabel(() => "")
+      .nodeId("id").nodeVal("val").nodeRelSize(1.9).nodeResolution(14).nodeOpacity(1).nodeColor((n) => n.color)
+      .linkColor((l) => l.color).linkOpacity(1).linkWidth((l) => l.w).linkResolution(5).linkCurvature("curve")
+      .linkDirectionalArrowLength((l) => (l.arrow ? 2.6 : 0)).linkDirectionalArrowRelPos(1).linkDirectionalArrowResolution(6)
+      .warmupTicks(0).cooldownTicks(0) // 위치는 graph.json이 정한다(fx·fy·fz) — 힘 시뮬레이션을 한 번도 돌리지 않는다
+      .onNodeHover((n) => gxHover(n ? { kind: "node", id: n.id } : null))
+      .onLinkHover((l) => gxHover(l ? { kind: "edge", id: l.id } : null))
+      .onNodeClick((n) => { if (S.byId.has(n.id)) select({ kind: "node", id: n.id }); }) // 고르기만 — 카메라는 그대로 (다가가기는 이동 줄·패널의 은하 이름으로)
+      .onLinkClick((l) => { if (S.edgeById.has(l.id)) select({ kind: "edge", id: l.id }); })
+      .onBackgroundClick(() => select(null));
+    G.renderer().domElement.setAttribute("aria-hidden", "true");
+    const lab = $("glabels");
+    // sf·sl: 고른 행성(또는 선)과 이어진 행성 id·진하게 그릴 선 id (고른 것이 없으면 null). simKey: 이 장면에 덧붙인 유사도 선 id들 ('|'로 이음)
+    S.gx = { G, K, host, lab, ctx: lab.getContext("2d"), fg: null, fs: null, hover: null, ptr: null, dirty: true, sig: "", raf: 0,
+      halos: [], haloGeo: new K.SphereGeometry(1, 32, 20), f: 1, data: null, ids: new Set(), lids: new Set(), sf: null, sl: null, simKey: "",
+      v: new K.Vector3(), W: 0, H: 0, dpr: 1, fitted: false, shown: 0, eligible: 0 };
+    gxResize();
+  }
+  function gxDestroy() { // 잠그기·토큰 거부: 3D 장면·이름표·이동 줄을 지우고 WebGL 문맥을 놓는다
+    const X = S.gx; S.gx = null;
+    // 이름표 캔버스는 비트맵을 버려(크기 0) 비운다 — WebGL 문맥을 놓기 전에, 그리고 clearRect에 기대지 않고
+    // (소프트웨어 GPU에서 문맥을 강제로 놓은 직후의 clearRect가 그려 둔 이름을 지우지 못한 일이 있었다). 다시 열 때 gxResize가 크기를 잡는다
+    const lab = $("glabels"); lab.width = 0; lab.height = 0;
+    if (X) {
+      cancelAnimationFrame(X.raf);
+      try {
+        for (const m of X.halos) m.material.dispose();
+        X.haloGeo.dispose(); X.G.pauseAnimation(); X.G.renderer().forceContextLoss(); X.G._destructor();
+      } catch (e) { /* 이미 정리됨 */ }
+    }
+    $("galaxy").replaceChildren(); $("gcrumbs").replaceChildren(); $("gkids").replaceChildren(); $("gnav").hidden = true; gxNavHeight();
+    gxMessage("");
+  }
+  function gxResize() {
+    const X = S.gx; if (!X) return;
+    const r = $("graphWrap").getBoundingClientRect(), dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    if (!r.width || !r.height) return;
+    X.W = r.width; X.H = r.height; X.dpr = dpr;
+    X.G.width(r.width).height(r.height);
+    X.lab.width = Math.round(r.width * dpr); X.lab.height = Math.round(r.height * dpr);
+    X.dirty = true;
+  }
+  function gxNodeColor(n) { // 은하 색. 행성이나 선을 고르면 그와 이어지지 않은 행성은 배경 쪽으로 옅게 (장력 보기의 흐린 노드처럼)
+    const X = S.gx, g = gm().galOf.get(n.id), c = g ? galColor(g.i) : S.colors.muted;
+    return X && X.sf && !X.sf.has(n.id) ? mixHex(c, S.colors.surface, 0.75) : c;
+  }
+  // 선 색(투명도 포함): 전체 보기에서는 옅게(선이 많을수록 더 옅게), 은하·항성계에 다가가면 그 무리에 닿는 선만 진하게 하고 나머지는 거의 지운다.
+  // 행성이나 선을 고르면 무리보다 먼저 — 고른 논문에 닿는 선(선을 골랐으면 그 선)만 진하게, 유사도 선은 비슷한 정도만큼
+  function gxLinkColor(e) {
+    const X = S.gx, M = gm(), c = ESTYLE[e.sk].color, base = c === "muted" ? S.colors.muted : S.colors[c];
+    let a = c === "muted" ? (e.sk === "cites" ? 0.55 : e.sk === "similar" ? 0.25 : 0.35) : 0.7;
+    if (X && X.data) a *= Math.max(0.3, Math.min(1, Math.sqrt(150 / Math.max(150, X.data.links.length))));
+    if (X && X.sl) a = X.sl.has(e.id) ? (e.sk === "similar" ? 0.45 + 0.5 * Math.min(1, simW(e) / 0.3) : 0.95) : 0.07;
+    else if (X && M && X.fg) {
+      const inF = (id) => (X.fs ? M.sysOf.get(id) === X.fs : M.galOf.get(id) === X.fg);
+      a = inF(e.source) || inF(e.target) ? (c === "muted" ? Math.min(1, a * 1.6) : 0.95) : 0.07;
+    }
+    return rgba(base, a);
+  }
+  function gxLinkColors() { // 초점이 바뀌면 선 색을 다시
+    const X = S.gx; if (!X || !X.data) return;
+    for (const l of X.data.links) { const e = S.edgeById.get(l.id); if (e) l.color = gxLinkColor(e); }
+    X.G.linkColor((l) => l.color);
+  }
+  // 은하 보기는 유사도 선을 끈 채로 시작하지만(같은 은하에 있는 것으로 보이므로), 고른 논문의 유사도 선은 '유사도'를 꺼 두어도 그린다 — 그 논문과 비슷한 논문이 어디 있는지.
+  // 유사도 선은 노트마다 많을 수 있어(vault가 크면 수백) 가장 비슷한 SIM_TOP편까지만 ('유사도'를 켜면 전부). 그 선을 눌러 고르면 그 선은 남긴다
+  const SIM_TOP = 10;
+  const simW = (e) => (typeof e.weight === "number" && e.weight > 0 ? e.weight : 0);
+  function gxSimAll(id, placed) { // 그 노트의 유사도 간선 중 두 끝이 은하에 놓인 것, 가중치가 큰 것부터 (같으면 간선 id 순)
+    return S.edges.filter((e) => e.sk === "similar" && touches(e, id) && placed(e.source) && placed(e.target))
+      .sort((a, b) => simW(b) - simW(a) || (a.id < b.id ? -1 : 1));
+  }
+  const gxSimTop = (id, placed) => gxSimAll(id, placed).slice(0, SIM_TOP);
+  // 고른 것 때문에 덧붙여 그리는 유사도 간선 id (은하 보기에서 '유사도'를 꺼 두었을 때만): 고른 노트의 가장 비슷한 SIM_TOP개, 또는 고른 유사도 선 하나.
+  // 장면(gxData)·범례·캡슐 목록·간선 패널이 함께 쓴다
+  function gxSimAdd() {
+    const M = S.mode === "galaxy" ? gm() : null, t = S.sel, placed = (id) => M.galOf.has(id);
+    if (!M || !t || S.filters.similar) return new Set();
+    if (t.kind === "node") return new Set(placed(t.id) ? gxSimTop(t.id, placed).map((e) => e.id) : []);
+    const e = S.edgeById.get(t.id);
+    return new Set(e && e.sk === "similar" && placed(e.source) && placed(e.target) ? [e.id] : []);
+  }
+  function gxData() { // 지금 필터로 보이는 노드·간선 (노트는 은하에 놓인 것만, 소행성은 '공백'을 켰을 때만) + 고른 것의 유사도 선
+    const M = gm(), nodes = [], links = [], ids = new Set(), lids = new Set(), add = gxSimAdd();
+    for (const n of S.nodes) {
+      if (n.kind === "note" ? !M.galOf.has(n.id) : !(nodeOn(n) && M.pos.has(n.id))) continue;
+      const p = gxAt(n.id), claims = (n.counts && n.counts.claims) || 6;
+      ids.add(n.id);
+      nodes.push({ id: n.id, x: p[0], y: p[1], z: p[2], fx: p[0], fy: p[1], fz: p[2], val: n.kind === "gap" ? 0.35 : 3 + Math.min(12, claims) / 3, color: "" });
+    }
+    const deg = new Map();
+    for (const e of S.edges) {
+      const on = edgeOn(e);
+      if (!(on || add.has(e.id)) || !ids.has(e.source) || !ids.has(e.target)) continue;
+      lids.add(e.id);
+      if (on) for (const id of [e.source, e.target]) deg.set(id, (deg.get(id) || 0) + 1); // 이름 순위에는 필터로 보이는 선만 (고르기로 순서가 바뀌지 않게)
+      links.push({ id: e.id, source: e.source, target: e.target, color: "", arrow: ESTYLE[e.sk].arrow, w: 0, curve: 0, sim: e.sk === "similar" });
+    }
+    // 같은 두 행성 사이의 선이 여럿이면 장력 보기처럼 휘어 갈라 놓는다 (곧은 선끼리 겹쳐 한 선의 색이 다른 선에 가려지지 않게). 유사도는 맨 끝.
+    // 3D 엔진의 휨(curvature)은 정면(xy)에 비친 선 길이에 대한 비율이라, 선 길이와 관계없이 한 칸에 10만큼 벌어지게 길이로 나눈다.
+    // 휘는 쪽은 id 순서로 정한 방향 기준 (선의 방향이 서로 달라도 겹치지 않게)
+    const pairs = new Map(), at = new Map(nodes.map((n) => [n.id, n]));
+    for (const l of links) { const k = l.source < l.target ? `${l.source}|${l.target}` : `${l.target}|${l.source}`; if (!pairs.has(k)) pairs.set(k, []); pairs.get(k).push(l); }
+    for (const ls of pairs.values()) if (ls.length > 1) {
+      ls.sort((a, b) => a.sim - b.sim || (a.id < b.id ? -1 : 1));
+      const a = at.get(ls[0].source), b = at.get(ls[0].target), len = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      ls.forEach((l, i) => { l.curve = (((i - (ls.length - 1) / 2) * 10) / len) * (l.source < l.target ? 1 : -1); });
+    }
+    Object.assign(S.gx, { ids, lids, deg, simKey: [...add].join("|"), data: { nodes, links } }); // deg: 보이는 선 수 — 논문 이름이 겹치면 많은 것부터 남긴다
+    gxPaint(); // 선 수를 안 뒤에 (많을수록 옅게)
+    return S.gx.data;
+  }
+  // 강조선 굵기(월드 단위): 고른 선, 고른 논문에 닿는 선, 그 가운데 유사도 선 (관계·인용선을 가리지 않게 절반).
+  // 3D 엔진의 선 굵기는 월드 단위라 멀리서 보면 화면에서 1픽셀보다 가는 관이 되어 오히려 옅어진다 — 그럴 때는 1픽셀 선(굵기 0)으로 그리고 진하기로만 강조한다
+  const W_SEL = 1.1, W_NOTE = 0.7, W_SIM = 0.35;
+  const gxBaseW = (l) => (isSel("edge", l.id) ? W_SEL : S.gx.sl && S.sel && S.sel.kind === "node" && S.gx.sl.has(l.id) ? (l.sim ? W_SIM : W_NOTE) : 0);
+  const gxW = (w, ppu) => (w * ppu >= 1 ? w : 0);
+  function gxPxPerUnit() { // 바라보는 곳에서 월드 1단위가 화면에서 몇 픽셀인지 (원근이라 어림)
+    const X = S.gx, cam = X.G.camera(), ctl = X.G.controls(), t = ctl && ctl.target ? ctl.target : { x: 0, y: 0, z: 0 };
+    const d = Math.hypot(cam.position.x - t.x, cam.position.y - t.y, cam.position.z - t.z);
+    return X.H / Math.max(1e-6, 2 * d * Math.tan((cam.fov * Math.PI) / 360));
+  }
+  function gxWidthCheck() { // 카메라가 멀어지거나 가까워져 강조선이 1픽셀 경계를 넘으면 굵기를 다시 정한다 (경계에서 깜박이지 않게 0.8·1.2픽셀에서 바꾼다)
+    const X = S.gx, p = gxPxPerUnit(), ws = S.sel && S.sel.kind === "edge" ? [W_SEL] : [W_NOTE, W_SIM];
+    if (!ws.some((w) => (w * X.ppu >= 1 ? w * p < 0.8 : w * p >= 1.2))) return;
+    X.ppu = p;
+    for (const l of X.data.links) l.w = gxW(gxBaseW(l), p);
+    X.G.linkWidth((l) => l.w);
+  }
+  // 고른 것에 따라 행성·선 색과 선 굵기를 정한다 (장력 보기처럼 이어진 것만 진하게). 행성을 골랐으면 그 논문과 보이는 선으로 이어진 논문들과 그 선,
+  // 선을 골랐으면 그 선과 두 끝. 고른 선은 굵게, 고른 논문에 닿는 선은 조금 굵게 (화면에서 1픽셀이 안 되면 1픽셀 선 — 위)
+  function gxPaint() {
+    const X = S.gx, t = S.sel;
+    X.sf = X.sl = null;
+    if (t && gxItemOn(t)) {
+      if (t.kind === "edge") { const e = S.edgeById.get(t.id); X.sf = new Set([e.source, e.target]); X.sl = new Set([e.id]); }
+      else {
+        X.sf = new Set([t.id]); X.sl = new Set();
+        for (const id of X.lids) { const e = S.edgeById.get(id); if (e && touches(e, t.id)) { X.sl.add(id); X.sf.add(e.source === t.id ? e.target : e.source); } }
+      }
+    }
+    for (const n of X.data.nodes) { const m = S.byId.get(n.id); if (m) n.color = gxNodeColor(m); }
+    X.ppu = gxPxPerUnit();
+    for (const l of X.data.links) {
+      const e = S.edgeById.get(l.id); if (!e) continue;
+      l.color = gxLinkColor(e); l.w = gxW(gxBaseW(l), X.ppu);
+    }
+  }
+  function gxHalos() { // 은하·항성계 무리(옅은 구). 항성계 무리는 그 은하에 다가갔을 때만
+    const X = S.gx, M = gm(), scene = X.G.scene(), dark = S.colors.dark;
+    for (const m of X.halos) { scene.remove(m); m.material.dispose(); }
+    X.halos = [];
+    const add = (c, r, col, op, show) => {
+      const m = new X.K.Mesh(X.haloGeo, new X.K.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false }));
+      m.position.set(c[0], c[1], c[2]); m.scale.setScalar(r); m.visible = show; scene.add(m); X.halos.push(m); return m;
+    };
+    for (const g of M.gals) {
+      const col = galColor(g.i);
+      g.halo = add(gxCenter(g), g.r, col, dark ? 0.1 : 0.075, true);
+      for (const s of g.systems) s.halo = g.systems.length > 1 ? add(gxCenter(s), s.r, col, dark ? 0.09 : 0.065, X.fg === g) : null;
+    }
+  }
+  function gxRebuild(first) { // 새 그래프·필터·간격·테마: 장면을 다시 채우고, 보던 은하·항성계가 그대로 있으면 거기에 머문다
+    const X = S.gx; if (!X) return;
+    // 모델(S.gm)은 새 그래프를 받을 때만 새로 만든다(load가 비운다) — 패널의 은하 이름 버튼이 같은 모델을 가리키게.
+    // 보던 은하·항성계는 장면을 칠하기(gxData → gxPaint → gxLinkColor) 전에 지금 모델에서 다시 잇는다 — 초점 무리에 닿는 선이 진하게 칠해지게.
+    // 같은 모델이면 그 무리 그대로, 새 그래프면 노트가 가장 많이 겹치는 무리로 잇는다(새 그래프에서는 같은 id가 다른 무리일 수 있다). 겹치는 무리가 없으면 한 단계 위로
+    const M = gm(), fresh = X.model !== M, before = fresh && X.model && X.fitted ? gxFocusSig(X.model, X.f) : null;
+    const pick = (xs, old) => {
+      if (!old) return null;
+      if (!fresh) return xs.find((x) => x.id === old.id) || null;
+      const was = new Set(old.notes); let best = null, bn = 0;
+      for (const x of xs) { let k = 0; for (const id of x.notes) if (was.has(id)) k++; if (k > bn) { best = x; bn = k; } }
+      return best;
+    };
+    X.fg = M ? pick(M.gals, X.fg) : null;
+    X.fs = X.fg && X.fg.systems.length > 1 ? pick(X.fg.systems, X.fs) : null;
+    X.model = M;
+    if (!M || !M.gals.length) { X.fg = X.fs = X.sf = X.sl = null; X.simKey = ""; X.fitted = false; X.data = { nodes: [], links: [] }; X.ids = new Set(); X.lids = new Set(); X.G.graphData(X.data); if (M) gxHalos(); renderGalaxyNav(); gxMessage(M ? "은하에 놓을 노트가 없습니다." : "이 그래프에는 은하 정보가 없습니다. for_kg에서 scripts/build_graph.py로 그래프를 다시 만들면 생깁니다."); return; }
+    gxMessage("");
+    X.f = M.scale(GAP_ADJ[S.gap]);
+    X.G.backgroundColor(S.colors.surface);
+    X.data = gxData(); X.G.graphData(X.data);
+    gxHalos();
+    if (first || !X.fitted) { X.fitted = true; gxFocus(X.fg, X.fs, true, !X.fg); }
+    else if (fresh && gxFocusSig(M, X.f) !== before) gxFocus(X.fg, X.fs, true); // 새 그래프에서 보던 무리의 자리·크기·노트가 달라졌다 — 카메라를 다시 맞춘다
+    else { renderGalaxyNav(); X.dirty = true; }
+    if (S.tip && S.tip.gx && !gxItemOn(S.tip.t)) hideTip();
+  }
+  function gxFocusSig(M, f) { // 모델 M·간격 배율 f에서 지금 보는 무리(전체면 모든 은하)의 id·노트·그려지는 자리·크기 — 새 그래프에서 이것이 그대로면 카메라를 그대로 둔다
+    const X = S.gx, t = X.fs || X.fg; // gxCenter와 같은 셈이지만 지금 모델(gm) 대신 M의 무게중심으로
+    const one = (g) => { const G = g.gal || g; return `${g.id}:${g.notes.join(",")}:${[0, 1, 2].map((k) => g.c[k] + (G.c[k] - M.cen[k]) * (f - 1)).join(",")}:${g.r}`; };
+    return t ? one(t) : M.gals.map(one).join(";");
+  }
+  function gxRefresh() { // 필터를 바꿨을 때: 보이는 노드·간선만 다시 (카메라는 그대로)
+    const X = S.gx; if (!X || !gm()) return;
+    X.data = gxData(); X.G.graphData(X.data); X.dirty = true;
+    if (S.tip && S.tip.gx && !gxItemOn(S.tip.t)) hideTip();
+  }
+  function gxRecolor() { // 테마가 바뀌면 배경·행성·선·무리 색을 지금 테마 값으로
+    const X = S.gx; if (!X || !X.data || !gm()) return;
+    X.G.backgroundColor(S.colors.surface);
+    for (const n of X.data.nodes) { const m = S.byId.get(n.id); if (m) n.color = gxNodeColor(m); }
+    for (const l of X.data.links) { const e = S.edgeById.get(l.id); if (e) l.color = gxLinkColor(e); }
+    X.G.nodeColor((n) => n.color).linkColor((l) => l.color);
+    gxHalos(); X.dirty = true;
+  }
+  // 고르기가 바뀌면 카메라는 그대로 두고 이어진 행성·선만 진하게 (고른·올린 행성의 고리와 이름은 겹친 캔버스).
+  // 덧붙여 그리는 유사도 선이 달라지면 장면의 선을 다시 짓는다. 장력 보기에 있는 동안은 은하 보기로 돌아올 때 다시 짓는다
+  function gxSelChanged() {
+    if (S.mode !== "galaxy") return;
+    const X = S.gx;
+    if (X && X.data && gm()) {
+      if ([...gxSimAdd()].join("|") !== X.simKey) gxRefresh();
+      else { gxPaint(); X.G.nodeColor((n) => n.color).linkColor((l) => l.color).linkWidth((l) => l.w); X.dirty = true; }
+    }
+    renderLegend(); // 범례 문구는 고른 것의 종류(논문·선)에도 따른다 — 3D 엔진을 받는 중이어도 (받으면 그 선을 그린다)
+  }
+  const gxItemOn = (t) => !!S.gx && (t.kind === "node" ? S.gx.ids.has(t.id) : S.gx.lids.has(t.id));
+  function gxFocus(g, s, instant, front) { // 전체(g 없음) → 은하 → 항성계. 카메라를 그 무리가 화면에 들어오게 옮긴다
+    const X = S.gx, M = gm(); if (!X || !M || !X.data) return;
+    X.fg = g || null; X.fs = g && g.systems.length > 1 ? s || null : null;
+    for (const gal of M.gals) for (const sy of gal.systems) if (sy.halo) sy.halo.visible = gal === X.fg;
+    gxLinkColors();
+    const cam = X.G.camera(), ctl = X.G.controls(), ms = reduceMotion || instant ? 0 : 800;
+    // 왼쪽 아래 범례가 그림 위에 겹쳐 있으면(넓은 화면) 그 위쪽 영역에 맞추고, 범례 높이의 절반만큼 그림을 위로 올린다
+    const lg = $("legend"), over = lg && getComputedStyle(lg).position === "absolute" ? lg.offsetHeight + 12 : 0;
+    const vf = (cam.fov * Math.PI) / 360, hv = Math.atan(Math.tan(vf) * Math.max(0.35, (X.H - over) / Math.max(1, X.H)));
+    const half = Math.min(hv, Math.atan(Math.tan(vf) * (cam.aspect || 1)));
+    let c, R;
+    if (!X.fg) { // 전체: 모든 무리(와 소행성)를 담는 구 — 은하 이름이 무리 위에 오므로 조금 넉넉하게
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], parts = M.gals.map((gal) => [gxCenter(gal), gal.r]);
+      for (const n of X.data.nodes) if (!M.galOf.has(n.id)) parts.push([[n.x, n.y, n.z], 4]);
+      for (const [p, r] of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k] - r); hi[k] = Math.max(hi[k], p[k] + r); }
+      c = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
+      R = Math.max(...parts.map(([p, r]) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) + r)) * 1.12;
+    } else { const t = X.fs || X.fg; c = gxCenter(t); R = t.r * 1.25; }
+    const d = Math.max(30, R / Math.sin(half)), tgt = ctl && ctl.target ? ctl.target : { x: 0, y: 0, z: 0 };
+    let dir = front ? [0, 0, 1] : [cam.position.x - tgt.x, cam.position.y - tgt.y, cam.position.z - tgt.z];
+    const L = Math.hypot(...dir); dir = L > 1e-6 ? dir.map((x) => x / L) : [0, 0, 1];
+    // 화면 위쪽 방향(월드 좌표) = 시선과 세계의 위(y)로 만든 축. 그 반대로 옮기면 그림이 화면에서 위로 간다
+    let rt = [dir[2], 0, -dir[0]], rl = Math.hypot(...rt); rt = rl > 1e-6 ? rt.map((x) => x / rl) : [1, 0, 0];
+    const up = [dir[1] * rt[2] - dir[2] * rt[1], dir[2] * rt[0] - dir[0] * rt[2], dir[0] * rt[1] - dir[1] * rt[0]];
+    const sh = over ? ((over / 2) * 2 * d * Math.tan(vf)) / Math.max(1, X.H) : 0;
+    c = c.map((x, k) => x - up[k] * sh);
+    X.G.cameraPosition({ x: c[0] + dir[0] * d, y: c[1] + dir[1] * d, z: c[2] + dir[2] * d }, { x: c[0], y: c[1], z: c[2] }, ms);
+    renderGalaxyNav(); X.dirty = true;
+  }
+  function gxGo(g, s) { // 패널의 은하·항성계 이름에서 — 그 무리를 지금 모델에서 id로 다시 찾아 간다 (패널을 그린 뒤 모델이 바뀌었어도)
+    const M = gm(), G = S.gx && M && g ? M.gals.find((x) => x.id === g.id) : null;
+    if (G) gxFocus(G, s ? G.systems.find((x) => x.id === s.id) || null : null);
+  }
+  function gxHover(t) {
+    const X = S.gx; if (!X) return;
+    X.hover = t && gxItemOn(t) ? t : null; X.dirty = true;
+    if (X.hover && X.ptr) gxTip(X.hover); else if (S.tip && S.tip.gx) hideTip();
+  }
+  function gxTip(t) {
+    const tip = $("tip"), M = gm(), kids = [];
+    try {
+      if (t.kind === "node") {
+        const n = S.byId.get(t.id);
+        if (n.kind === "gap") kids.push(h("b", null, n.label), h("span", { class: "t2" }, `vault 밖 문헌 · ${Array.isArray(n.cited_by) ? n.cited_by.length : 0}편이 인용`));
+        else {
+          const g = M.galOf.get(n.id), s = M.sysOf.get(n.id);
+          kids.push(h("b", null, n.label), h("span", { class: "t2" }, n.title), g ? h("div", { class: "t2" }, g.systems.length > 1 && s ? `${g.name} › ${s.name}` : g.name) : null);
+        }
+      } else {
+        const e = S.edgeById.get(t.id), a = S.byId.get(e.source), b = S.byId.get(e.target), ga = M.galOf.get(a.id), gb = M.galOf.get(b.id);
+        kids.push(h("b", null, `${ESTYLE[e.sk].label}${e.confidence ? ` · 신뢰도 ${CONF[e.confidence] || e.confidence}` : e.sk === "similar" ? ` · ${e.weight.toFixed(2)}` : ""}`),
+          h("span", { class: "t2" }, `${a.label} ${e.sk === "similar" ? "↔" : "→"} ${b.label}`),
+          ga && gb && ga !== gb ? h("div", { class: "t2" }, `은하 사이 — ${ga.name} ↔ ${gb.name}`) : null);
+      }
+    } catch (err) { hideTip(); return; } // graph.json에 필요한 값이 빠져 툴팁을 만들지 못하면 닫는다
+    S.tip = { t, gx: true };
+    const list = kids.filter(Boolean);
+    if (tip.hidden || tip.textContent !== list.map((k) => k.textContent).join("")) tip.replaceChildren(...list);
+    tip.hidden = false;
+    gxTipMove();
+  }
+  function gxTipMove() {
+    const X = S.gx, tip = $("tip");
+    if (!X || !X.ptr || tip.hidden || !(S.tip && S.tip.gx)) return;
+    const [sx, sy] = X.ptr, tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = `${Math.max(8, Math.min(X.W - tw - 8, sx + 14))}px`; tip.style.top = `${Math.max(8, Math.min(X.H - th - 8, sy + 14))}px`;
+  }
+  function gxDolly(f) { // 키보드 + / − : 바라보는 곳은 그대로 두고 가까이·멀리
+    const X = S.gx; if (!X) return;
+    const cam = X.G.camera(), t = X.G.controls().target;
+    X.G.cameraPosition({ x: t.x + (cam.position.x - t.x) * f, y: t.y + (cam.position.y - t.y) * f, z: t.z + (cam.position.z - t.z) * f }, { x: t.x, y: t.y, z: t.z }, 0);
+  }
+  function gxStart() { const X = S.gx; if (!X) return; X.G.resumeAnimation(); X.dirty = true; if (!X.raf) X.raf = requestAnimationFrame(gxLoop); }
+  function gxStop() { const X = S.gx; if (!X) return; X.G.pauseAnimation(); cancelAnimationFrame(X.raf); X.raf = 0; }
+  function gxLoop() { // 카메라·크기·표시 상태가 바뀐 프레임에만 이름표를 다시 그린다
+    const X = S.gx; if (!X) return;
+    X.raf = 0;
+    if (S.mode !== "galaxy") return;
+    const sig = `${X.G.camera().matrixWorld.elements.join(",")}|${X.W}x${X.H}`;
+    if (X.dirty || sig !== X.sig) {
+      X.sig = sig; X.dirty = false;
+      if (X.sl && X.data) gxWidthCheck();
+      try { gxDraw(); } catch (err) { /* 그리지 못한 이름표는 다음 변화 때 */ }
+    }
+    X.raf = requestAnimationFrame(gxLoop);
+  }
+  function gxDraw() {
+    const X = S.gx, M = gm(), ctx = X.ctx, C = S.colors;
+    ctx.setTransform(X.dpr, 0, 0, X.dpr, 0, 0); ctx.globalAlpha = 1; ctx.clearRect(0, 0, X.W, X.H);
+    if (!M || !X.data) return;
+    const cam = X.G.camera(), v = X.v, W = X.W, H = X.H, tanH = Math.tan((cam.fov * Math.PI) / 360);
+    const at = (p) => { // 화면 좌표와 그 깊이에서 1(월드 단위)이 몇 px인지
+      v.set(p[0], p[1], p[2]); const d = v.distanceTo(cam.position); v.project(cam);
+      return v.z > 1 || d < 1e-6 ? null : { x: ((v.x + 1) / 2) * W, y: ((1 - v.y) / 2) * H, k: H / 2 / (tanH * d) };
+    };
+    const node = new Map(X.data.nodes.map((n) => [n.id, n])), pr = (n, p) => 1.9 * Math.cbrt(n.val) * p.k;
+    const ring = (id, extra, color, width) => { const n = node.get(id), p = n && at([n.x, n.y, n.z]); if (!p) return; ctx.beginPath(); ctx.arc(p.x, p.y, pr(n, p) + extra, 0, Math.PI * 2); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); };
+    if (S.hits) for (const id of S.hits) ring(id, 4, C.focus, 2);
+    if (X.hover && X.hover.kind === "node") ring(X.hover.id, 3, C.ink2, 1.5);
+    if (S.sel && S.sel.kind === "node") ring(S.sel.id, 5, C.ink, 2.4);
+    const items = [];
+    // 은하·항성계 이름은 무리 위에, 그 자리가 막히면 무리 아래에
+    const title = (t, p, r, font, color, prio) => { if (p) items.push({ x: p.x, y: p.y - r * p.k - 5, text: t, font, color, prio, above: true, alt: p.y + r * p.k + 5 }); };
+    for (const g of M.gals) if (g !== X.fg) title(`${g.name} · ${g.notes.length}편`, at(gxCenter(g)), g.r, `600 13px ${S.font}`, X.fg ? C.ink2 : C.ink, X.fg ? 2 : 5);
+    let sys = null;
+    if (X.fg) {
+      if (X.fg.systems.length > 1) for (const s of X.fg.systems) if (s !== X.fs) title(`${s.name} · ${s.notes.length}편`, at(gxCenter(s)), s.r, `600 12.5px ${S.font}`, X.fs ? C.ink2 : C.ink, X.fs ? 3 : 5);
+      sys = X.fg.systems.length > 1 ? X.fs : X.fg.systems[0];
+    }
+    const deg = (id) => X.deg.get(id) || 0, byDeg = (a, b) => deg(b) - deg(a) || (a < b ? -1 : 1), F = X.sf, selId = S.sel && S.sel.kind === "node" ? S.sel.id : null;
+    const planet = (id, prio, bold) => { // 고른 것이 있으면 그와 이어지지 않은 이 단계의 논문 이름은 흐리게 (장력 보기처럼)
+      const n = node.get(id), m = S.byId.get(id), p = n && at([n.x, n.y, n.z]);
+      if (p && m) items.push({ x: p.x, y: p.y + pr(n, p) + 4, text: m.label, font: `${bold ? 700 : 600} 12px ${S.font}`, color: m.kind === "gap" ? C.ink2 : C.ink, prio, id, above: false, dim: prio === 4 && !!F && !F.has(id) });
+    };
+    let eligible = 0;
+    if (sys) for (const id of sys.notes.slice().sort(byDeg)) { planet(id, 4, false); eligible++; }
+    if (F) for (const id of [...F].sort(byDeg)) if (id !== selId) planet(id, 7, false); // 고른 것과 이어진 논문 이름은 단계와 관계없이 먼저
+    if (X.hover && X.hover.kind === "node") planet(X.hover.id, 8, false);
+    if (selId) planet(selId, 9, true);
+    items.sort((a, b) => b.prio - a.prio); // 같은 순위 안에서는 넣은 순서(연결이 많은 순)
+    const boxes = [], seen = new Set();
+    let shown = 0;
+    ctx.textAlign = "center"; ctx.lineJoin = "round";
+    for (const it of items) {
+      if (it.id && seen.has(it.id)) continue;
+      ctx.font = it.font;
+      const w = ctx.measureText(it.text).width, fs = parseFloat(it.font.split(" ")[1]) || 12;
+      if (it.x < -w / 2 || it.x > W + w / 2) continue; // 이름의 기준점이 화면 밖이면 그리지 않는다
+      it.x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, it.x)); // 좁은 화면에서 가장자리에 걸친 이름은 안쪽으로 밀어 다 보이게
+      // 겹침 검사 상자: 글자 칸과 실제 잉크(measureText)를 모두 덮고, 테두리(lineWidth 3.5의 절반)와 여유만큼 넓힌다 — 이름끼리 테두리도 닿지 않게
+      const box = (y, above) => {
+        ctx.textBaseline = above ? "bottom" : "top";
+        const m = ctx.measureText(it.text), p = 2.25, ink = (v) => (Number.isFinite(v) ? v : 0);
+        return { x0: Math.min(it.x - w / 2, it.x - ink(m.actualBoundingBoxLeft)) - p, x1: Math.max(it.x + w / 2, it.x + ink(m.actualBoundingBoxRight)) + p,
+          y0: Math.min(above ? y - fs : y, y - ink(m.actualBoundingBoxAscent)) - p, y1: Math.max(above ? y : y + fs, y + ink(m.actualBoundingBoxDescent)) + p };
+      };
+      const free = (b) => !(b.x1 < 0 || b.x0 > W || b.y1 < 0 || b.y0 > H) && !boxes.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1);
+      let b = box(it.y, it.above);
+      if (!free(b)) {
+        if (it.alt == null || !free(box(it.alt, false))) continue;
+        it.y = it.alt; it.above = false; b = box(it.y, false);
+      }
+      boxes.push(b);
+      if (it.id) { seen.add(it.id); if (it.prio === 4) shown++; }
+      ctx.textBaseline = it.above ? "bottom" : "top"; ctx.globalAlpha = it.dim ? 0.35 : 1;
+      ctx.lineWidth = 3.5; ctx.strokeStyle = C.surface; ctx.strokeText(it.text, it.x, it.y);
+      ctx.fillStyle = it.color; ctx.fillText(it.text, it.x, it.y);
+    }
+    ctx.globalAlpha = 1;
+    X.shown = shown; X.eligible = eligible;
+  }
+  function gxNavHeight() { const nav = $("gnav"); $("graphPane").style.setProperty("--gnav-h", `${nav.hidden ? 0 : nav.offsetHeight}px`); }
+  function renderGalaxyNav() { // 위쪽 이동 줄: 전체 은하 › 은하 › 항성계, 그 아래 지금 단계에서 들어갈 수 있는 무리
+    const X = S.gx, M = gm(), cr = $("gcrumbs"), kids = $("gkids");
+    cr.replaceChildren(); kids.replaceChildren();
+    const nav = $("gnav");
+    nav.hidden = !X || !M || !M.gals.length || S.mode !== "galaxy";
+    if (!nav.hidden) {
+      const chip = (text, on, cur, i) => h("button", { class: "chip", type: "button", "aria-current": cur ? "true" : null, onclick: on },
+        i != null ? h("b", { style: `background:${galVar(i)}`, "aria-hidden": "true" }) : null, text);
+      const sep = () => h("span", { class: "sep", "aria-hidden": "true" }, "›");
+      cr.append(chip("전체 은하", () => gxFocus(null, null), !X.fg));
+      if (X.fg) {
+        const g = X.fg;
+        cr.append(sep(), chip(g.name, () => gxFocus(g, null), !X.fs, g.i));
+        if (X.fs) cr.append(sep(), chip(X.fs.name, () => gxFocus(g, X.fs), true));
+        if (g.systems.length > 1) kids.append(...g.systems.map((s) => chip(`${s.name} · ${s.notes.length}편`, () => gxFocus(g, s), X.fs === s)));
+      } else kids.append(...M.gals.map((g) => chip(`${g.name} · ${g.notes.length}편`, () => gxFocus(g, null), false, g.i)));
+      kids.hidden = !kids.children.length;
+    }
+    gxNavHeight();
+  }
+  function setupGalaxyHost() {
+    const host = $("galaxy");
+    // 이동 줄 높이가 바뀌면(창 크기·글꼴이 바뀌어 칩이 다시 줄바꿈) 3D 상자 위치를 맞춘다. 다음 프레임에 — 이 관찰 콜백 안에서 바로 바꾸면
+    // 같은 깊이의 캔버스 상자 크기 관찰이 이번 프레임에 전달되지 못한다(ResizeObserver loop 오류)
+    new ResizeObserver(() => requestAnimationFrame(gxNavHeight)).observe($("gnav"));
+    host.addEventListener("pointermove", (ev) => {
+      const X = S.gx; if (!X) return;
+      const r = $("graphWrap").getBoundingClientRect();
+      X.ptr = ev.pointerType === "touch" ? null : [ev.clientX - r.left, ev.clientY - r.top];
+      if (X.hover && X.ptr && !(S.tip && S.tip.gx)) gxTip(X.hover); else gxTipMove();
+    });
+    host.addEventListener("pointerleave", () => { const X = S.gx; if (!X) return; X.ptr = null; X.hover = null; X.dirty = true; if (S.tip && S.tip.gx) hideTip(); });
+    host.addEventListener("keydown", (ev) => {
+      const X = S.gx;
+      if (!X) { if (ev.key === "Escape" && S.sel) { select(null); ev.preventDefault(); } return; } // 3D 엔진을 받는 중이거나 못 받았어도 고른 것은 푼다
+      if (ev.key === "Escape") { if (S.sel) select(null); else if (X.fs) gxFocus(X.fg, null); else if (X.fg) gxFocus(null, null); } // 고른 것을 먼저 풀고, 그다음 한 단계씩 위로
+      else if (ev.key === "0") gxFocus(null, null);
+      else if (ev.key === "+" || ev.key === "=") gxDolly(0.8);
+      else if (ev.key === "-") gxDolly(1.25);
+      else return;
+      ev.preventDefault();
+    });
+  }
+  // 장력 ↔ 은하. 보기마다 간선 필터를 따로 기억한다 (은하는 처음에 유사도·공백 선을 끈 채로 — 유사도는 같은 은하에 있는 것으로 보인다)
+  function applyMode() {
+    const gal = S.mode === "galaxy";
+    $("graphPane").classList.toggle("galaxy-on", gal);
+    $("graph").hidden = gal; $("galaxy").hidden = !gal; $("glabels").hidden = !gal;
+    $("gmsg").hidden = !gal || !$("gmsg").textContent;
+    $("tensionSwitch").hidden = gal; $("reheatBtn").hidden = gal; $("gapSeg").hidden = !gal;
+    for (const b of $("viewSeg").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.view === S.mode));
+    for (const b of $("gapSeg").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.gap === S.gap));
+    $("disclaim").textContent = gal ? "은하 묶음은 토픽·키워드·방법론·참고문헌의 유사도로, 위치는 여기에 관계·인용 연결을 더해 자동 계산한 탐색용 배치입니다. 장력과 마찬가지로 지식의 진위와는 관계없습니다."
+      : "장력은 지식의 진위가 아니라 연결 구조의 긴장을 보여 주는 탐색용 표시입니다.";
+    renderGalaxyNav();
+  }
+  function setMode(mode) {
+    if ((mode !== "tension" && mode !== "galaxy") || mode === S.mode) return;
+    if (mode === "galaxy" && S.running) { S.running = false; S.kickLater = true; } // 장력 배치는 멈춰 두었다가 돌아오면 이어서
+    S.mode = mode; S.filters = mode === "galaxy" ? S.filtersG : S.filtersT;
+    saveUi(); hideTip(); S.hover = null;
+    if (S.gx) S.gx.hover = null;
+    if (mode === "tension") gxStop();
+    applyMode();
+    if (!S.graph) return;
+    measure(); renderChrome(); renderPanel();
+    if (mode === "galaxy") { if (S.gx) { gxRebuild(); gxStart(); } else openGalaxy(); } // 장력 보기에 있는 동안 그래프가 바뀌었을 수 있다 — 다시 짓되 보던 은하는 유지
+    else { syncSize(); draw(); if (S.kickLater) { S.kickLater = false; kick(false); } } // 미뤄 둔 배치는 장력 보기의 캔버스 크기로 맞춘다
+  }
+  function setGap(gap) {
+    if (!own(GAP_ADJ, gap) || gap === S.gap) return;
+    S.gap = gap; saveUi(); applyMode();
+    const X = S.gx, M = gm();
+    if (!X || !M || !X.data) return;
+    X.f = M.scale(GAP_ADJ[gap]);
+    X.data = gxData(); X.G.graphData(X.data); gxHalos();
+    gxFocus(X.fg, X.fs, true);
   }
 
   /* ---------- 범례·필터·통계 ---------- */
@@ -895,10 +1568,34 @@
     const fs = $("edgeFilters"); fs.replaceChildren(h("legend", { class: "sr-only", style: "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" }, "간선 종류"));
     for (const g of GROUPS) {
       fs.append(h("button", { class: "chip", type: "button", "aria-pressed": String(S.filters[g.id]), title: g.keys.map((k) => ESTYLE[k].label).join(" · "),
-        onclick: (ev) => { S.filters[g.id] = !S.filters[g.id]; ev.currentTarget.setAttribute("aria-pressed", String(S.filters[g.id])); saveUi(); measure(); kick(false); draw(); renderStat(); renderPanel(); } },
+        onclick: (ev) => {
+          S.filters[g.id] = !S.filters[g.id]; ev.currentTarget.setAttribute("aria-pressed", String(S.filters[g.id])); saveUi(); measure();
+          if (S.mode === "galaxy") { gxRefresh(); renderLegend(); } else { kick(false); draw(); }
+          renderStat(); renderPanel();
+        } },
         lineKey(g.sample || g.keys[g.keys.length - 1]), g.label));
     }
+    renderLegend();
+    renderStat();
+    $("repoInfo").textContent = `${S.repo.owner}/${S.repo.repo}${S.repo.ref ? ` @ ${S.repo.ref}` : ""}`;
+  }
+  function renderLegend() {
     const lg = $("legend"); lg.replaceChildren();
+    if (S.mode === "galaxy") { // 3D 선은 실선뿐이라 색으로만 (선 모양은 패널·툴팁의 유형 이름으로)
+      const M = gm(), sw = (c) => h("span", { class: "lg-swatch", style: `border-top-color:${c}`, "aria-hidden": "true" });
+      const dot = (c) => h("b", { class: "gdot", style: `background:${c}`, "aria-hidden": "true" });
+      const simN = gxSimAdd().size; // '유사도'를 꺼 두었어도 고른 것 때문에 그리는 유사도 선
+      const simAll = simN && S.sel.kind === "node" ? gxSimAll(S.sel.id, (id) => M.galOf.has(id)).length : 0; // 그 논문의 유사도 선 전부 (SIM_TOP편보다 많으면 함께 밝힌다)
+      lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "선"),
+        [["보완", "var(--pos)", "complement"], ["같은 방법론", "var(--neu)", "method"], ["충돌", "var(--neg)", "conflict"], ["인용", "var(--edge-muted)", "cites"], ["유사도", "var(--edge-muted)", "similar"], ["공백 문헌 인용", "var(--edge-muted)", "gap"]]
+          .filter(([, , id]) => S.filters[id]).map(([t, c]) => h("span", { class: "lg-item" }, sw(c), t)),
+        simN ? h("span", { class: "lg-item" }, sw("var(--edge-muted)"), S.sel.kind === "node" ? `유사도 (고른 논문과 가장 비슷한 ${simN}편${simAll > simN ? ` · 전체 ${simAll}편` : ""})` : "유사도 (고른 선)") : null));
+      if (M && M.gals.length) lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "은하"),
+        M.gals.slice(0, GAL_N).map((g) => h("span", { class: "lg-item" }, dot(galVar(g.i)), g.name)),
+        M.gals.length > GAL_N ? h("span", { class: "lg-item" }, dot("var(--edge-muted)"), `그 밖 ${M.gals.length - GAL_N}개 (이름으로 구분)`) : null,
+        S.filters.gap ? h("span", { class: "lg-item" }, dot("var(--edge-muted)"), "vault 밖 문헌(소행성)") : null));
+      return;
+    }
     lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "관계"),
       REL_TYPES().map((k) => h("span", { class: "lg-item" }, lineKey(k), ESTYLE[k].label))));
     lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "자동"),
@@ -907,17 +1604,33 @@
     lg.append(h("div", { class: "lg-row" }, h("span", { class: "lg-title" }, "분야"),
       areas.map((a) => h("span", { class: "lg-item" }, shapeKey(shapeOf(a)), vocab("areas", a))),
       h("span", { class: "lg-item" }, shapeKey("circle", true), "vault 밖 문헌")));
-    renderStat();
-    $("repoInfo").textContent = `${S.repo.owner}/${S.repo.repo}${S.repo.ref ? ` @ ${S.repo.ref}` : ""}`;
   }
   function renderStat() { // 맨 위 통계 줄: 보이는 것만 세고, 필터로 숨긴 간선이 있으면 그 수를 따로 밝힌다
     const c = relationCounts(edgeOn), hidden = S.edges.filter((e) => !edgeOn(e)).length;
+    if (S.mode === "galaxy") { // 은하 보기: 은하·항성계 수, 놓인 노트, 보이는 선과 그중 은하 사이 선(다리)
+      const M = gm(), upd = `갱신 ${S.graph.meta.updated || "-"}`;
+      if (!M) { $("stat").textContent = `노트 ${S.nodes.filter((n) => n.kind === "note").length} · 은하 정보 없음 · ${upd}`; return; }
+      const placed = (id) => M.galOf.has(id) || (S.byId.get(id).kind === "gap" && M.pos.has(id));
+      const lines = S.edges.filter((e) => edgeOn(e) && placed(e.source) && placed(e.target));
+      const bridges = lines.filter((e) => M.galOf.has(e.source) && M.galOf.has(e.target) && M.galOf.get(e.source) !== M.galOf.get(e.target)).length;
+      const sys = M.gals.reduce((a, g) => a + (g.systems.length > 1 ? g.systems.length : 0), 0);
+      $("stat").textContent = `은하 ${M.gals.length}${sys ? ` · 항성계 ${sys}` : ""} · 노트 ${M.galOf.size} · 선 ${lines.length} (은하 사이 ${bridges})${hidden ? ` · 숨긴 간선 ${hidden}` : ""} · ${upd}`;
+      return;
+    }
     $("stat").textContent = `노트 ${S.nodes.filter((n) => n.kind === "note").length} · 관계 ${c.relation} · 인용 ${c.cites} · 유사도 ${c.similar} · 공백 문헌 ${S.nodes.filter((n) => n.kind === "gap" && nodeOn(n)).length}${hidden ? ` · 숨긴 간선 ${hidden}` : ""} · 갱신 ${S.graph.meta.updated || "-"}`;
   }
-  function saveUi() { ls.set(KEY.ui, JSON.stringify({ filters: S.filters, tension: S.tension })); }
+  function saveUi() { ls.set(KEY.ui, JSON.stringify({ filters: S.filtersT, gfilters: S.filtersG, tension: S.tension, view: S.mode, gap: S.gap })); }
   function loadUi() {
-    try { const u = JSON.parse(ls.get(KEY.ui) || "null"); if (u) { if (u.filters) for (const g of GROUPS) if (typeof u.filters[g.id] === "boolean") S.filters[g.id] = u.filters[g.id]; if (typeof u.tension === "boolean") S.tension = u.tension; } }
-    catch (e) { /* 무시 */ }
+    try {
+      const u = JSON.parse(ls.get(KEY.ui) || "null");
+      if (u && typeof u === "object") {
+        for (const [src, dst] of [[u.filters, S.filtersT], [u.gfilters, S.filtersG]]) if (src && typeof src === "object") for (const g of GROUPS) if (typeof src[g.id] === "boolean") dst[g.id] = src[g.id];
+        if (typeof u.tension === "boolean") S.tension = u.tension;
+        if (u.view === "tension" || u.view === "galaxy") S.mode = u.view;
+        if (typeof u.gap === "string" && own(GAP_ADJ, u.gap)) S.gap = u.gap;
+      }
+    } catch (e) { /* 무시 */ }
+    S.filters = S.mode === "galaxy" ? S.filtersG : S.filtersT;
   }
 
   /* ---------- 흐름 ---------- */
@@ -936,16 +1649,16 @@
     try {
       const g = await gh("vault/_build/graph.json");
       if (seq !== S.loadSeq) return false;
-      if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab) throw new Error("graph.json 형식이 올바르지 않습니다");
-      S.graph = g; S.detail.clear();
+      if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.edges) || !g.gaps || !g.vocab || !g.meta || typeof g.meta !== "object") throw new Error("graph.json 형식이 올바르지 않습니다");
+      S.graph = g; S.epoch++; S.detail.clear(); S.detailWait.clear(); S.detailErr.clear(); S.loadErr = ""; S.gm = undefined;
       buildModel(g); measure(); showApp(); readColors(); renderChrome(); renderTabs(); renderPanel();
-      if (!S.nodes.length) { $("panelBody").replaceChildren(...(S.notice ? [h("p", { class: "notice" }, S.notice)] : []), h("p", { class: "empty" }, "아직 노트가 없습니다. for_kg에 노트를 추가하면 여기에 나타납니다.")); }
       S.fitted = false; kick(false);
+      if (S.mode === "galaxy") { if (S.gx) gxRebuild(); else openGalaxy(); } // 은하 보기는 새 그래프의 galaxy 블록으로 다시 채운다
       return true;
     } catch (err) {
       if (seq !== S.loadSeq) return false;
-      if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); showGate(errorText(err)); }
-      else if (S.graph && !$("app").hidden) { $("panelBody").prepend(h("p", { class: "notice" }, errorText(err))); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에)
+      if (err instanceof HttpError && (err.status === 401 || err.status === 404 || (err.status === 403 && err.detail !== "ratelimit"))) { forgetToken(); clearVault(); showGate(errorText(err)); } // 토큰이 거부되면 잠그기처럼 열람한 내용도 지운다
+      else if (S.graph && !$("app").hidden) { S.loadErr = errorText(err); renderPanel(); } // 그래프를 보는 중일 때만 패널에 (게이트가 떠 있으면 게이트에) — 배치가 끝나 다시 그려도 남는다
       else showGate(errorText(err));
       return false;
     } finally { $("panelBody").classList.remove("loading"); }
@@ -954,13 +1667,32 @@
   // 이 탭 저장소도 막혀 있으면 토큰은 이 페이지에만 있으므로 그렇게 알린다
   const SAVE_FAIL = "이 기기에 저장하지 못해(저장 공간 부족 또는 차단) 이 탭에만 보관합니다.";
   const KEEP_FAIL = "브라우저가 저장소를 막고 있어 토큰을 보관하지 못했습니다. 페이지를 새로 고치면 다시 넣어야 합니다.";
+  const LEFT_OVER = "전에 이 기기에 저장한 토큰이 있다면 저장소가 막혀 지우지 못했습니다 — 브라우저 설정에서 이 사이트의 데이터를 지우세요.";
+  const BLOCKED = "브라우저가 이 사이트의 저장소를 막고 있어 토큰은 이 페이지에서만 씁니다(새로 고치면 다시 입력). 전에 이 기기에 저장한 토큰이 남아 있을 수 있으니 브라우저 설정에서 이 사이트의 데이터를 지우세요.";
+  const storeMsg = (t) => t.startsWith(SAVE_FAIL) || t.startsWith(KEEP_FAIL) || t === LEFT_OVER || t === BLOCKED;
   function keepToken(tok, remember) {
     if (remember && ls.set(KEY.token, tok)) { ss.del(KEY.token); return ""; }
-    const kept = ss.set(KEY.token, tok); ls.del(KEY.token);
+    const kept = ss.set(KEY.token, tok) || ss.get(KEY.token) === tok; // 쓰기가 막혀도 이 탭에 같은 토큰이 이미 있으면 보관된 것이다
+    const ssOk = kept || ss.del(KEY.token), lsOk = ls.del(KEY.token); // 보관하지 못했으면 이 탭의 옛 토큰도 지운다 (다음에 그 토큰으로 조용히 열리지 않게)
     if (remember) $("rememberIn").checked = false;
-    return !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
+    const msg = !kept ? KEEP_FAIL : remember ? SAVE_FAIL : "";
+    return ssOk && lsOk ? msg : [msg, LEFT_OVER].filter(Boolean).join(" "); // 지우지 못한 사본이 있을 수 있으면 그렇게 밝힌다
   }
-  function forgetToken() { S.token = null; ss.del(KEY.token); ls.del(KEY.token); $("rememberIn").checked = false; }
+  function forgetToken() { S.token = null; S.epoch++; const a = ss.del(KEY.token), b = ls.del(KEY.token); $("rememberIn").checked = false; return a && b; }
+  // 열람한 vault 내용(그래프·노드·간선·노트 전문·패널·툴팁·검색 결과·범례·통계·vault가 더한 관계 유형·그림·은하 장면)을 메모리와 화면에서 지운다 — 잠그기와 토큰 거부 때.
+  // 받는 중인 요청은 끊고, 끌기·두 손가락 확대 중이던 포인터는 놓은 것으로 둔다(손을 뗄 때 빈 그래프에서 노드를 찾지 않게). 다시 열면 전체 보기에서 시작한다
+  function clearVault() {
+    S.ctl.abort(); S.ctl = new AbortController();
+    S.detailErr.clear(); S.graph = null; S.nodes = []; S.edges = []; S.byId = new Map(); S.edgeById = new Map();
+    S.detail.clear(); S.detailWait.clear(); S.sel = null; S.hover = null; S.drag = null; S.pinch = null; S.tab = "sel"; S.panelView = "";
+    S.search = ""; S.hits = null; $("searchIn").value = "";
+    gxDestroy(); S.gm = undefined; // 은하 보기의 3D 장면·이름표·이동 줄도 지운다 (보기 선택은 남긴다)
+    for (const k of Object.keys(ESTYLE)) if (!BASE_STYLES.includes(k)) { delete ESTYLE[k]; delete SPRING[k]; }
+    GROUPS.forEach((g, i) => { g.keys = BASE_KEYS[i].slice(); });
+    S.canvas.classList.remove("on-item", "dragging"); hideTip(); $("tip").replaceChildren(); renderTabs();
+    for (const id of ["panelBody", "legend", "edgeFilters"]) $(id).replaceChildren();
+    $("stat").textContent = ""; draw();
+  }
   function parseRepo(text) {
     const m = String(text || "").trim().match(/^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/);
     return m ? { owner: m[1], repo: m[2] } : null;
@@ -973,15 +1705,17 @@
     $("themeBtn").addEventListener("click", () => {
       const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       const next = cur === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = next; ls.set(KEY.theme, next); readColors(); draw();
+      document.documentElement.dataset.theme = next; ls.set(KEY.theme, next); readColors(); draw(); gxRecolor();
     });
-    try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); }); } catch (e) { /* 구형 브라우저 */ }
+    try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); gxRecolor(); }); } catch (e) { /* 구형 브라우저 */ }
 
     try { const r = JSON.parse(ls.get(KEY.repo) || "null"); if (r && parseRepo(`${r.owner}/${r.repo}`)) S.repo = { owner: r.owner, repo: r.repo, ref: typeof r.ref === "string" ? r.ref : "" }; }
     catch (e) { /* 기본값 */ }
     loadUi();
     $("tensionIn").checked = S.tension;
-    setupCanvas(); readColors();
+    setupCanvas(); readColors(); setupGalaxyHost(); applyMode();
+    for (const b of $("viewSeg").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.view));
+    for (const b of $("gapSeg").querySelectorAll("button")) b.addEventListener("click", () => setGap(b.dataset.gap));
 
     $("gateForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -1001,25 +1735,29 @@
       const msg = keepToken(S.token, ev.currentTarget.checked);
       S.notice = msg; // 다음에 열릴 때 보일 안내도 지금 상태를 따른다
       if (msg) $("gateMsg").textContent = msg;
-      else if ([SAVE_FAIL, KEEP_FAIL].includes($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
+      else if (storeMsg($("gateMsg").textContent)) $("gateMsg").textContent = ""; // 다시 저장되면 실패 문구를 지운다
     });
-    $("lockBtn").addEventListener("click", () => { S.loadSeq++; forgetToken(); S.notice = ""; S.graph = null; S.nodes = []; S.edges = []; S.detail.clear(); S.sel = null; $("panelBody").replaceChildren(); showGate("잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다."); });
+    $("lockBtn").addEventListener("click", () => {
+      S.loadSeq++; const gone = forgetToken(); S.notice = ""; S.loadErr = ""; clearVault();
+      showGate(gone ? "잠갔습니다. 이 기기에 저장된 토큰도 지웠습니다." : `잠갔습니다. ${LEFT_OVER}`); // 지우지 못했으면 지웠다고 하지 않는다
+    });
     $("reloadBtn").addEventListener("click", () => load());
     $("reheatBtn").addEventListener("click", () => { for (const n of S.nodes) n.pinned = false; kick(true); });
-    $("fitBtn").addEventListener("click", () => { fitView(); draw(); rehover(); });
+    $("fitBtn").addEventListener("click", () => { if (S.mode === "galaxy") { gxFocus(null, null); return; } fitView(); draw(); rehover(); });
     $("tensionIn").addEventListener("change", (ev) => { S.tension = ev.currentTarget.checked; saveUi(); draw(); renderPanel(); });
     $("searchIn").addEventListener("input", (ev) => {
       const q = ev.currentTarget.value.trim().toLowerCase(); S.search = q;
       S.hits = q ? new Set(S.nodes.filter((n) => [n.label, n.title, ...(n.keywords || []), ...(n.topics || []).flatMap((t) => [t, vocab("topics", t)])].some((s) => String(s).toLowerCase().includes(q))).map((n) => n.id)) : null;
-      draw();
+      draw(); if (S.gx) S.gx.dirty = true;
     });
-    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; renderTabs(); renderPanel(); }));
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { S.tab = b.dataset.tab; S.notice = ""; S.loadErr = ""; S.detailErr.clear(); renderTabs(); renderPanel(); }));
     $("panelBody").addEventListener("keydown", (ev) => { if (ev.key === "Escape") select(null); });
 
     S.token = ss.get(KEY.token) || ls.get(KEY.token);
     if (S.token && !TOKEN_RE.test(S.token)) forgetToken(); // 저장된 값도 같은 형식만 쓴다
     $("rememberIn").checked = !!ls.get(KEY.token);
-    if (S.token) { $("gate").hidden = true; load(); } else showGate("");
+    if (S.token) { $("gate").hidden = true; load(); }
+    else showGate(ss.ok() && ls.ok() ? "" : BLOCKED); // 저장소가 막혀 있으면 왜 매번 넣어야 하는지 처음부터 알린다
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
