@@ -358,9 +358,163 @@
     return out;
   }
 
+  /* ---------- 매매 규칙 (월말 종가로 판단 → 다음 월말 종가까지 보유) ----------
+     비중 신호: 월말 200일선 위 업종 비율 ≥ th 이면 보유, 아니면 현금.
+     업종 후보: 2단계 + RS 백분위 ≥ rsMin (추세 템플릿 1~8 충족) — 동일 비중, RS 순.
+     결합: 비중 신호가 꺼지면 현금 · 켜지면 후보 동일 비중 · 후보가 없으면 KOSPI(fallback "cash" 이면 현금).
+     비교용: 비중 신호만(KOSPI↔현금) · 업종 후보만(후보가 없으면 동일가중) · RS 상위 top개 · 4단계 업종 · KOSPI · 업종 동일가중(월 리밸런싱).
+     비용: 목표 비중 변화(Σ|Δw|, KOSPI 포함 · 현금 제외)에 편도 costBp — KOSPI·동일가중 기준선은 비용 없음.
+     현금: 연 cash% (월 (1+cash)^(1/12)−1). complete = 데이터 마지막 날의 달이 끝났는가 (아니면 그 달은 '진행 중' — 통계에서 뺌). */
+  const RULE_IDS = ["combo", "timing", "select", "top5", "st4", "kospi", "ew"];
+  const RULE_BENCH = { combo: "kospi", timing: "kospi", select: "ew", top5: "ew", st4: "ew", ew: "kospi", kospi: null };
+  /* lag: 체결 시점 — 0 = 신호를 낸 월말 종가, 1 = 다음 거래일 종가 (보유 구간이 하루씩 밀림)
+     lastIntraday: 마지막 행이 장중 값(종가 아님)인가 — 다음 거래일 체결이면 그 값으로 끝낸 달은 아직 진행 중으로 봄 */
+  const RULE_DEFAULTS = { th: 0.5, rs: "w", rsMin: 70, fallback: "kospi", costBp: 5, cash: 0, top: 5, complete: true, lag: 0, lastIntraday: false };
+  function normCdf(z) { // Abramowitz–Stegun 7.1.26 (오차 1.5e-7)
+    const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+    const erf = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
+  }
+  /* 평균과 Newey-West t (Bartlett, lag) */
+  function nwT(x, lag) {
+    const n = x.length;
+    if (n < 3) return NaN;
+    let m = 0;
+    for (const v of x) m += v;
+    m /= n;
+    const e = x.map((v) => v - m);
+    let v = 0;
+    for (const q of e) v += q * q;
+    v /= n;
+    for (let l = 1; l <= Math.min(lag, n - 1); l++) {
+      let g = 0;
+      for (let t = l; t < n; t++) g += e[t] * e[t - l];
+      v += 2 * (1 - l / (lag + 1)) * (g / n);
+    }
+    return v > 0 ? m / Math.sqrt(v / n) : NaN;
+  }
+  function rules(st, kc, opts) {
+    const o = Object.assign({}, RULE_DEFAULTS, opts || {});
+    const B = st.breadth, N = st.N, T = st.T, D = st.dates, R = rsOf(st, o.rs), ME = monthEnds(D);
+    const hasK = !!kc && kc.length === T && kc.some((v) => v > 0); // 날짜가 겹치는 KOSPI 값이 하나도 없으면 데이터 없음과 같게
+    const lastDone = o.complete ? ME.length - 1 : ME.length - 2; // 마지막으로 끝난 월말의 위치 (ME 안)
+    const cost = o.costBp / 10000, cashM = Math.pow(1 + o.cash / 100, 1 / 12) - 1, L = o.lag === 1 ? 1 : 0;
+    const signalAt = (i) => {
+      const ok = B.nValid[i] === N && B.n200[i] > 0, cands = [], st4 = [], ord = [];
+      for (let s = 0; s < N; s++) {
+        const g = st.sec[s].stage[i];
+        if (g === 2 && R.pct[s][i] >= o.rsMin) cands.push(s);
+        if (g === 4) st4.push(s);
+        if (R.raw[s][i] === R.raw[s][i]) ord.push(s);
+      }
+      const byRs = (a, b) => R.raw[b][i] - R.raw[a][i] || a - b;
+      ord.sort(byRs); cands.sort(byRs); st4.sort(byRs);
+      return { i, date: D[i], ok, a200: B.a200[i], n200: B.n200[i], share: B.n200[i] ? B.a200[i] / B.n200[i] : NaN,
+        inMkt: ok && B.a200[i] >= o.th * B.n200[i] - 1e-9, cands, top: ord.slice(0, o.top), st4, n2: B.n2[i], n4: B.n4[i] };
+    };
+    /* 규칙별 목표 비중: 길이 N+1 (마지막 칸 = KOSPI) · 합이 1 보다 작으면 나머지는 현금 */
+    const eq = (list) => { const w = new Float64Array(N + 1); for (const s of list) w[s] = 1 / list.length; return w; };
+    const all = eq(Array.from({ length: N }, (_, s) => s));
+    const kosW = () => { const w = new Float64Array(N + 1); w[N] = 1; return w; };
+    const weightsOf = (g) => ({
+      combo: !g.inMkt ? new Float64Array(N + 1) : g.cands.length ? eq(g.cands) : o.fallback === "kospi" && hasK ? kosW() : new Float64Array(N + 1),
+      timing: g.inMkt && hasK ? kosW() : new Float64Array(N + 1),
+      select: g.cands.length ? eq(g.cands) : all,
+      top5: eq(g.top),
+      st4: g.st4.length ? eq(g.st4) : all,
+      kospi: hasK ? kosW() : new Float64Array(N + 1),
+      ew: all,
+    });
+    const months = [], prevW = {}, nav = {}, level = {}, needK = { timing: 1, kospi: 1 }, skipped = [];
+    RULE_IDS.forEach((id) => { nav[id] = new Float64Array(T).fill(NaN); level[id] = 1; });
+    let i0 = -1;
+    for (let k = 0; k < ME.length - 1; k++) {
+      const i = ME[k], j = ME[k + 1];
+      if (B.nValid[i] !== N) { if (i0 >= 0) skipped.push(D[i]); continue; } // 시작 뒤 값이 빠져 판정할 수 없는 월말은 건너뜀
+      const a = Math.min(i + L, T - 1), b = Math.min(j + L, T - 1); // 보유 구간 (a, b]: 체결일 종가에 사서 다음 체결일 종가에 판다
+      if (i0 < 0) i0 = i;
+      // 끝난 달: 달력상 끝났고, 다음 날 체결이면 그 체결일 종가까지 있어야 함 (마지막 행이 장중 값이면 아직)
+      const done = k + 1 <= lastDone && j + L <= T - 1 && !(L && j + L === T - 1 && o.lastIntraday);
+      const g = signalAt(i), W = weightsOf(g);
+      const cashAt = (d) => Math.pow(1 + cashM, done ? (d - a) / (b - a) : (d - a) / 21); // 진행 중인 달은 21거래일 = 한 달로
+      const r = new Float64Array(N + 1);
+      for (let s = 0; s < N; s++) { const pa = st.sec[s].p[a], pb = st.sec[s].p[b]; r[s] = pa > 0 && pb > 0 ? pb / pa - 1 : NaN; }
+      r[N] = hasK && kc[a] > 0 && kc[b] > 0 ? kc[b] / kc[a] - 1 : NaN;
+      const ret = {}, turn = {};
+      for (const id of RULE_IDS) {
+        const w = W[id], pw = prevW[id];
+        let gross = 0, wsum = 0, wok = 0, tv = 0;
+        for (let q = 0; q <= N; q++) {
+          if (!w[q]) continue;
+          wsum += w[q];
+          if (r[q] === r[q]) { gross += w[q] * r[q]; wok += w[q]; }
+        }
+        if (wsum > 0 && wok < wsum - 1e-12) gross = wok > 0 ? (gross / wok) * wsum : NaN; // 값이 빠진 종목은 나머지 비중으로 나눔
+        gross += (1 - wsum) * (cashAt(b) - 1);
+        if (id !== "kospi" && id !== "ew") for (let q = 0; q <= N; q++) tv += Math.abs(w[q] - (pw ? pw[q] : 0));
+        turn[id] = tv;
+        // KOSPI 를 쓰는 규칙(비중 신호만·KOSPI 보유)은 KOSPI 수익률이 있는 달만 셈 — KOSPI 데이터가 짧아도 현금 달만 남는 치우침이 없게
+        ret[id] = needK[id] && !(r[N] === r[N]) ? NaN : (1 - cost * tv) * (1 + gross) - 1; // 비용은 체결일에 기준가에서 뺌
+        prevW[id] = w;
+        // 일별 기준가: 비용을 뺀 뒤 목표 비중으로 사서 그달 보유 (종목별 가격 비율 · 값이 없으면 그달 직전 비율)
+        if (ret[id] === ret[id]) {
+          if (b > a && !(nav[id][a] === nav[id][a])) nav[id][a] = level[id]; // 구간 시작점: 첫 달이거나 수익률이 없던 달 다음 (기준가는 그대로 이어감 · 보유일이 없는 달은 점을 찍지 않음)
+          const start = level[id] * (1 - cost * tv), last = new Float64Array(N + 1).fill(1);
+          for (let d = a + 1; d <= b; d++) {
+            let v = 0;
+            for (let q = 0; q <= N; q++) {
+              if (!w[q]) continue;
+              const p0 = q < N ? st.sec[q].p[a] : kc[a], p1 = q < N ? st.sec[q].p[d] : kc[d];
+              if (p0 > 0 && p1 > 0) last[q] = p1 / p0;
+              v += w[q] * last[q];
+            }
+            nav[id][d] = start * (v + (1 - wsum) * cashAt(d));
+          }
+          level[id] *= 1 + ret[id];
+          if (b > a) nav[id][b] = level[id]; // 구간 끝은 월 수익률과 정확히 일치 (값이 빠진 종목 처리 차이 제거)
+        }
+      }
+      months.push({ k, i, j, a, b, date: D[i], end: D[j], entry: D[a], exit: D[b], done, sig: g, ret, turn, w: W });
+    }
+    /* 통계: 끝난 달 중 그 규칙의 수익률이 있는 달 */
+    const doneM = months.filter((m) => m.done), stats = {};
+    const kEnd = doneM.length ? doneM[doneM.length - 1].k : -1; // 마지막으로 끝난 달 — '최근 2년' = 이 달까지 24개월 (건너뛴 달도 셈)
+    for (const id of RULE_IDS) {
+      const mm = doneM.filter((m) => m.ret[id] === m.ret[id]);
+      if (mm.length < 2) { stats[id] = null; continue; }
+      const rs = mm.map((m) => m.ret[id]);
+      let eqv = 1, peak = 1, mdd = 0, sum = 0;
+      for (const v of rs) { eqv *= 1 + v; peak = Math.max(peak, eqv); mdd = Math.min(mdd, eqv / peak - 1); sum += v; }
+      const n = rs.length, mean = sum / n;
+      let ss = 0;
+      for (const v of rs) ss += (v - mean) * (v - mean);
+      const vol = Math.sqrt(ss / (n - 1)) * Math.sqrt(12), cagr = Math.pow(eqv, 12 / n) - 1;
+      const inv = mm.filter((m) => { let t = 0; for (const x of m.w[id]) t += x; return t > 1e-9; }).length / n;
+      const bid = RULE_BENCH[id], pm = bid ? mm.filter((m) => m.ret[bid] === m.ret[bid]) : []; // 비교 대상도 수익률이 있는 달만 비교
+      const out = { n, from: mm[0].date, to: mm[n - 1].end, cagr, mdd, vol, rv: vol > 0 ? cagr / vol : NaN, inv,
+        turn: mm.reduce((a, m) => a + m.turn[id], 0) / n, bench: bid, nx: pm.length };
+      if (pm.length >= 3) {
+        const x = pm.map((m) => m.ret[id] - m.ret[bid]), t = nwT(x, 3), x24 = x.filter((v, q) => pm[q].k <= kEnd - 24);
+        const diff = x.filter((v) => Math.abs(v) > 1e-12);
+        Object.assign(out, { ex: x.reduce((a, v) => a + v, 0) / x.length, t, p: t === t ? 2 * (1 - normCdf(Math.abs(t))) : NaN,
+          hit: diff.length ? diff.filter((v) => v > 0).length / diff.length : NaN,
+          ex24: x24.length ? x24.reduce((a, v) => a + v, 0) / x24.length : NaN, t24: nwT(x24, 3) });
+      }
+      stats[id] = out;
+    }
+    const gov = lastDone >= 0 && B.nValid[ME[lastDone]] === N ? signalAt(ME[lastDone]) : null;
+    let kp = lastDone - 1; // 직전 신호: 바로 앞 월말을 값이 빠져 건너뛰었으면 그 전 신호 (위 비용 계산의 직전 비중과 같은 기준)
+    while (kp >= 0 && B.nValid[ME[kp]] !== N) kp--;
+    const prevGov = kp >= 0 ? signalAt(ME[kp]) : null;
+    const live = !o.complete && B.nValid[T - 1] === N ? signalAt(T - 1) : null;
+    return { o, ids: RULE_IDS, bench: RULE_BENCH, i0, months, stats, nav, gov, prevGov, live, hasK, cashM, skipped,
+      lastEnd: lastDone >= 0 ? D[ME[lastDone]] : null, weightsOf: (g) => weightsOf(g) };
+  }
+
   return {
     VERSION, SHEET_NAME, LOOKS, RS_MODES, RS_IDS, DEFAULTS, TT_NAMES, STAGE_NAMES,
     toISODate, normName, normalize, toPlain, findSectorSheet, parseSheet, sma, rollExt,
     compute, rsOf, snapshot, stageStart, stageRuns, breadthStart, alignClose, episodes, divergence, monthEnds, monthly,
+    RULE_IDS, RULE_BENCH, RULE_DEFAULTS, normCdf, nwT, rules,
   };
 });

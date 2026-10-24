@@ -279,6 +279,11 @@ table.trans td { min-width: 76px; }
 .ttd i.k8 { margin-left: 4px; }
 .stg { display: inline-block; font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 9px; line-height: 18px; border: 1px solid currentColor; white-space: nowrap; }
 .stg.s2 { color: var(--c-buy); } .stg.s3 { color: var(--c-dual); } .stg.s4 { color: var(--c-sell); } .stg.s1, .stg.s0 { color: var(--muted); } .stg.s0 { border-style: dashed; }
+/* 매매 신호: 할 일 */
+.ctl-g { display: inline-flex; align-items: center; white-space: nowrap; }
+.ctl-g label { margin-right: 6px; } .ctl-g .dim { margin-left: 4px; } /* flex gap 없는 구형 브라우저에서도 간격 유지 */
+.heat-ctl input[data-tr="cap"] { width: 132px; }
+.act { font-weight: 700; white-space: nowrap; } .act.buy { color: var(--c-buy); } .act.sell { color: var(--c-sell); } .act.keep { color: var(--ink-2); } .act.cash { color: var(--muted); }
 .tbl th .srt { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 .tbl th[aria-sort] { color: var(--ink); }
 .div-box p { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); }
@@ -591,6 +596,50 @@ table.trans td { min-width: 76px; }
     </section>
 
     <!-- ===== 3 업종 추세 · 시장 폭 (SECTOR 시트: 업종별 일별 종가지수) ===== -->
+    <!-- 3-0. 매매 신호 (월말 종가 신호 → 다음 달 보유) -->
+    <section role="tabpanel" id="p-trade" aria-labelledby="t-trade" hidden>
+      <p class="verdict" id="vTrade">업종 데이터를 불러오는 중…</p>
+      <div class="panel" id="trNoData" hidden>
+        <div class="panel-head"><div><h3>업종 데이터가 없습니다</h3><p id="trNoDataMsg"></p></div></div>
+        <button class="btn primary" type="button" id="trUpload">엑셀 업로드</button>
+      </div>
+      <div id="trBody" hidden>
+        <div class="panel" id="trActPanel">
+          <div class="panel-head"><div><h3 id="trActTitle">이번 달 할 일</h3><p id="trActSub"></p></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="trActTbl"></table></div>
+          <div class="legend-note" id="trActNote"></div>
+        </div>
+        <div class="panel" id="trLivePanel">
+          <div class="panel-head"><div><h3>다음 신호 미리 보기 <span class="h-note">최근 값 기준 · 아직 확정 아님</span></h3><p id="trLiveSub"></p></div></div>
+          <div class="legend-note div-box" id="trLive"></div>
+        </div>
+        <div class="two" id="trSigRow">
+          <div class="panel">
+            <div class="panel-head"><div><h3>① 비중 — 시장 폭</h3><p id="trMktSub"></p></div></div>
+            <div class="tbl-wrap"><table class="tbl" id="trMktTbl"></table></div>
+            <div class="legend-note" id="trMktNote"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>② 업종 후보 — 2단계 + RS 70 이상</h3><p id="trCandSub"></p></div></div>
+            <div class="tbl-wrap"><table class="tbl" id="trCandTbl"></table></div>
+            <div class="legend-note" id="trCandNote"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>매매 규칙 설정</h3><p>매매 신호 · 규칙 검증에 함께 적용됩니다 (다른 묶음 설정과 무관) · 이 브라우저에 저장</p></div></div>
+          <div class="heat-ctl" id="trCtl"></div>
+          <div class="msg" id="trMsg" aria-live="polite"></div>
+        </div>
+        <details class="howto"><summary>규칙과 근거 보기</summary><div class="howto-body">
+          <p><b>판단 시점</b>: 매달 마지막 거래일 종가로 신호를 확정하고, 다음 달 마지막 거래일까지 그대로 들고 갑니다. 달이 끝나기 전에는 마지막으로 끝난 달의 신호가 이번 달 보유를 정하고, 최근 값(데이터 마지막 날) 기준 신호는 ‘다음 신호 미리 보기’로만 보여 줍니다. 엑셀을 마지막 날 장중(15:30 전)에 저장했다면 그날 값은 종가가 아닌 장중 값이므로 달이 끝난 것으로 보지 않습니다.</p>
+          <p><b>① 비중</b>: 월말에 200일선 위에 있는 업종 비율이 기준(기본 50% — 업종이 26개면 13개) 이상이면 보유, 미만이면 현금입니다. 과거에는 수익률을 올리기보다 큰 하락장을 피해 최대 낙폭을 줄이는 쪽으로 작동했습니다. 한 달 안에 갑자기 오는 급락은 피하지 못합니다.</p>
+          <p><b>② 업종 후보</b>: 월말에 2단계(추세 템플릿 1~7 충족)이면서 RS 백분위 70 이상(8번)인 업종을 RS 순으로 같은 비중으로 담습니다. 보유 업종이 3단계로 바뀌거나 RS가 70 아래로 내려가면 다음 월말에 빠집니다. 4단계 업종은 담지 않습니다.</p>
+          <p><b>결합</b>: 비중 신호가 꺼지면 모두 현금, 켜지면 업종 후보를 같은 비중으로 — 후보가 없으면 KOSPI 지수(설정에서 현금으로 바꿀 수 있음)를 듭니다. 업종 지수는 직접 살 수 없으므로 같은 업종을 따르는 ETF로 실행하세요. 투자 금액을 넣으면 종목별 금액을 계산합니다(이 브라우저에만 저장).</p>
+          <p><b>근거와 한계</b>: ‘규칙 검증’ 탭이 같은 규칙을 지금 데이터로 처음부터 다시 계산합니다. 업종 후보 규칙이 동일가중보다 앞섰는지, 그 차이가 우연과 구분되는지(t값), 최근 2년을 빼도 남는지는 그 탭에서 지금 데이터로 확인하세요. 기본 설정은 월말 종가에 바로 체결한다고 가정합니다 — ‘체결 시점’을 다음 거래일 종가로 바꾸면 하루 늦게 체결한 결과를 볼 수 있고, 규칙 검증 맨 위에 두 경우를 함께 보여 줍니다. 과거 성과는 미래 수익을 보장하지 않으며, 투자 권유가 아닌 시장 점검 도구입니다.</p>
+        </div></details>
+      </div>
+    </section>
+
     <!-- 3-1. 업종 순위·단계 -->
     <section role="tabpanel" id="p-sectors" aria-labelledby="t-sectors" hidden>
       <p class="verdict" id="vSectors">업종 데이터를 불러오는 중…</p>
@@ -700,6 +749,54 @@ table.trans td { min-width: 76px; }
         </div></details>
       </div>
     </section>
+
+    <!-- 3-3. 규칙 검증 -->
+    <section role="tabpanel" id="p-rules" aria-labelledby="t-rules" hidden>
+      <p class="verdict" id="vRules">업종 데이터를 불러오는 중…</p>
+      <div class="panel" id="ruNoData" hidden>
+        <div class="panel-head"><div><h3>업종 데이터가 없습니다</h3><p id="ruNoDataMsg"></p></div></div>
+        <button class="btn primary" type="button" id="ruUpload">엑셀 업로드</button>
+      </div>
+      <div id="ruBody" hidden>
+        <div class="panel">
+          <div class="panel-head"><div><h3>검증 조건</h3><p>매매 신호 탭과 같은 설정 · 이 브라우저에 저장</p></div></div>
+          <div class="heat-ctl" id="ruCtl"></div>
+          <div class="msg" id="ruMsg" aria-live="polite"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>누적 성과 (기준가 100)</h3><p id="ruNavSub"></p></div>
+            <div class="chips">
+              <div class="presets" id="ruPresets"><button type="button" data-rp="1y">1년</button><button type="button" data-rp="3y">3년</button><button type="button" data-rp="5y">5년</button><button type="button" data-rp="10y">10년</button><button type="button" data-rp="all">전체</button></div>
+              <div class="chips" id="ruChips"></div>
+            </div>
+          </div>
+          <div class="viewbar" id="vbRules"></div>
+          <div id="chRules" class="tc-host" tabindex="0" role="img" aria-label="매매 규칙별 누적 성과와 낙폭, 결합 규칙의 보유 상태 띠 (아래 성과 표·월별 기록과 같은 내용)"></div>
+          <div class="legend-note" id="ruChNote"></div>
+          <div class="hint-row">드래그: 구간 확대 · Shift+드래그 또는 아래 막대 끌기: 이동 · 더블클릭: 전체 보기 · 맨 아래 띠 = 결합 규칙이 그달 들고 있던 것</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>규칙별 성과</h3><p id="ruPerfSub"></p></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="ruPerfTbl"></table></div>
+          <div class="legend-note" id="ruPerfNote"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>월별 기록</h3><p id="ruMonSub"></p></div>
+            <button class="btn small" type="button" id="ruCsv">월별 CSV</button>
+          </div>
+          <div class="tbl-wrap tall"><table class="tbl" id="ruMonTbl"></table></div>
+        </div>
+        <details class="howto"><summary>계산 방법 보기</summary><div class="howto-body">
+          <p><b>시점</b>: 모든 업종을 판정할 수 있는 첫 월말부터, 월말 종가로 신호를 정하고 다음 월말 종가까지 보유합니다. ‘체결 시점’을 다음 거래일 종가로 두면 신호 다음 거래일 종가에 사고 다음 신호의 다음 거래일 종가에 팝니다(보유 구간이 하루씩 밀림). 끝난 달만 통계에 넣고, 진행 중인 달은 차트와 월별 기록에만 보입니다. 차트의 기준가 100은 보이는 구간에서 표시한 선 모두에 값이 있는 첫날입니다(보이는 구간에 값이 없는 선은 빼고 아래에 안내). 업종·KOSPI 모두 배당을 뺀 가격지수입니다.</p>
+          <p><b>규칙</b>: 결합 = 비중 신호(200일선 위 업종 비율 ≥ 기준이면 보유) + 업종 후보(2단계 + RS 70 이상 동일 비중, 없으면 KOSPI 또는 현금). 비중 신호만 = 같은 신호로 KOSPI와 현금 사이를 오감. 업종 후보만 = 비중 신호 없이 항상 투자(후보가 없는 달은 업종 동일가중). RS 상위 5 = 단계와 관계없이 RS 상위 5개 업종. 4단계 업종 = 피할 업종을 들었다면(참고). 업종 동일가중 = 모든 업종을 매달 같은 비중으로.</p>
+          <p><b>비용·현금</b>: 매달 목표 비중이 바뀐 만큼(Σ|비중 변화|, KOSPI 포함·현금 제외)에 편도 비용을 곱해 체결일 기준가에서 뺍니다. 그달 안의 비중 변화(가격 변동에 따른 쏠림)는 무시합니다. 현금은 설정한 연 수익률을 매달 복리로 붙입니다. KOSPI·업종 동일가중 기준선에는 비용을 넣지 않습니다. 체결일 종가가 빠진 업종은 그달 수익률에서 빼고 나머지 보유 종목의 평균 수익률을 그 비중에 적용합니다(보유 종목 모두 값이 없으면 그달은 수익률 없음 — 통계에서 뺌).</p>
+          <p><b>통계</b>: 연복리 = 월 수익률 누적의 연 환산, 최대 낙폭 = 월말 기준가 기준, 연 변동성 = 월 수익률 표준편차 × √12. 초과(월) = 비교 대상 대비 월평균 차이(둘 다 수익률이 있는 달만). t값은 Newey-West(3개월) 표준오차로 구하고 p값은 정규분포로 근사한 양측값입니다. 이긴 달 = 차이가 0이 아닌 달 중 앞선 비율. ‘최근 2년 빼면’은 마지막으로 끝난 달까지 24개월(값이 빠져 건너뛴 달도 셈)을 빼고 다시 계산한 초과와 t값입니다.</p>
+          <p><b>읽는 법</b>: 여러 규칙을 함께 보면 t값 2 안팎은 우연과 구분하기 어렵습니다(규칙을 여럿 시험할수록 그중 하나가 우연히 좋아 보일 가능성이 커짐). 최근 2년을 뺀 값이 크게 줄면 그 성과의 상당 부분이 최근 장세 덕분입니다. 표본 안에서 고른 기준(50% 등)은 미래에 그만큼 맞지 않을 수 있습니다.</p>
+        </div></details>
+      </div>
+    </section>
   </main>
 </div>
 <p class="foot" id="foot"></p>
@@ -762,7 +859,8 @@ BOP(N)  = 최근 N거래일 BOP 단순평균 (N = 14 가 원본 'BOP(14MA)')
         <li><b>추세 템플릿</b> — 1 P &gt; 150·200일선 · 2 150일선 &gt; 200일선 · 3 200일선 &gt; 21거래일 전 · 4 50일선 &gt; 150·200일선 · 5 P &gt; 50일선 · 6 P ≥ 1.3 × 52주 최저 · 7 P ≥ 0.75 × 52주 최고 · 8 RS ≥ 70 (모두 종가 기준)</li>
         <li><b>단계</b> — 2 = 1~7 모두 충족 · 4 = P &lt; 150·200일선, 150일선 &lt; 200일선, 200일선 하락 · 그 밖의 날은 직전 확정 단계가 2면 3, 4면 1</li>
         <li><b>시장 폭</b> — 2단계·4단계 업종 수, 50·200일선 위 업종 비율, 52주 신고가·신저가 업종 수, 업종 동일가중 지수 · 다이버전스 = KOSPI 52주 신고가일의 2단계 업종 수와 그 전 1년 최대 비교</li>
-        <li>자세한 계산 방법은 3 업종 추세 · 시장 폭 화면 맨 아래 ‘계산 방법 보기’에 있습니다.</li>
+        <li><b>매매 규칙</b> — 월말 종가 신호 → 다음 달 보유: 200일선 위 업종 비율 ≥ 기준(기본 50%)이면 보유, 아니면 현금 · 보유할 때는 2단계 + RS 70 이상 업종을 같은 비중으로(없으면 KOSPI 또는 현금) · 비용 = Σ|목표 비중 변화| × 편도 비용 · 체결은 신호 당일 종가(기본) 또는 다음 거래일 종가 · 통계는 끝난 달만 (t값 = Newey-West 3개월)</li>
+        <li>자세한 계산 방법은 3 업종 추세 · 시장 폭 각 탭 맨 아래 ‘계산 방법 보기’(매매 신호는 ‘규칙과 근거 보기’)에 있습니다.</li>
       </ul>
     </div>
   </div>
@@ -1390,14 +1488,14 @@ const GROUPS = [
   { id: "second", no: 2, name: "업종 2등주", tag: "TIGER 업종 ETF 월간 순위 전략",
     desc: "TIGER 반도체 · 헬스케어 · 2차전지테마 중 지난달 수익률 2등을 이번 달 보유 — 1등 · 3등 · 1+2등주, TIGER 200과 비교합니다",
     tabs: [["tiger", "업종 2등주"]], kospi: false, settings: false, head: () => tigerHead() },
-  { id: "trend", no: 3, name: "업종 추세 · 시장 폭", tag: "업종별 추세 템플릿 · 단계 · 다이버전스",
-    desc: "업종마다 추세 템플릿(미너비니 1~8) · 단계(1~4) · 상대강도를 매기고, 2단계 업종 수와 이동평균선 위 업종 비율로 시장 폭과 KOSPI 다이버전스를 봅니다",
-    tabs: [["sectors", "업종 순위·단계"], ["breadth", "시장 폭"]], kospi: false, settings: false, head: () => sectorHead() },
+  { id: "trend", no: 3, name: "업종 추세 · 시장 폭", tag: "월말 매매 신호 · 추세 템플릿 · 단계 · 다이버전스",
+    desc: "업종마다 추세 템플릿(미너비니 1~8) · 단계(1~4) · 상대강도를 매기고, 시장 폭(200일선 위 업종 비율)으로 비중을, 2단계 + RS 70 이상 업종으로 매수 후보를 정하는 월말 매매 신호와 그 규칙의 과거 성과, 시장 폭과 KOSPI 다이버전스를 봅니다",
+    tabs: [["trade", "매매 신호"], ["sectors", "업종 순위·단계"], ["breadth", "시장 폭"], ["rules", "규칙 검증"]], kospi: false, settings: false, head: () => sectorHead() },
 ];
 const TABS = GROUPS.flatMap((g) => g.tabs.map((x) => x[0]));
 const GROUP_OF = {};
 GROUPS.forEach((g) => g.tabs.forEach(([t]) => { GROUP_OF[t] = g; }));
-const RENDER = { chart: renderChart, perf: renderPerf, check: renderCheck, tiger: renderTiger, sectors: renderSectors, breadth: renderBreadth };
+const RENDER = { chart: renderChart, perf: renderPerf, check: renderCheck, tiger: renderTiger, sectors: renderSectors, breadth: renderBreadth, trade: renderTrade, rules: renderRules };
 const LEGACY_TAB = { signals: "check", backtest: "perf", threshold: "perf", best: "perf" };
 const HEAD = { bop: { html: "불러오는 중…", foot: "" } }; // 1 BOP · 이격도 머리글 데이터 줄·바닥글 (renderStatic 이 채움)
 const STRATS = KSE.STRATEGIES, SIG_IDS = KSE.SIGNAL_IDS, ALL_IDS = KSE.STRATEGY_IDS;
@@ -1442,6 +1540,7 @@ const DEF_UI = () => ({
   gtab: Object.fromEntries(GROUPS.map((g) => [g.id, g.tabs[0][0]])), // 묶음마다 마지막으로 본 탭
   tg: { preset: "all", start: null, end: null, look: 1, cost: 0, show: ["R2", "R1", "R3", "R12", "BM"], log: true },
   sc: { rs: "w", date: null, sort: "rank", dir: 1, sel: null, log: false, blog: false, dp: "3y", bp: "5y", ep: 1, show: ["n2", "a200"] },
+  tr: { th: 0.5, rs: "w", fb: "kospi", lag: 0, cost: 5, cash: 0, cap: null, rp: "all", show: ["combo", "timing", "select", "kospi", "ew"], log: true }, // 매매 신호 · 규칙 검증
 });
 const S = {
   data: null, src: null, ver: 0, p: KSE.withDefaults({}), i0: 0, i1: -1, start: null, end: null,
@@ -1449,8 +1548,9 @@ const S = {
   loadFailed: false, heat: new Map(), thr: { key: null }, best: { key: null, res: null, splitUser: false }, tm: 0,
   tg: { data: null, src: null, ver: 0, key: null, res: null, st: null, err: null }, // 업종 2등주 (KOSPI 데이터와 따로 불러옴)
   sc: { data: null, src: null, ver: 0, st: null, stVer: -1, err: null, kc: null, kcKey: null, div: null, mon: null, eps: {}, rows: null, i: -1 }, // 업종 추세 · 시장 폭
+  tr: { key: null, res: null, complete: true, intra: false, alt: null, altKey: null }, // 매매 규칙 계산 결과 (데이터·설정이 바뀔 때만 다시) · alt = 체결 시점만 바꾼 결과
 };
-const VIEW = { main: new View(), nav: new View(), tiger: new View(), sector: new View(), breadth: new View() };
+const VIEW = { main: new View(), nav: new View(), tiger: new View(), sector: new View(), breadth: new View(), rules: new View() };
 const CH = {};
 window.__kseDebug = {
   get state() { return S; }, charts: CH, views: VIEW, markers: { B: 0, S: 0, D: 0 },
@@ -1508,6 +1608,17 @@ function loadSettings() {
   if (Object.prototype.hasOwnProperty.call(SC_PERIODS, c.bp)) C.bp = c.bp;
   if (EP_OPTS.includes(c.ep)) C.ep = c.ep;
   if (Array.isArray(c.show) && c.show.every((x) => BR_SERIES.some((b) => b[0] === x))) C.show = c.show;
+  const r = u.tr && typeof u.tr === "object" ? u.tr : {}, Q = U.tr;
+  if (TR_TH.includes(r.th)) Q.th = r.th;
+  if (KSC.RS_IDS.includes(r.rs)) Q.rs = r.rs;
+  if (r.fb === "kospi" || r.fb === "cash") Q.fb = r.fb;
+  if (r.lag === 0 || r.lag === 1) Q.lag = r.lag;
+  if (isNum(r.cost) && r.cost >= 0 && r.cost <= 500) Q.cost = r.cost;
+  if (isNum(r.cash) && r.cash >= -5 && r.cash <= 30) Q.cash = r.cash;
+  if (r.cap === null || (isNum(r.cap) && r.cap >= 0 && r.cap <= 1e13)) Q.cap = r.cap;
+  if (Object.prototype.hasOwnProperty.call(SC_PERIODS, r.rp)) Q.rp = r.rp;
+  if (Array.isArray(r.show) && r.show.every((x) => KSC.RULE_IDS.includes(x))) Q.show = r.show;
+  if (typeof r.log === "boolean") Q.log = r.log;
 }
 
 /* ---------- 테마 ---------- */
@@ -2600,7 +2711,7 @@ const stgTag = (g) => `<span class="stg s${g}">${STG_SHORT[g]}</span>`;
 
 function setSectorData(data, src) {
   S.sc.data = data; S.sc.src = src; S.sc.ver++; S.sc.st = null; S.sc.err = null; S.sc.kcKey = null;
-  S.dirty.sectors = S.dirty.breadth = true;
+  scDirty();
   if (GROUP_OF[S.ui.tab].id === "trend") { renderTab(S.ui.tab); renderHead(); }
   if ($("dataDlg").open) renderReport();
 }
@@ -2640,7 +2751,7 @@ async function loadSectorDefault(stored, force) { // force: 저장된 업로드�
   try { d = await fetchSectorDefault(); } catch (e) {
     if (!S.sc.data) {
       S.sc.err = "기본 데이터(data/kospi_sector.json)를 불러오지 못했습니다" + (location.protocol === "file:" ? " — 파일로 직접 열면 브라우저가 막습니다" : "") + ". SECTOR 시트가 있는 엑셀을 올리면 바로 분석할 수 있습니다.";
-      S.dirty.sectors = S.dirty.breadth = true;
+      scDirty();
       if (GROUP_OF[S.ui.tab].id === "trend") { renderTab(S.ui.tab); renderHead(); }
     }
     return;
@@ -2987,6 +3098,399 @@ function wireSector() {
   ["scUpload", "brUpload"].forEach((id) => $(id).addEventListener("click", () => $("fileInput").click()));
 }
 
+/* --- 매매 신호 · 규칙 검증 (월말 종가 신호 → 다음 달 보유) --- */
+const TR_TH = [0.3, 0.4, 0.5, 0.6, 0.7];
+const TR_FB = { kospi: "KOSPI 보유", cash: "현금" };
+const TR_LAG = ["월말 종가 (신호 당일)", "다음 거래일 종가"]; // 체결 시점 (lag 0 · 1)
+const RU_META = { // [이름, 설명, 색]
+  combo: ["결합", "비중 신호 + 업종 후보", "--c-buy"],
+  timing: ["비중 신호만", "같은 비중 신호로 KOSPI ↔ 현금", "--s1"],
+  select: ["업종 후보만", "2단계 + RS 70 이상 같은 비중 · 항상 투자 (후보가 없으면 업종 동일가중)", "--s3"],
+  top5: ["RS 상위 5", "단계와 관계없이 RS 상위 5개 업종 같은 비중", "--s4"],
+  st4: ["4단계 업종", "참고 — 피할 업종을 들고 있었다면 (없으면 업종 동일가중)", "--c-sell"],
+  kospi: ["KOSPI 보유", "계속 보유", "--c-bh"],
+  ew: ["업종 동일가중", "모든 업종을 매달 같은 비중으로", "--s2"],
+};
+const RU_ORDER = ["combo", "timing", "select", "top5", "kospi", "ew", "st4"];
+const monLabel = (ym) => `${+ym.slice(5, 7)}월`;
+const nextYmOf = (d) => { const y = +d.slice(0, 4), m = +d.slice(5, 7); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; };
+const thPct = (v) => Math.round(v * 100);
+const wPct = (w) => fmtPct(w, Math.abs(w * 100 - Math.round(w * 100)) < 1e-6 ? 0 : 1, false); // 12.5% · 33.3% (정수면 그대로)
+/* 마지막 행이 장중 값인가 (엑셀을 그날 15:30 전에 저장) — 2 업종 2등주와 같은 규칙 */
+function trIntra(st) { const src = S.sc.src || {}; return KST.intradayAt(st.dates[st.T - 1], src.asOf || (src.meta || {}).as_of); }
+const trLastLbl = (st) => `${st.dates[st.T - 1]} ${trIntra(st) ? "장중 값" : "종가"}`;
+function scDirty() { S.dirty.sectors = S.dirty.breadth = S.dirty.trade = S.dirty.rules = true; }
+function trApply(mut) { mut(S.ui.tr); saveSettings(); S.dirty.trade = S.dirty.rules = true; if (GROUP_OF[S.ui.tab].id === "trend") renderTab(S.ui.tab); }
+/* 규칙 계산 (업종·KOSPI 데이터나 설정이 바뀔 때만) · 마지막 달이 끝났는지는 2 업종 2등주와 같은 규칙 (저장 시각 · 달력) */
+function trState(st) {
+  const U = S.ui.tr, src = S.sc.src || {}, m = src.meta || {}, D = st.dates;
+  const complete = KST.monthComplete(D[D.length - 1], src.asOf || m.as_of);
+  const intra = trIntra(st), key = [S.sc.ver, S.sc.kcKey, U.th, U.rs, U.fb, U.lag, U.cost, U.cash, complete, intra].join("|");
+  if (S.tr.key !== key) {
+    S.tr.res = KSC.rules(st, S.sc.kc, { th: U.th, rs: U.rs, fallback: U.fb, costBp: U.cost, cash: U.cash, complete, lag: U.lag, lastIntraday: intra });
+    S.tr.key = key; S.tr.complete = complete; S.tr.intra = intra;
+  }
+  return S.tr.res;
+}
+/* 체결 시점만 바꾼 결과 (규칙 검증 맨 위 비교 줄) — trState 다음에 부름 */
+function trAlt(st) {
+  const U = S.ui.tr, key = S.tr.key + "|alt";
+  if (S.tr.altKey !== key) {
+    S.tr.alt = KSC.rules(st, S.sc.kc, { th: U.th, rs: U.rs, fallback: U.fb, costBp: U.cost, cash: U.cash, complete: S.tr.complete, lag: 1 - U.lag, lastIntraday: S.tr.intra });
+    S.tr.altKey = key;
+  }
+  return S.tr.alt;
+}
+/* 결합 규칙의 목표 보유 [{key, name, w}] — key: 업종 번호 · "K" KOSPI · "C" 현금 (업종은 RS 순) */
+function trHold(st, R, g) {
+  const w = R.weightsOf(g).combo, N = st.N, out = [];
+  let sum = 0;
+  for (const s of g.cands) if (w[s] > 1e-9) { out.push({ key: s, name: st.names[s], w: w[s] }); sum += w[s]; }
+  if (w[N] > 1e-9) { out.push({ key: "K", name: "KOSPI 지수", w: w[N] }); sum += w[N]; }
+  if (1 - sum > 1e-9) out.push({ key: "C", name: "현금", w: 1 - sum });
+  return out;
+}
+function holdWhat(st, R, g) { // 결합 규칙 보유를 한 줄로
+  const U = S.ui.tr;
+  if (!g.inMkt) return "<strong>현금</strong> (비중 축소)";
+  if (g.cands.length) return `<strong>업종 ${g.cands.length}개 같은 비중</strong> — ${g.cands.map((s) => esc(st.names[s])).join(" · ")}`;
+  return U.fb === "kospi" && R.hasK ? "<strong>KOSPI 지수</strong> (업종 후보 없음)" : "<strong>현금</strong> (업종 후보 없음)";
+}
+function holdShort(st, m, full) { // 월별 기록용: 결합 규칙이 그달 들고 있던 것
+  const w = m.w.combo, N = st.N, names = m.sig.cands.filter((s) => w[s] > 1e-9).map((s) => st.names[s]);
+  if (names.length) return full || names.length <= 3 ? names.join(full ? ";" : " · ") : `${names.slice(0, 2).join(" · ")} 외 ${names.length - 2}`;
+  return w[N] > 1e-9 ? "KOSPI" : "현금";
+}
+function exitWhy(st, R, g, key) {
+  if (!g.inMkt) return "비중 신호 꺼짐 → 현금";
+  if (key === "K") return "업종 후보가 생겨 교체";
+  const i = g.i, x = st.sec[key], p = KSC.rsOf(st, R.o.rs).pct[key][i];
+  if (x.stage[i] !== 2) return `${STG_SHORT[x.stage[i]]} — 2단계 이탈`;
+  if (!(p >= R.o.rsMin)) return `RS ${fmtNum(p, 0)} — ${R.o.rsMin} 미만`;
+  return "후보 제외";
+}
+const TR_MIN_N = 24; // 판단 문구를 붙이는 최소 표본 (개월)
+const tJudge = (t, short, n) => (n < TR_MIN_N ? (short ? "표본 부족" : `표본이 ${n}개월뿐이라 판단하기 어려움`) : !isNum(t) ? (short ? "판단 불가" : "차이가 매달 같아 t값을 계산할 수 없음") :
+  Math.abs(t) >= 3 ? (short ? "강한 편" : "통계적으로 강한 편") : Math.abs(t) >= 2 ? (short ? "경계선" : "경계선 — 여러 규칙을 함께 보면 약함") : short ? "우연 수준" : "우연과 구분하기 어려움");
+
+function renderTrade() {
+  const ok = !!S.sc.data;
+  $("trBody").hidden = !ok; $("trNoData").hidden = ok || !S.sc.err;
+  if (!ok) { $("vTrade").textContent = S.sc.err ? "" : "업종 데이터를 불러오는 중…"; $("trNoDataMsg").textContent = S.sc.err || ""; return; }
+  const st = scState(), R = trState(st);
+  renderTrCtl($("trCtl"), true);
+  $("trActPanel").hidden = $("trSigRow").hidden = !R.gov; // 신호가 없으면 설정만 남김
+  if (!R.gov) {
+    $("vTrade").textContent = R.i0 >= 0 && R.lastEnd && R.lastEnd >= st.dates[R.i0]
+      ? `마지막으로 끝난 월말(${R.lastEnd})에 값이 빠져 판정할 수 없는 업종이 있어 매매 신호를 낼 수 없습니다 — 값이 빠진 날부터 252거래일 동안은 그 업종을 판정하지 않습니다.`
+      : "매매 신호를 내려면 모든 업종에 252거래일 이상의 이력이 있고, 그 뒤로 끝난 달이 하나 이상 있어야 합니다.";
+    $("trLivePanel").hidden = true; $("trActTitle").textContent = "이번 달 할 일";
+    return;
+  }
+  renderTrVerdict(st, R);
+  renderTrAct(st, R);
+  renderTrLive(st, R);
+  renderTrMkt(st, R);
+  renderTrCand(st, R);
+}
+function renderTrVerdict(st, R) {
+  const U = S.ui.tr, g = R.gov, last = st.dates[st.T - 1], cur = !S.tr.complete, hy = nextYmOf(g.date), need = Math.ceil(U.th * g.n200 - 1e-9);
+  let v = `${hy.slice(0, 4)}년 ${monLabel(hy)} 보유${cur ? " (진행 중)" : ""}: ${holdWhat(st, R, g)}` +
+    `<br><span class="dim">${g.date} 종가 신호 · 200일선 위 업종 ${g.a200}/${g.n200} (${fmtNum(g.share * 100, 0)}%) ${g.inMkt ? "≥" : "<"} 기준 ${thPct(U.th)}%(${need}개) · 2단계 + RS 70 이상 ${g.cands.length}개 · 4단계 ${g.st4.length}개</span>`;
+  if (cur && R.live) v += `<br>다음 신호는 ${monLabel(last.slice(0, 7))} 마지막 거래일 종가로 확정됩니다 — 최근 값(${trLastLbl(st)}) 기준이면 ${holdWhat(st, R, R.live)}`;
+  else if (cur) v += `<br>다음 신호는 ${monLabel(last.slice(0, 7))} 마지막 거래일 종가로 확정됩니다 — 최근 값(${trLastLbl(st)})에는 값이 빠져 판정할 수 없는 업종이 있어 미리 보기를 계산하지 않습니다.`;
+  else v += `<br>이 신호로 ${monLabel(hy)} 첫 거래일에 맞추고, ${monLabel(hy)} 마지막 거래일 종가로 다시 확인하세요.`;
+  if (!R.hasK) v += `<br><span class="dim">KOSPI 데이터(1 BOP · 이격도)가 없어 업종 후보가 없을 때는 현금으로 계산합니다.</span>`;
+  $("vTrade").innerHTML = v;
+}
+function renderTrAct(st, R) {
+  const U = S.ui.tr, g = R.gov, pg = R.prevGov, cur = !S.tr.complete, hy = nextYmOf(g.date), cap = U.cap > 0 ? U.cap : 0;
+  const h = trHold(st, R, g), ph = pg ? trHold(st, R, pg) : [], snap = KSC.snapshot(st, g.i, U.rs);
+  const gap = pg ? R.skipped.filter((d) => d > pg.date && d < g.date).length : 0; // 그 사이 값이 빠져 신호가 없던 월말
+  const prevOf = (k) => ph.find((x) => x.key === k), rowOf = (s) => snap.find((r) => r.s === s);
+  const wTxt = (w0, w1) => (w0 !== null && Math.abs(w0 - w1) > 1e-9 ? `${wPct(w0)} → <b>${wPct(w1)}</b>` : `<b>${wPct(w1)}</b>`);
+  const amt = (w) => (cap ? `${fmtNum(cap * w, 0)}원` : "–");
+  const state = (x) => {
+    if (x.key === "K") return "업종 후보가 없어 지수로 보유 (KOSPI 200 등 지수 ETF)";
+    if (x.key === "C") return g.inMkt ? `업종 후보 없음 (${U.fb === "kospi" && !R.hasK ? "KOSPI 데이터가 없어 현금" : `설정: ${TR_FB[U.fb]}`})` : `비중 신호 꺼짐 — 200일선 위 업종 ${g.a200}/${g.n200}`;
+    const r = rowOf(x.key);
+    return r ? `${stgTag(r.stage)} RS ${fmtNum(r.rs, 0)} · 200일선 ${fmtPct(r.ext200, 1)} · 52주 고점 ${fmtPct(r.fromHi, 1)}` : "";
+  };
+  let rows = "";
+  for (const x of h) {
+    const p = prevOf(x.key), act = x.key === "C" ? (p ? ["유지", "cash"] : ["현금으로", "cash"]) : p ? ["유지", "keep"] : ["매수", "buy"];
+    rows += `<tr><td><span class="act ${act[1]}">${act[0]}</span></td><td class="l"><b>${esc(x.name)}</b></td><td>${wTxt(p ? p.w : null, x.w)}</td><td>${amt(x.w)}</td><td class="l">${state(x)}</td></tr>`;
+  }
+  for (const x of ph) {
+    if (x.key === "C" || h.some((q) => q.key === x.key)) continue;
+    rows += `<tr><td><span class="act sell">매도</span></td><td class="l"><b>${esc(x.name)}</b></td><td>${wPct(x.w)} → <b>0%</b></td><td>–</td><td class="l">${esc(exitWhy(st, R, g, x.key))}</td></tr>`;
+  }
+  $("trActTbl").innerHTML = `<thead><tr><th>할 일</th><th class="l">종목</th><th>목표 비중</th><th>금액</th><th class="l">상태 · 이유</th></tr></thead><tbody>${rows}</tbody>`;
+  $("trActTitle").textContent = cur ? `이번 달 보유 — ${monLabel(hy)} (진행 중)` : `${monLabel(hy)}에 할 일`;
+  $("trActSub").textContent = `${g.date} 종가 신호 · 결합 규칙의 목표 비중` + (pg ? ` · 지난 신호(${pg.date}) 대비 바뀐 것` + (gap ? ` (그 사이 월말 ${gap}개는 값이 빠져 신호 없음)` : "") : "") +
+    (cap ? ` · 투자 금액 ${fmtNum(cap, 0)}원 기준` : " · 투자 금액을 넣으면 종목별 금액을 계산합니다");
+  const top = g.top.map((s) => st.names[s]), st4 = g.st4.map((s) => st.names[s]);
+  $("trActNote").innerHTML = `업종 지수는 직접 살 수 없으니 같은 업종을 따르는 ETF로 실행하세요. 월말 종가를 보고 다음 거래일에 체결한다면 아래 설정의 ‘체결 시점’을 ‘다음 거래일 종가’로 두고 규칙 검증을 보세요.` +
+    `<br>피할 업종 (4단계 ${st4.length}개): ${st4.length ? esc(st4.join(" · ")) : "없음"} · RS 상위 5 (참고 · 단계 무관): ${esc(top.join(" · "))}`;
+}
+function renderTrLive(st, R) {
+  const U = S.ui.tr, L = R.live, g = R.gov, panel = $("trLivePanel");
+  panel.hidden = !!S.tr.complete || !L;
+  if (panel.hidden) return;
+  const need = Math.ceil(U.th * L.n200 - 1e-9), h0 = trHold(st, R, g), h1 = trHold(st, R, L);
+  const ins = h1.filter((x) => !h0.some((q) => q.key === x.key) && x.key !== "C"), outs = h0.filter((x) => !h1.some((q) => q.key === x.key) && x.key !== "C");
+  const newC = L.cands.filter((s) => g.cands.indexOf(s) < 0).map((s) => st.names[s]), goneC = g.cands.filter((s) => L.cands.indexOf(s) < 0).map((s) => st.names[s]);
+  const src = S.sc.src || {}, a = KST.kstOf(src.asOf || (src.meta || {}).as_of);
+  $("trLive").innerHTML = `<p>${trLastLbl(st)} 그대로 달이 끝나면: ${holdWhat(st, R, L)}</p>` +
+    `<p>200일선 위 업종 <b>${L.a200}/${L.n200}</b> (${fmtNum(L.share * 100, 0)}%) — ${L.inMkt ? `보유 신호 (기준 ${need}개보다 ${L.a200 - need}개 많음)` : `현금 신호 (보유로 바뀌려면 ${need - L.a200}개 더)`}</p>` +
+    `<p>2단계 + RS 70 이상: ${L.cands.length ? esc(L.cands.map((s) => st.names[s]).join(" · ")) : "없음"}${newC.length ? ` · 새로 생긴 후보 <b>${esc(newC.join(" · "))}</b>` : ""}${goneC.length ? ` · 빠진 후보 ${esc(goneC.join(" · "))}` : ""}</p>` +
+    `<p>지금 보유와 비교하면: ${ins.length || outs.length ? `${ins.length ? `매수 예정 <b>${esc(ins.map((x) => x.name).join(" · "))}</b>` : ""}${ins.length && outs.length ? " · " : ""}${outs.length ? `매도 예정 <b>${esc(outs.map((x) => x.name).join(" · "))}</b>` : ""}` : "바뀌는 것 없음"}</p>`;
+  $("trLiveSub").textContent = `${trLastLbl(st)} 기준 · 달이 끝날 때까지 바뀔 수 있습니다` + (a ? ` · 엑셀 저장 ${a.ymd} ${String(Math.floor(a.min / 60)).padStart(2, "0")}:${String(a.min % 60).padStart(2, "0")} KST` : "");
+}
+function renderTrMkt(st, R) {
+  const U = S.ui.tr, g = R.gov, need = Math.ceil(U.th * g.n200 - 1e-9), rows = [];
+  if (R.live && !S.tr.complete) rows.push({ sig: R.live, tag: "최근 · 미확정", res: null });
+  if (S.tr.complete) rows.push({ sig: g, tag: "확정 · 다음 달 적용", res: null, gov: true });
+  const hist = R.months.map((m) => ({ date: m.date, m })).concat(R.skipped.map((d) => ({ date: d }))).sort((x, y) => (x.date < y.date ? 1 : -1));
+  for (const x of hist) rows.push(x.m ? { sig: x.m.sig, m: x.m, gov: !S.tr.complete && x.m.i === g.i } : { skip: x.date });
+  let h = `<thead><tr><th>월말</th><th>200일선 위</th><th>신호</th><th title="신호 다음 달 KOSPI 수익률">다음 달 KOSPI</th><th title="신호 다음 달 결합 규칙 수익률 (비용 포함)">다음 달 결합</th></tr></thead><tbody>`;
+  for (const r of rows.slice(0, 13)) {
+    if (r.skip) { h += `<tr><td>${r.skip}</td><td class="l dim" colspan="4">값이 빠져 판정할 수 없는 업종이 있어 신호 없음</td></tr>`; continue; }
+    const s = r.sig, m = r.m, live = !m && !r.gov;
+    const res = (id) => (m && isNum(m.ret[id]) ? `${fmtPct(m.ret[id], 1)}${m.done ? "" : ' <span class="dim">진행 중</span>'}` : "–");
+    h += `<tr${r.gov ? ' class="cur"' : ""}><td>${s.date}${r.tag ? ` <span class="dim">${r.tag}</span>` : ""}</td><td>${s.a200}/${s.n200} <span class="dim">${fmtNum(s.share * 100, 0)}%</span></td>` +
+      `<td><span class="act ${s.inMkt ? "keep" : "cash"}">${s.inMkt ? "보유" : "현금"}</span>${live ? ' <span class="dim">(예상)</span>' : ""}</td>` +
+      `<td class="${m ? clsOf(m.ret.kospi) : ""}">${res("kospi")}</td><td class="${m ? clsOf(m.ret.combo) : ""}">${res("combo")}</td></tr>`;
+  }
+  $("trMktTbl").innerHTML = h + "</tbody>";
+  $("trMktSub").textContent = `기준 ${thPct(U.th)}% = 업종 ${g.n200}개 중 ${need}개 이상이 200일선 위면 보유 · 월말 종가 · 최신순 13개 (전체는 규칙 검증의 월별 기록) · 굵은 왼쪽 선 = 지금 따르는 신호`;
+  const tm = R.stats.timing, k = R.stats.kospi;
+  if (tm && k) {
+    const worst = R.months.filter((m) => m.done && m.sig.inMkt && m.ret.kospi < 0).sort((a, b) => a.ret.kospi - b.ret.kospi).slice(0, 2);
+    $("trMktNote").innerHTML = `이 신호만 따랐다면 (KOSPI ↔ 현금 ${fmtNum(U.cash, 1)}%/년 · 비용 편도 ${U.cost}bp${U.lag ? " · 다음 거래일 체결" : ""}, ${tm.from}~${tm.to} · ${tm.n}개월): 연복리 <b>${fmtPct(tm.cagr, 1)}</b> · 최대 낙폭 <b>${fmtPct(tm.mdd, 0)}</b> — KOSPI 계속 보유 ${fmtPct(k.cagr, 1)} · ${fmtPct(k.mdd, 0)} · 투자한 달 ${fmtPct(tm.inv, 0, false)}.` +
+      (worst.length ? ` 보유 중 가장 크게 떨어진 달: ${worst.map((m) => `${m.end.slice(0, 7)} ${fmtPct(m.ret.kospi, 1)}`).join(" · ")} — 한 달 안에 오는 급락은 이 신호로 피하지 못합니다.` : "");
+  } else $("trMktNote").textContent = R.hasK ? "KOSPI 수익률이 있는 끝난 달이 2개 이상 있어야 이 신호의 과거 성과를 계산할 수 있습니다." : "KOSPI 데이터(1 BOP · 이격도)가 없어 이 신호의 과거 성과를 계산할 수 없습니다.";
+}
+function renderTrCand(st, R) {
+  const U = S.ui.tr, g = R.gov, L = !S.tr.complete ? R.live : null, M = KSC.RS_MODES.find((q) => q.id === U.rs);
+  const snapG = KSC.snapshot(st, g.i, U.rs), snapL = L ? KSC.snapshot(st, L.i, U.rs) : null, of = (rows, s) => rows.find((r) => r.s === s);
+  let h = `<thead><tr><th class="l">업종</th><th>RS</th><th title="추세 템플릿 1~7 충족 수">1~7</th><th class="l">단계</th><th>200일선 대비</th><th>52주 고점 대비</th>${L ? `<th class="l">최근 (${L.date.slice(5)})</th>` : ""}</tr></thead><tbody>`;
+  const row = (r, note) => {
+    const t = L ? of(snapL, r.s) : null, still = t && t.stage === 2 && t.rs >= R.o.rsMin;
+    return `<tr><td class="l"><b>${esc(r.name)}</b>${note ? `<span class="sub">${note}</span>` : ""}</td><td>${fmtNum(r.rs, 0)}</td><td>${r.valid ? r.tt + "/7" : "–"}</td><td class="l">${stgTag(r.stage)}<span class="sub">${r.valid ? st.dates[r.since] + "~" : ""}</span></td>` +
+      `<td class="${clsOf(r.ext200)}">${fmtPct(r.ext200, 1)}</td><td>${fmtPct(r.fromHi, 1)}</td>` +
+      (L ? `<td class="l">${t ? `${stgTag(t.stage)} RS ${fmtNum(t.rs, 0)} · <span class="act ${still ? "keep" : "sell"}">${still ? "후보 유지" : "후보 아님"}</span>` : ""}</td>` : "") + "</tr>";
+  };
+  if (g.cands.length) for (const s of g.cands) h += row(of(snapG, s));
+  else {
+    const near = snapG.filter((r) => r.valid && r.stage !== 4).sort((a, b) => b.tt - a.tt || b.rsRaw - a.rsRaw).slice(0, 3);
+    h += `<tr><td class="l" colspan="${L ? 7 : 6}"><b>후보 없음</b> <span class="dim">— 가장 가까운 업종 (추세 템플릿 충족 수 · RS 순)</span></td></tr>` + near.map((r) => row(r, `추세 템플릿 ${r.tt}/7 · RS ${fmtNum(r.rs, 0)}`)).join("");
+  }
+  $("trCandTbl").innerHTML = h + "</tbody>";
+  $("trCandSub").textContent = `${g.date} 종가 기준 · RS = ${M.name} 백분위 · RS 순 · 같은 비중으로 담고 다음 월말에 다시 확인`;
+  const s = R.stats.select;
+  $("trCandNote").innerHTML = s && isNum(s.t) ? `이 후보만 계속 들었다면 (${s.from}~${s.to}${s.nx !== s.n ? ` 중 ${s.nx}개월 비교` : ""}, 비용 포함${U.lag ? " · 다음 거래일 체결" : ""}): 업종 동일가중보다 월 <b>${fmtPp(s.ex, 2)}</b> (t ${fmtNum(s.t, 2)} — ${tJudge(s.t, false, s.nx)})` +
+    (isNum(s.ex24) ? ` · 최근 2년을 빼면 ${fmtPp(s.ex24, 2)} (t ${fmtNum(s.t24, 2)})` : "") + ". 자세한 내용은 ‘규칙 검증’ 탭." : "";
+}
+function renderTrCtl(host, withCap) {
+  const U = S.ui.tr, pre = host.id;
+  if (!host.dataset.built) {
+    host.innerHTML =
+      `<span class="ctl-g"><label for="${pre}Th">비중 기준</label><select id="${pre}Th" data-tr="th">${TR_TH.map((v) => `<option value="${v}">200일선 위 업종 ${thPct(v)}% 이상</option>`).join("")}</select></span>` +
+      `<span class="ctl-g"><label for="${pre}Rs">RS 기준</label><select id="${pre}Rs" data-tr="rs">${KSC.RS_MODES.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></span>` +
+      `<span class="ctl-g"><label for="${pre}Fb">후보가 없을 때</label><select id="${pre}Fb" data-tr="fb">${Object.keys(TR_FB).map((k) => `<option value="${k}">${TR_FB[k]}</option>`).join("")}</select></span>` +
+      `<span class="ctl-g"><label for="${pre}Lag">체결 시점</label><select id="${pre}Lag" data-tr="lag">${TR_LAG.map((t, k) => `<option value="${k}">${t}</option>`).join("")}</select></span>` +
+      `<span class="ctl-g"><label for="${pre}Cost">매매 비용(편도)</label><input type="number" id="${pre}Cost" data-tr="cost" step="1" min="0" max="500" inputmode="decimal"><span class="dim">bp</span></span>` +
+      `<span class="ctl-g"><label for="${pre}Cash">현금 수익률</label><input type="number" id="${pre}Cash" data-tr="cash" step="0.1" min="-5" max="30" inputmode="decimal"><span class="dim">%/년</span></span>` +
+      (withCap ? `<span class="ctl-g"><label for="${pre}Cap">투자 금액</label><input type="number" id="${pre}Cap" data-tr="cap" step="1000000" min="0" inputmode="numeric" placeholder="선택"><span class="dim">원</span></span>` : "");
+    host.dataset.built = "1";
+  }
+  const set = (k, v) => { const el = host.querySelector(`[data-tr="${k}"]`); if (el && document.activeElement !== el) { el.value = v; el.setAttribute("aria-invalid", "false"); } };
+  set("th", String(U.th)); set("rs", U.rs); set("fb", U.fb); set("lag", String(U.lag)); set("cost", String(U.cost)); set("cash", String(U.cash)); set("cap", U.cap === null ? "" : String(U.cap));
+  if (!host.querySelector('[aria-invalid="true"]')) $(pre === "trCtl" ? "trMsg" : "ruMsg").textContent = ""; // 잘못된 입력이 되돌려졌으면 안내도 지움
+}
+
+/* --- 규칙 검증 --- */
+function renderRules() {
+  const ok = !!S.sc.data;
+  $("ruBody").hidden = !ok; $("ruNoData").hidden = ok || !S.sc.err;
+  if (!ok) { $("vRules").textContent = S.sc.err ? "" : "업종 데이터를 불러오는 중…"; $("ruNoDataMsg").textContent = S.sc.err || ""; return; }
+  const st = scState(), R = trState(st);
+  renderTrCtl($("ruCtl"), false);
+  if (R.i0 < 0 || !R.stats.select) { $("vRules").textContent = "규칙을 검증하려면 모든 업종에 252거래일 이상의 이력이 있고, 그 뒤로 끝난 달이 2개 이상 있어야 합니다."; $("ruBody").hidden = true; return; }
+  renderRuVerdict(st, R);
+  renderRuChart(st, R);
+  renderRuPerf(st, R);
+  renderRuMonths(st, R);
+}
+const ruHead = (R) => { const dm = R.months.filter((m) => m.done); return { n: dm.length, from: dm[0].date, to: dm[dm.length - 1].end }; }; // 끝난 달 전체 (규칙 검증 머리말)
+function renderRuVerdict(st, R) {
+  const U = S.ui.tr, s = R.stats, se = s.select, c = s.combo, tm = s.timing, k = s.kospi, A = trAlt(st).stats, H = ruHead(R);
+  const own = (x) => (x.n !== H.n || x.from !== H.from || x.to !== H.to ? `${x.from}~${x.to} ${x.n}개월` : ""); // 표본이 끝난 달 전체와 다른 규칙은 기간을 따로 표시
+  let v = `<strong>${H.from} ~ ${H.to}</strong> 월말 신호 · 끝난 ${H.n}개월`;
+  if (c) v += ` · 결합 규칙 연복리 <strong>${fmtPct(c.cagr, 1)}</strong> · 최대 낙폭 <strong>${fmtPct(c.mdd, 0)}</strong>${own(c) ? ` (${own(c)})` : ""}`;
+  if (k) v += own(k) || (c && own(c)) ? ` · KOSPI 보유 ${fmtPct(k.cagr, 1)} · ${fmtPct(k.mdd, 0)}${own(k) ? ` (${own(k)})` : ""}` : ` (KOSPI 보유 ${fmtPct(k.cagr, 1)} · ${fmtPct(k.mdd, 0)})`;
+  if (isNum(se.t)) v += `<br>업종 후보 규칙: 업종 동일가중보다 월 <strong>${fmtPp(se.ex, 2)}</strong> (t ${fmtNum(se.t, 2)}${se.nx !== H.n ? ` · ${se.nx}개월 비교` : ""}) — ${tJudge(se.t, false, se.nx)}` + (isNum(se.t24) ? ` · 최근 2년 빼면 ${fmtPp(se.ex24, 2)} (t ${fmtNum(se.t24, 2)})` : "");
+  else if (!isNum(se.ex)) v += `<br>업종 후보 규칙: 업종 동일가중과 비교할 수 있는 달이 ${se.nx}개월뿐이라 아직 판단할 수 없습니다.`;
+  if (tm && k) v += `<br>비중 신호만: 연복리 ${fmtPct(tm.cagr, 1)} · 최대 낙폭 <strong>${fmtPct(tm.mdd, 0)}</strong> (KOSPI ${fmtPct(k.cagr, 1)} · ${fmtPct(k.mdd, 0)}) · 투자한 달 ${fmtPct(tm.inv, 0, false)}${own(tm) ? ` · ${own(tm)}` : ""}`;
+  const cnt = (x, y) => (y && x.n === y.n ? "" : ` (${x.n}개월)`); // 체결 시점을 바꾸면 끝난 달 수가 달라질 수 있음
+  const alt = [A.combo ? `결합 연복리 ${fmtPct(A.combo.cagr, 1)} · 최대 낙폭 ${fmtPct(A.combo.mdd, 0)}${cnt(A.combo, c)}` : "", A.timing ? `비중 신호만 최대 낙폭 ${fmtPct(A.timing.mdd, 0)}${cnt(A.timing, tm)}` : "",
+    A.select && isNum(A.select.t) ? `업종 후보 초과 ${fmtPp(A.select.ex, 2)} (t ${fmtNum(A.select.t, 2)}${A.select.nx !== se.nx ? ` · ${A.select.nx}개월 비교` : ""})` : ""].filter(Boolean);
+  if (alt.length) v += `<br><span class="dim">${U.lag ? "신호 당일 월말 종가에 체결했다면" : "하루 늦게(다음 거래일 종가) 체결하면"}: ${alt.join(" · ")}</span>`;
+  if (R.skipped.length) {
+    const pos = {}, spans = []; // 이어진 월말끼리 한 구간으로
+    KSC.monthEnds(st.dates).forEach((i, q) => { pos[st.dates[i]] = q; });
+    for (const d of R.skipped) { const sp = spans[spans.length - 1]; if (sp && pos[d] === pos[sp[1]] + 1) sp[1] = d; else spans.push([d, d]); }
+    const txt = spans.slice(0, 3).map((sp) => (sp[0] === sp[1] ? sp[0] : `${sp[0]}~${sp[1]}`)).join(", ") + (spans.length > 3 ? ` 외 ${spans.length - 3}구간` : "");
+    v += `<br><span class="dim">값이 빠져 모든 업종을 판정할 수 없는 월말 ${R.skipped.length}개(${txt})는 신호 없이 건너뛰었고, 그다음 한 달씩의 수익률은 통계에 들어가지 않습니다.</span>`;
+  }
+  $("vRules").innerHTML = v;
+}
+function renderRuChart(st, R) {
+  const U = S.ui.tr, D = st.dates, T = st.T, yrs = SC_PERIODS[U.rp][1];
+  const i0 = Math.max(R.i0, yrs ? Math.max(0, lastOnOrBefore(D, shiftYears(D[T - 1], -yrs))) : 0), n = T - i0;
+  const ids = RU_ORDER.filter((id) => R.stats[id]), ser = {}, dd = {};
+  // 그릴 값: 보이는 구간 첫날만 남은 조각(다음 날 값이 없는 외딴 점)은 뺌
+  const val = (id, q) => { const a = R.nav[id], j = i0 + q; return a[j] === a[j] && (q > 0 || n === 1 || a[j + 1] === a[j + 1]); };
+  const first = {};
+  for (const id of ids) { first[id] = -1; for (let q = 0; q < n; q++) if (val(id, q)) { first[id] = q; break; } }
+  // 기준가 100 = 보이는 구간에서 표시한 선 모두에 값이 있는 첫날 (보통 첫 체결일 · 다음 거래일 체결이면 신호일 다음 날 · KOSPI 데이터가 늦게 시작하면 그 뒤)
+  // — 보이는 구간에 값이 없는 선은 빼고, 숨긴 선도 같은 날로 맞춤
+  const vis = ids.filter((id) => U.show.includes(id) && first[id] >= 0), bIds = vis.length ? vis : ids.filter((id) => first[id] >= 0);
+  let q0 = n, qb = 0;
+  for (const id of bIds) { q0 = Math.min(q0, first[id]); qb = Math.max(qb, first[id]); }
+  while (qb < n - 1 && bIds.some((id) => !val(id, qb))) qb++; // 그날 값이 빈 선(수익률이 없는 달)이 있으면 다음 날
+  const jb = i0 + qb;
+  for (const id of ids) {
+    const a = R.nav[id], y = new Float64Array(n), z = new Float64Array(n);
+    let b = NaN, pk = -Infinity;
+    for (let q = qb; q < n; q++) if (val(id, q)) { b = a[i0 + q]; break; } // 그날 값이 없는 선(수익률이 없는 달)은 다음 값 — 기준가는 빈 달을 건너 같은 수준으로 이어짐
+    for (let q = 0; q < n; q++) {
+      const v = val(id, q) ? (a[i0 + q] / b) * 100 : NaN;
+      y[q] = v;
+      if (v === v) { pk = Math.max(pk, v); z[q] = v / pk - 1; } else z[q] = NaN;
+    }
+    ser[id] = y; dd[id] = z;
+  }
+  const shades = [], N = st.N;
+  for (const m of R.months) {
+    if (m.b <= i0) continue;
+    const w = m.w.combo;
+    let sec = 0;
+    for (let s = 0; s < N; s++) sec += w[s];
+    const col = sec > 1e-9 ? "--c-buy" : w[N] > 1e-9 ? "--c-bh" : "--rule";
+    shades.push({ a: Math.max(m.a, i0) - i0 + 0.5, b: m.b - i0 + 0.5, color: () => rgba(css(col), col === "--rule" ? 0.35 : 0.62) });
+  }
+  const monthAt = (j) => { for (const m of R.months) if (m.a < j && j <= m.b) return m; return null; };
+  CH.rules.set({
+    d0: 0, d1: n - 1, dates: D.slice(i0), overview: { y: ser.kospi || ser.ew },
+    panels: [
+      { weight: 3, log: U.log, title: `기준가 (${D[jb]} = 100)` + (U.log ? " · 로그" : ""), yFmt: (v) => fmtNum(v, v >= 10 ? 0 : 1), hlines: [{ y: 100, color: "--rule", soft: true }],
+        series: ids.map((id) => ({ y: ser[id], color: RU_META[id][2], width: id === "combo" ? 2.2 : id === "kospi" ? 1.8 : 1.3, hidden: !U.show.includes(id) })) },
+      { weight: 1.2, title: "낙폭 (고점 대비)", yFmt: (v) => fmtPct(v, 0, false), yPad: 0.05, hlines: [{ y: 0, color: "--rule", soft: true }],
+        series: ids.map((id) => ({ y: dd[id], color: RU_META[id][2], width: id === "combo" ? 1.8 : 1.2, hidden: !U.show.includes(id) })) },
+      { weight: 0.3, yFmt: () => "", shades, series: [] },
+    ],
+    tooltip: (q) => {
+      const j = i0 + q, out = [{ head: `${D[j]} (${wday(D[j])})` }];
+      ids.filter((id) => U.show.includes(id)).forEach((id) => out.push({ k: RU_META[id][0], v: `${fmtNum(ser[id][q], 1)} <span class="dim">${fmtPct(dd[id][q], 1)}</span>`, color: RU_META[id][2] }));
+      const m = monthAt(j);
+      if (m) out.push({ k: "결합 보유", v: `${esc(holdShort(st, m))} <span class="dim">(${m.sig.date} 신호)</span>` });
+      return out;
+    },
+  });
+  document.querySelectorAll("#ruPresets [data-rp]").forEach((b) => b.setAttribute("aria-pressed", String(U.rp === b.dataset.rp)));
+  $("ruChips").innerHTML = ids.map((id) => `<button class="chip" type="button" data-rus="${id}" aria-pressed="${U.show.includes(id)}"><i class="ln" style="background:var(${RU_META[id][2]})"></i>${RU_META[id][0]}</button>`).join("") +
+    `<button class="chip" type="button" data-rus="log" aria-pressed="${U.log}"><i style="background:var(--ink-2)"></i>로그</button>`;
+  $("ruNavSub").textContent = `${D[i0]} ~ ${D[T - 1]} · 월말 신호 · 체결 ${TR_LAG[U.lag]} · 비용 편도 ${U.cost}bp · 현금 ${fmtNum(U.cash, 1)}%/년 · 배당 제외 가격지수` + (R.months.length && !R.months[R.months.length - 1].done ? " · 마지막 달은 진행 중" : "");
+  $("ruChNote").innerHTML = `선: ${ids.map((id) => `<span class="sec"><i style="background:var(${RU_META[id][2]})"></i>${RU_META[id][0]}</span>`).join(" · ")}` +
+    ` · 맨 아래 띠 (결합 규칙): <span class="sec"><i style="background:var(--c-buy)"></i>업종 보유</span>` + (R.hasK ? ` <span class="sec"><i style="background:var(--c-bh)"></i>KOSPI</span>` : "") + ` <span class="sec"><i style="background:var(--rule)"></i>현금</span>` +
+    (vis.length && qb > q0 ? ` · 표시한 선 중 늦게 시작하거나 값이 빈 선이 있어 모두 값이 있는 첫날(${D[jb]})을 100으로 맞췄습니다` : "") +
+    (ids.some((id) => U.show.includes(id) && first[id] < 0) ? ` · 보이는 구간에 값이 없는 선: ${ids.filter((id) => U.show.includes(id) && first[id] < 0).map((id) => RU_META[id][0]).join(" · ")}` : "");
+}
+function renderRuPerf(st, R) {
+  const U = S.ui.tr, M = KSC.RS_MODES.find((q) => q.id === U.rs), ids = RU_ORDER.filter((id) => R.stats[id]);
+  let h = `<thead><tr><th class="l">규칙</th><th title="통계에 들어간 끝난 달 수">개월</th><th>연복리</th><th title="월말 기준가 기준">최대 낙폭</th><th>연 변동성</th><th title="연복리 ÷ 연 변동성">수익/변동성</th><th title="현금이 아닌 달의 비율">투자한 달</th>` +
+    `<th title="매달 목표 비중이 바뀐 정도 Σ|비중 변화| (사고판 양쪽 합)">회전율(월)</th><th class="l">비교 대상</th><th title="비교 대상 대비 월평균 차이">초과(월)</th><th title="Newey-West(3개월) t값">t값</th>` +
+    `<th title="정규 근사 양측 p값">p값</th><th title="차이가 0이 아닌 달 중 앞선 비율">이긴 달</th><th title="마지막으로 끝난 달까지 24개월(건너뛴 달 포함)을 빼고 다시 계산한 초과(월)과 t값">최근 2년 빼면</th><th class="l">판단</th></tr></thead><tbody>`;
+  for (const id of ids) {
+    const s = R.stats[id], meta = RU_META[id], b = s.bench === "kospi" && !R.hasK ? null : s.bench, x = isNum(s.ex);
+    const desc = id === "combo" ? `비중 신호 + 업종 후보 (후보가 없으면 ${U.fb === "kospi" && !R.hasK ? "현금 — KOSPI 데이터 없음" : TR_FB[U.fb]})` : meta[1];
+    h += `<tr${id === "st4" ? ' class="grp"' : ""}><td class="l"><span class="sec"><i style="background:var(${meta[2]})"></i><b>${meta[0]}</b></span><span class="sub">${esc(desc)}</span></td>` +
+      `<td>${s.n}</td><td class="${clsOf(s.cagr)}">${fmtPct(s.cagr, 1)}</td><td>${fmtPct(s.mdd, 0)}</td><td>${fmtPct(s.vol, 0, false)}</td><td>${fmtNum(s.rv, 2)}</td><td>${fmtPct(s.inv, 0, false)}</td>` +
+      `<td>${id === "kospi" || id === "ew" ? "–" : fmtPct(s.turn, 0, false)}</td><td class="l">${b ? RU_META[b][0] + (s.nx !== s.n ? ` <span class="dim">(${s.nx}개월 비교)</span>` : "") : "–"}</td>` +
+      `<td class="${x ? clsOf(s.ex) : ""}">${x ? fmtPp(s.ex, 2) : "–"}</td><td>${x ? fmtNum(s.t, 2) : "–"}</td><td>${x ? fmtP(s.p) : "–"}</td><td>${x ? fmtPct(s.hit, 0, false) : "–"}</td>` +
+      `<td>${x && isNum(s.ex24) ? `${fmtPp(s.ex24, 2)} <span class="dim">(t ${fmtNum(s.t24, 2)})</span>` : "–"}</td><td class="l">${x ? tJudge(s.t, true, s.nx) : b ? "표본 부족" : ""}</td></tr>`;
+  }
+  $("ruPerfTbl").innerHTML = h + "</tbody>";
+  const H = ruHead(R);
+  $("ruPerfSub").textContent = `${H.from} ~ ${H.to} 월말 신호 · 끝난 ${H.n}개월 · 비중 기준 ${thPct(U.th)}% · RS ${M.short} · 체결 ${TR_LAG[U.lag]} · 비용 편도 ${U.cost}bp · 현금 ${fmtNum(U.cash, 1)}%/년`;
+  $("ruPerfNote").innerHTML = `초과(월)·t값·p값·이긴 달은 ‘비교 대상’ 대비입니다 — 업종을 고르는 규칙(업종 후보만 · RS 상위 5 · 4단계 업종)은 업종 동일가중과, 결합 · 비중 신호만 · 업종 동일가중은 KOSPI 보유와 비교하며, 둘 다 수익률이 있는 달만 비교합니다(그 수가 개월과 다르면 비교 대상 옆에 표시). ` +
+    `여러 규칙을 함께 보면 t값 2 안팎은 우연과 구분하기 어렵고, ‘최근 2년 빼면’이 크게 줄면 성과의 상당 부분이 최근 장세 덕분입니다. 판단: |t| 3 이상 ‘강한 편’, 2~3 ‘경계선’, 2 미만 ‘우연 수준’(우연과 구분하기 어려움), 비교한 달이 ${TR_MIN_N}개월 미만이면 ‘표본 부족’, 차이가 매달 같아 t값을 구할 수 없으면 ‘판단 불가’.` +
+    (R.stats.timing || R.stats.kospi ? " ‘비중 신호만’·‘KOSPI 보유’는 KOSPI 수익률이 있는 달만 셉니다." : "");
+}
+function renderRuMonths(st, R) {
+  const ms = R.months.slice().reverse(), cols = R.hasK ? ["combo", "kospi", "select", "ew"] : ["combo", "select", "ew"];
+  let h = `<thead><tr><th>신호 월말</th><th>200일선 위</th><th>비중</th><th class="l">결합 보유</th><th title="비용 포함">결합</th>${R.hasK ? "<th>KOSPI</th>" : ""}<th title="2단계 + RS 70 이상 같은 비중 (없으면 업종 동일가중) · 비용 포함">업종 후보만</th><th>업종 동일가중</th></tr></thead><tbody>`;
+  const sk = R.skipped.slice().reverse(); // 값이 빠져 건너뛴 월말도 제자리에 표시
+  for (const m of ms) {
+    while (sk.length && sk[0] > m.date) h += `<tr><td>${sk.shift()}</td><td class="l dim" colspan="${4 + cols.length}">값이 빠져 판정할 수 없는 업종이 있어 신호 없음 (그다음 한 달은 통계에서 뺌)</td></tr>`;
+    const g = m.sig;
+    h += `<tr${m.done ? "" : ' class="cur"'}><td>${g.date}${m.done ? "" : ' <span class="dim">(진행 중)</span>'}</td><td>${g.a200}/${g.n200} <span class="dim">${fmtNum(g.share * 100, 0)}%</span></td>` +
+      `<td><span class="act ${g.inMkt ? "keep" : "cash"}">${g.inMkt ? "보유" : "현금"}</span></td><td class="l">${esc(holdShort(st, m))}</td>` +
+      cols.map((id) => `<td class="${clsOf(m.ret[id])}">${fmtPct(m.ret[id], 1)}</td>`).join("") + "</tr>";
+  }
+  $("ruMonTbl").innerHTML = h + "</tbody>";
+  $("ruMonSub").textContent = `월말 신호 → 다음 월말까지 수익률 · 최신순 · ${R.months.length}개월` + (R.skipped.length ? ` · 값이 빠져 건너뛴 월말 ${R.skipped.length}개` : "");
+}
+function dlRules() {
+  const R = S.tr.res, st = S.sc.st;
+  if (!R || !R.months.length) return;
+  const out = [["signal_date", "entry_date", "exit_date", "complete", "above_sma200", "sectors_with_sma200", "share_above", "in_market", "combo_holdings", "candidates",
+    "ret_combo", "ret_timing", "ret_select", "ret_top5", "ret_stage4", "ret_kospi", "ret_equal_weight", "turnover_combo"]];
+  for (const m of R.months) {
+    const g = m.sig;
+    out.push([g.date, m.entry, m.exit, m.done ? 1 : 0, g.a200, g.n200, g.share, g.inMkt ? 1 : 0, holdShort(st, m, true), g.cands.map((s) => st.names[s]).join(";"),
+      m.ret.combo, m.ret.timing, m.ret.select, m.ret.top5, m.ret.st4, m.ret.kospi, m.ret.ew, m.turn.combo]);
+  }
+  download(`kospi_sector_rules_${R.months[0].date}_${R.months[R.months.length - 1].exit}.csv`, out);
+}
+function wireTrade() {
+  const check = (el, msgId) => {
+    const k = el.dataset.tr, raw = el.value, bad = (msg) => { el.setAttribute("aria-invalid", "true"); $(msgId).textContent = msg; };
+    let v;
+    if (k === "th") { v = +raw; if (!TR_TH.includes(v)) return; }
+    else if (k === "rs") { if (!KSC.RS_IDS.includes(raw)) return; v = raw; }
+    else if (k === "fb") { if (!Object.prototype.hasOwnProperty.call(TR_FB, raw)) return; v = raw; }
+    else if (k === "lag") { v = +raw; if (v !== 0 && v !== 1) return; }
+    else if (k === "cost") { v = raw === "" ? NaN : +raw; if (!isNum(v) || v < 0 || v > 500) return bad("매매 비용은 0~500bp 사이로 입력하세요."); }
+    else if (k === "cash") { v = raw === "" ? NaN : +raw; if (!isNum(v) || v < -5 || v > 30) return bad("현금 수익률은 −5~30%/년 사이로 입력하세요."); }
+    else if (k === "cap") { v = raw === "" && !(el.validity && el.validity.badInput) ? null : raw === "" ? NaN : +raw; if (v !== null && (!isNum(v) || v < 0 || v > 1e13)) return bad("투자 금액은 0 이상 10조 원 이하의 숫자로 입력하세요 (비우면 금액을 계산하지 않음)."); }
+    else return;
+    el.setAttribute("aria-invalid", "false"); $(msgId).textContent = "";
+    trApply((U) => { U[k] = v; });
+  };
+  const onCtl = (host, msgId) => {
+    host.addEventListener("change", (ev) => { const el = ev.target.closest("[data-tr]"); if (el) check(el, msgId); });
+    // 빈 칸에 숫자가 아닌 글자를 넣거나 거부된 값을 지우면 change 가 오지 않으므로 칸을 떠날 때 다시 확인
+    host.addEventListener("focusout", (ev) => {
+      const el = ev.target.closest("input[data-tr]");
+      if (el && ((el.validity && el.validity.badInput) || el.getAttribute("aria-invalid") === "true")) check(el, msgId);
+    });
+  };
+  onCtl($("trCtl"), "trMsg");
+  onCtl($("ruCtl"), "ruMsg");
+  $("ruPresets").addEventListener("click", (ev) => { const b = ev.target.closest("[data-rp]"); if (b) trApply((U) => { U.rp = b.dataset.rp; }); });
+  $("ruChips").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rus]");
+    if (!b) return;
+    const k = b.dataset.rus;
+    trApply((U) => { if (k === "log") U.log = !U.log; else U.show = U.show.includes(k) ? U.show.filter((x) => x !== k) : U.show.concat([k]); });
+  });
+  $("ruCsv").addEventListener("click", dlRules);
+  ["trUpload", "ruUpload"].forEach((id) => $(id).addEventListener("click", () => $("fileInput").click()));
+}
+
 /* ---------- 데이터 창 ---------- */
 function openData() {
   renderReport();
@@ -3163,6 +3667,9 @@ function setData(data, src) {
   if (!update()) {
     const n = data.dates.length.toLocaleString("ko-KR");
     noDataState(`불러온 데이터(${n}행)로 분석할 수 없습니다: ${$("ctrlMsg").textContent || "기간 또는 조건을 확인하세요."}`);
+    // 3번 묶음은 1번 분석 결과가 아니라 KOSPI 종가만 날짜에 맞춰 쓰므로, 분석에 실패해도 바뀐 KOSPI 데이터로 다시 그림
+    scDirty();
+    if (GROUP_OF[S.ui.tab].id === "trend") renderTab(S.ui.tab);
   }
 }
 function noDataState(msg) {
@@ -3329,12 +3836,14 @@ function makeCharts() {
   CH.tiger = new TimeChart($("chTiger"), { height: 460, minHeight: 360, overview: true, view: VIEW.tiger });
   CH.sector = new TimeChart($("chSector"), { height: 440, minHeight: 340, overview: true, view: VIEW.sector });
   CH.breadth = new TimeChart($("chBreadth"), { height: 540, minHeight: 420, overview: true, view: VIEW.breadth });
+  CH.rules = new TimeChart($("chRules"), { height: 480, minHeight: 360, overview: true, view: VIEW.rules });
   const dates = () => S.data && S.data.dates;
   mountViewBar($("vbMain"), () => VIEW.main, [VIEW.main], dates, analyzeRange);
   navBarUpd = mountViewBar($("vbNav"), () => (S.ui.link ? VIEW.main : VIEW.nav), [VIEW.main, VIEW.nav], dates, analyzeRange);
   mountViewBar($("vbTiger"), () => VIEW.tiger, [VIEW.tiger], () => (S.tg.res && S.tg.res.ok ? S.tg.res.dates : null), null);
   mountViewBar($("vbSector"), () => VIEW.sector, [VIEW.sector], () => (CH.sector.spec ? CH.sector.spec.dates : null), null);
   mountViewBar($("vbBreadth"), () => VIEW.breadth, [VIEW.breadth], () => (CH.breadth.spec ? CH.breadth.spec.dates : null), null);
+  mountViewBar($("vbRules"), () => VIEW.rules, [VIEW.rules], () => (CH.rules.spec ? CH.rules.spec.dates : null), null);
 }
 async function init() {
   loadSettings();
@@ -3347,6 +3856,7 @@ async function init() {
   wire();
   wireTiger();
   wireSector();
+  wireTrade();
   $("stratSel").value = S.ui.overlay; $("crit").value = S.ui.crit; $("heatTarget").value = S.ui.heatTarget;
   document.querySelectorAll("#showChips [data-show]").forEach((b) => b.setAttribute("aria-pressed", String(!!S.ui.show[b.dataset.show])));
   syncNav();
