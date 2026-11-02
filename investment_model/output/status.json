@@ -1,8 +1,8 @@
 {
- "task": "data_only",
- "updated_at": "2026-10-22T05:43:35+00:00",
+ "task": "monthly",
+ "updated_at": "2026-11-02T01:29:48+00:00",
  "status": "success",
- "message": "데이터 갱신",
+ "message": "데이터 + 모델 갱신",
  "guards": {
   "status": "OK",
   "errors": 0,
@@ -11,23 +11,15 @@
  },
  "validation": {
   "summary": {
-   "status": "WARN",
+   "status": "PASS",
    "errors": 0,
-   "warnings": 1,
+   "warnings": 0,
    "info": 7
   },
-  "items": [
-   {
-    "level": "WARN",
-    "area": "Market",
-    "check": "월말 여부",
-    "target": "2026-10-21",
-    "detail": "월 마지막 거래일(2026-10-30) 이전 데이터 — 부분 월 기준 산출(최근 확정 종가 사용)"
-   }
-  ]
+  "items": []
  },
- "model_ran": false,
- "as_of": "2026-10-21",
+ "model_ran": true,
+ "as_of": "2026-10-30",
  "peers": {
   "status": "ok",
   "tickers": 12,
@@ -36,27 +28,27 @@
   "build": "ok"
  },
  "latest_prices": {
-  "date": "2026-10-21",
+  "date": "2026-10-30",
   "tickers": 25,
   "lagging": [],
   "missing": []
  },
- "runtime_sec": 58.6,
- "market_data_date": "2026-10-21",
- "market_downloaded_at": "2026-10-22T05:43:43",
- "macro_data_date": "2026-10-21",
- "macro_updated_at": "2026-10-22T05:43:59",
- "data_as_of": "2026-10-21",
+ "runtime_sec": 52.4,
+ "market_data_date": "2026-10-30",
+ "market_downloaded_at": "2026-11-02T01:29:55",
+ "macro_data_date": "2026-10-30",
+ "macro_updated_at": "2026-11-02T01:30:03",
+ "data_as_of": "2026-10-30",
  "alfred_vintages": 12,
  "model": {
-  "month": "2026-09",
-  "data_as_of": "2026-09-30",
-  "rebalance_date": "2026-10-01",
-  "target_month": "2026-10",
+  "month": "2026-10",
+  "data_as_of": "2026-10-30",
+  "rebalance_date": "2026-11-02",
+  "target_month": "2026-11",
   "status": "OK (warnings)",
-  "run_at": "2026-09-30T23:46:37"
+  "run_at": "2026-11-02T01:30:29"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/39729614450",
- "last_success_at": "2026-10-22T05:43:35+00:00"
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/41372735290",
+ "last_success_at": "2026-11-02T01:29:48+00:00"
 }
