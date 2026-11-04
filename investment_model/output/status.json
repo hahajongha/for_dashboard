@@ -1,6 +1,6 @@
 {
  "task": "monthly",
- "updated_at": "2026-11-03T03:28:26+00:00",
+ "updated_at": "2026-11-04T02:17:22+00:00",
  "status": "skipped",
  "message": "history/2026-10 가 이미 있습니다 (마감 월 보호, --force로 재계산)",
  "guards": null,
@@ -21,6 +21,6 @@
   "run_at": "2026-11-02T01:30:29"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/41572351857",
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/41759697108",
  "last_success_at": "2026-11-02T01:29:48+00:00"
 }
