@@ -1,33 +1,52 @@
 {
  "task": "data_only",
- "updated_at": "2026-11-13T06:43:08+00:00",
- "status": "failed",
- "message": "데이터 가드 실패 2건 — 기존 데이터 유지",
+ "updated_at": "2026-11-13T06:49:42+00:00",
+ "status": "success",
+ "message": "데이터 갱신",
  "guards": {
-  "status": "FAIL",
-  "errors": 2,
+  "status": "OK",
+  "errors": 0,
   "warnings": 0,
+  "items": []
+ },
+ "validation": {
+  "summary": {
+   "status": "WARN",
+   "errors": 0,
+   "warnings": 1,
+   "info": 6
+  },
   "items": [
    {
-    "level": "ERROR",
-    "area": "market",
-    "msg": "데이터 없는 티커: ['JEPQ']"
-   },
-   {
-    "level": "ERROR",
-    "area": "market",
-    "msg": "과거 관측치 소실: {'JEPQ': 1128}"
+    "level": "WARN",
+    "area": "Market",
+    "check": "월말 여부",
+    "target": "2026-11-12",
+    "detail": "월 마지막 거래일(2026-11-30) 이전 데이터 — 부분 월 기준 산출(최근 확정 종가 사용)"
    }
   ]
  },
- "validation": null,
  "model_ran": false,
  "as_of": "2026-11-12",
- "market_data_date": "2026-10-30",
- "market_downloaded_at": "2026-11-02T01:29:55",
- "macro_data_date": "2026-10-30",
- "macro_updated_at": "2026-11-02T01:30:03",
- "data_as_of": "2026-10-30",
+ "peers": {
+  "status": "ok",
+  "tickers": 12,
+  "kept_old": [],
+  "failed": [],
+  "build": "ok"
+ },
+ "latest_prices": {
+  "date": "2026-11-12",
+  "tickers": 25,
+  "lagging": [],
+  "missing": []
+ },
+ "runtime_sec": 69.3,
+ "market_data_date": "2026-11-12",
+ "market_downloaded_at": "2026-11-13T06:49:49",
+ "macro_data_date": "2026-11-12",
+ "macro_updated_at": "2026-11-13T06:49:57",
+ "data_as_of": "2026-11-12",
  "alfred_vintages": 12,
  "model": {
   "month": "2026-10",
@@ -38,6 +57,6 @@
   "run_at": "2026-11-02T01:30:29"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/43380582312",
- "last_success_at": "2026-11-02T01:29:48+00:00"
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/43381351377",
+ "last_success_at": "2026-11-13T06:49:42+00:00"
 }

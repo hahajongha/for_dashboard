@@ -145,3 +145,4 @@ observation_date,value,available_from,available_basis,first_seen
 2026-01-01,5.3,2026-04-30,release_rule_est,2026-09-30
 2026-04-01,8.1,2026-07-31,release_rule_est,2026-09-30
 2026-07-01,0.0,2026-10-31,release_rule_est,2026-09-30
+2026-10-01,1.7,2027-01-31,release_rule_est,2026-11-13
