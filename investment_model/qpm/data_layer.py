@@ -39,6 +39,55 @@ def _series_from_csv_text(text):
     return df.set_index("date")["value"].dropna().sort_index()
 
 
+def yf_download_retry(yf, tickers, start, end=None, log=print, retries=3, wait=3.0):
+    """yf.download(threads=True) 후, 값이 하나도 없는 티커만 순차(threads=False)로 다시 받는다.
+
+    yfinance는 스레드 다운로드 중 내부 SQLite 캐시가 잠겨(`database is locked`) 일부 티커를
+    빈 열로 돌려줄 수 있다 (2026-11-13 JEPQ). 같은 소스·같은 인자로 빈 티커만 다시 받아 채우며,
+    끝까지 비어 있으면 그대로 두어 ci_guards가 판정한다. 받은 값 자체는 바꾸지 않는다.
+    """
+    import time
+    kw = dict(start=start, end=end, auto_adjust=False, actions=True, progress=False)
+    df = yf.download(tickers, threads=True, **kw)
+    if df is None or df.empty or not isinstance(df.columns, pd.MultiIndex):
+        return df
+
+    def _missing(frame):
+        if "Adj Close" not in frame.columns.get_level_values(0):
+            return list(tickers)
+        adj = frame["Adj Close"].reindex(columns=tickers)
+        return [t for t in tickers if adj[t].notna().sum() == 0]
+
+    miss = _missing(df)
+    for attempt in range(1, retries + 1):
+        if not miss:
+            break
+        log(f"yfinance: retry {attempt}/{retries} (sequential) for {miss}")
+        time.sleep(wait * attempt)
+        try:
+            add = yf.download(miss, threads=False, **kw)
+        except Exception as e:  # 재시도 실패는 다음 회차로
+            log(f"yfinance: retry {attempt} error: {str(e)[:120]}")
+            continue
+        if add is None or add.empty:
+            continue
+        if not isinstance(add.columns, pd.MultiIndex):  # 단일 티커 평면 열 대비
+            add.columns = pd.MultiIndex.from_product([add.columns, miss])
+        got = [t for t in miss if "Adj Close" in add.columns.get_level_values(0)
+               and t in add["Adj Close"].columns and add["Adj Close"][t].notna().any()]
+        if not got:
+            continue
+        idx = df.index.union(add.index)
+        df = df.reindex(idx)
+        for col in add.columns:
+            if col[1] in got:
+                df[col] = add[col].reindex(idx)
+        miss = _missing(df)
+    if miss:
+        log(f"yfinance: still missing after retries: {miss}")
+    return df
+
+
 class DataLayer:
     def __init__(self, cfg: Config, log=print):
         self.cfg, self.log = cfg, log
@@ -53,8 +102,7 @@ class DataLayer:
         start = self.cfg.settings["market_start"]
         end_excl = (pd.Timestamp(as_of) + pd.Timedelta(days=1)).strftime("%Y-%m-%d") if as_of else None
         self.log(f"yfinance: {len(tickers)} tickers, start={start}, end(excl)={end_excl or 'latest'}")
-        df = yf.download(tickers, start=start, end=end_excl, auto_adjust=False, actions=True,
-                         progress=False, threads=True)
+        df = yf_download_retry(yf, tickers, start=start, end=end_excl, log=self.log)
         if df is None or df.empty:
             raise RuntimeError("yfinance returned no data (network/ticker problem)")
         lvl0 = df.columns.get_level_values(0)

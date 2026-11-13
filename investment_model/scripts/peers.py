@@ -44,8 +44,8 @@ def update_prices(root: Path, data_dir: Path, as_of=None, log=print) -> dict:
     try:
         import yfinance as yf
         end = (pd.Timestamp(as_of) + pd.Timedelta(days=1)).strftime("%Y-%m-%d") if as_of else None
-        df = yf.download(tickers, start=conf.get("start", "2009-01-01"), end=end, auto_adjust=False,
-                         actions=True, progress=False, threads=True)
+        from qpm.data_layer import yf_download_retry
+        df = yf_download_retry(yf, tickers, start=conf.get("start", "2009-01-01"), end=end, log=log)
         if df is None or df.empty:
             raise RuntimeError("yfinance returned no data")
     except Exception as e:  # 네트워크 등 — 기존 데이터 유지
