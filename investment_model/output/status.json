@@ -1,11 +1,28 @@
 {
- "task": "monthly",
- "updated_at": "2026-11-06T02:23:23+00:00",
- "status": "skipped",
- "message": "history/2026-10 가 이미 있습니다 (마감 월 보호, --force로 재계산)",
- "guards": null,
+ "task": "data_only",
+ "updated_at": "2026-11-13T06:43:08+00:00",
+ "status": "failed",
+ "message": "데이터 가드 실패 2건 — 기존 데이터 유지",
+ "guards": {
+  "status": "FAIL",
+  "errors": 2,
+  "warnings": 0,
+  "items": [
+   {
+    "level": "ERROR",
+    "area": "market",
+    "msg": "데이터 없는 티커: ['JEPQ']"
+   },
+   {
+    "level": "ERROR",
+    "area": "market",
+    "msg": "과거 관측치 소실: {'JEPQ': 1128}"
+   }
+  ]
+ },
  "validation": null,
  "model_ran": false,
+ "as_of": "2026-11-12",
  "market_data_date": "2026-10-30",
  "market_downloaded_at": "2026-11-02T01:29:55",
  "macro_data_date": "2026-10-30",
@@ -21,6 +38,6 @@
   "run_at": "2026-11-02T01:30:29"
  },
  "workflow_url": "https://github.com/hahajongha/for_dashboard/actions/workflows/update-investment-data.yml",
- "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/42149951202",
+ "run_url": "https://github.com/hahajongha/for_dashboard/actions/runs/43380582312",
  "last_success_at": "2026-11-02T01:29:48+00:00"
 }
